@@ -55,18 +55,18 @@ export function meta({}: Route.MetaArgs) {
 export async function loader(args: Route.LoaderArgs) {
   const { userId } = await getAuth(args);
 
-  // Parallel data fetching to reduce waterfall
-  const [subscriptionData, plans] = await Promise.all([
-    userId
-      ? fetchQuery(api.subscriptions.checkUserSubscriptionStatus, {
-          userId,
-        }).catch((error) => {
-          console.error("Failed to fetch subscription data:", error);
-          return null;
-        })
-      : Promise.resolve(null),
-    fetchAction(api.subscriptions.getAvailablePlans),
-  ]);
+  // Skip Polar.sh integration - no payment processing needed
+  const subscriptionData = userId
+    ? await fetchQuery(api.subscriptions.checkUserSubscriptionStatus, {
+        userId,
+      }).catch((error) => {
+        console.error("Failed to fetch subscription data:", error);
+        return null;
+      })
+    : null;
+  
+  // Return empty plans object with items array instead of fetching from Polar.sh
+  const plans = { items: [] };
 
   return {
     isSignedIn: !!userId,

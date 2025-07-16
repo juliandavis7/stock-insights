@@ -32,6 +32,22 @@ export const chat = httpAction(async (ctx, req) => {
 
 const http = httpRouter();
 
+// Health check endpoint
+http.route({
+  path: "/health",
+  method: "GET",
+  handler: httpAction(async () => {
+    return new Response(JSON.stringify({ 
+      status: "ok", 
+      timestamp: new Date().toISOString(),
+      service: "convex-backend" 
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+  }),
+});
+
 http.route({
   path: "/api/chat",
   method: "POST",
