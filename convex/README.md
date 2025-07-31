@@ -3,6 +3,32 @@
 Write your Convex functions here.
 See https://docs.convex.dev/functions for more.
 
+## Financial Metrics Sourcing
+
+| Metric | Data Source | API Field / Calculation |
+|--------|-------------|------------------------|
+| **TTM PE** | ✅ AlphaVantage | `TrailingPE` |
+| **Forward PE** | ✅ AlphaVantage | `ForwardPE` |
+| **2 Year Forward PE** | 🧮 Analyst Estimates | Market Cap ÷ 2026 EPS estimate |
+| **TTM EPS Growth** | 🧮 Analyst Estimates | (Most recent EPS - Previous EPS) / Previous EPS × 100 |
+| **Current Yr EPS Growth** | 🧮 Analyst Estimates | (2025 EPS - 2024 EPS) / 2024 EPS × 100 |
+| **Next Year EPS Growth** | 🧮 Analyst Estimates | (2026 EPS - 2025 EPS) / 2025 EPS × 100 |
+| **TTM Rev Growth** | 🧮 Analyst Estimates | (Most recent Rev - Previous Rev) / Previous Rev × 100 |
+| **Current Year Exp Rev Growth** | 🧮 Analyst Estimates | (2025 Rev - 2024 Rev) / 2024 Rev × 100 |
+| **Next Year Rev Growth** | 🧮 Analyst Estimates | (2026 Rev - 2025 Rev) / 2025 Rev × 100 |
+| **Gross Margin** | ✅ AlphaVantage | `GrossProfitTTM` ÷ `RevenueTTM` × 100 |
+| **Net Margin** | ✅ AlphaVantage | `ProfitMargin` × 100 |
+| **TTM P/S Ratio** | ✅ AlphaVantage | `PriceToSalesRatioTTM` |
+| **Forward P/S Ratio** | 🧮 Analyst Estimates | Market Cap ÷ 2025 Revenue estimate |
+
+**Summary:**
+- **✅ AlphaVantage**: 6 metrics (46%)
+- **🧮 Analyst Estimates**: 7 metrics (54%)
+
+**API Calls Required:**
+- AlphaVantage Company Overview API
+- Financial Modeling Prep Analyst Estimates API
+
 A query function that takes two arguments looks like:
 
 ```ts
