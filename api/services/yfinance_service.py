@@ -3,7 +3,7 @@
 import yfinance as yf
 import logging
 from typing import Dict, Any, Optional
-from ..utils.data_extractors import DataExtractor
+from .. import util
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +12,7 @@ class YFinanceService:
     """Service for interacting with Yahoo Finance API via yfinance."""
     
     def __init__(self):
-        self.data_extractor = DataExtractor()
+        pass
     
     def fetch_stock_info(self, ticker: str) -> Optional[Dict[str, float]]:
         """
@@ -38,7 +38,21 @@ class YFinanceService:
                 return None
                 
             # Use data extractor to process the info
-            extracted_metrics = self.data_extractor.extract_stock_info_metrics(info)
+            # Extract key metrics manually instead of using DataExtractor
+            extracted_metrics = {
+                'trailing_pe': info.get('trailingPE'),
+                'forward_pe': info.get('forwardPE'),
+                'price_to_sales_ttm': info.get('priceToSalesTrailing12Months'),
+                'gross_margins': info.get('grossMargins'),
+                'profit_margins': info.get('profitMargins'),
+                'earnings_growth': info.get('earningsGrowth', 0) * 100 if info.get('earningsGrowth') else None,
+                'revenue_growth': info.get('revenueGrowth', 0) * 100 if info.get('revenueGrowth') else None,
+                'market_cap': info.get('marketCap'),
+                'enterprise_value': info.get('enterpriseValue'),
+                'shares_outstanding': info.get('sharesOutstanding'),
+                'current_price': info.get('currentPrice'),
+                'total_revenue': info.get('totalRevenue')
+            }
             
             # Add some additional processing
             result = {

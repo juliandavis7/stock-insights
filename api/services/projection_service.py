@@ -5,8 +5,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from .fmp_service import FMPService
 from .yfinance_service import YFinanceService
-from ..utils.validators import ProjectionValidator
-from ..utils.calculators import ProjectionCalculator
+from .. import util
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +16,6 @@ class ProjectionService:
     def __init__(self, fmp_service: Optional[FMPService] = None, yfinance_service: Optional[YFinanceService] = None):
         self.fmp_service = fmp_service or FMPService()
         self.yfinance_service = yfinance_service or YFinanceService()
-        self.validator = ProjectionValidator()
-        self.calculator = ProjectionCalculator()
     
     def calculate_financial_projections(
         self,
@@ -47,7 +44,7 @@ class ProjectionService:
         
         try:
             # Validate inputs
-            validation_errors = self.validator.validate_projection_inputs(projection_inputs)
+            validation_errors = util.validate_projection_inputs(projection_inputs)
             if validation_errors:
                 return {
                     'success': False,
@@ -120,8 +117,10 @@ class ProjectionService:
         """Get current year financial data."""
         if provided_data:
             # Validate provided data
-            required_fields = ['revenue', 'net_income']
-            validation_errors = self.validator.validate_financial_data(provided_data, required_fields)
+            required_fields = ['revenue', 'net_income']  
+            validation_errors = []
+            if not all(field in provided_data and isinstance(provided_data[field], (int, float)) for field in required_fields):
+                validation_errors = ['Missing or invalid required fields']
             if not validation_errors:
                 return provided_data
             else:
@@ -180,26 +179,26 @@ class ProjectionService:
             inputs = projection_inputs[year]
             
             # Calculate projected financials
-            projected_revenue = self.calculator.calculate_projected_revenue(
+            projected_revenue = util.calculate_projected_revenue(
                 prev_revenue, inputs['revenue_growth']
             )
             
-            projected_net_income = self.calculator.calculate_projected_net_income(
+            projected_net_income = util.calculate_projected_net_income(
                 prev_net_income, inputs['net_income_growth']
             )
             
             # Calculate EPS
-            eps = self.calculator.calculate_eps(projected_net_income, shares_outstanding)
+            eps = util.calculate_eps(projected_net_income, shares_outstanding)
             
             # Calculate stock price range
-            price_range = self.calculator.calculate_stock_price_range(
+            price_range = util.calculate_stock_price_range(
                 eps, inputs['pe_low'], inputs['pe_high']
             )
             
             # Calculate CAGR
             years_from_current = year - current_year
-            cagr_low = self.calculator.calculate_cagr(current_price, price_range['low'], years_from_current)
-            cagr_high = self.calculator.calculate_cagr(current_price, price_range['high'], years_from_current)
+            cagr_low = util.calculate_cagr(current_price, price_range['low'], years_from_current)
+            cagr_high = util.calculate_cagr(current_price, price_range['high'], years_from_current)
             
             # Store projections
             projections[year] = {
