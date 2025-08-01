@@ -8,41 +8,19 @@ import { Label } from "~/components/ui/label";
 import { Search } from "lucide-react";
 
 interface FinancialMetrics {
-  symbol: string;
-  currentPrice: number;
-  currentPriceSource: 'provided' | 'fetched' | 'default';
-  marketCap: number | null;
-  
-  // Required PE Ratios
-  ttmPE: number | null;
-  forwardPE: number | null;
-  twoYearForwardPE: number | null;
-  
-  // Required EPS Growth
-  ttmEPSGrowth: number | null;
-  currentYearEPSGrowth: number | null;
-  nextYearEPSGrowth: number | null;
-  
-  // Required Revenue Growth
-  ttmRevenueGrowth: number | null;
-  currentYearExpectedRevenueGrowth: number | null;
-  nextYearRevenueGrowth: number | null;
-  
-  // Required Margins
-  grossMargin: number | null;
-  netMargin: number | null;
-  
-  // Required Price-to-Sales
-  ttmPriceToSales: number | null;
-  forwardPriceToSales: number | null;
-}
-
-interface MetricsResponse {
-  success: boolean;
-  data: FinancialMetrics;
-  timestamp: string;
-  error?: string;
-  message?: string;
+  TTM_PE: number | null;
+  Forward_PE: number | null;
+  Two_Year_Forward_PE: number | null;
+  TTM_EPS_Growth: number | null;
+  Current_Year_EPS_Growth: number | null;
+  Next_Year_EPS_Growth: number | null;
+  TTM_Revenue_Growth: number | null;
+  Current_Year_Revenue_Growth: number | null;
+  Next_Year_Revenue_Growth: number | null;
+  Gross_Margin: number | null;
+  Net_Margin: number | null;
+  TTM_PS_Ratio: number | null;
+  Forward_PS_Ratio: number | null;
 }
 
 const formatCurrency = (value: number | null): string => {
@@ -92,25 +70,21 @@ export default function MetricsPage() {
   const [error, setError] = useState<string | null>(null);
   const [stockSymbol, setStockSymbol] = useState("AAPL");
 
-  // Hard-coded sample data matching the CLAUDE.md specification
+  // Hard-coded sample data matching the FastAPI response structure
   const sampleMetrics: FinancialMetrics = {
-    symbol: "AAPL",
-    currentPrice: 76.72,
-    currentPriceSource: 'provided',
-    marketCap: 79020000000, // 79.02B
-    ttmPE: 17.80,
-    forwardPE: 17.13,
-    twoYearForwardPE: 15.97,
-    ttmEPSGrowth: 15.37,
-    currentYearEPSGrowth: 7.60,
-    nextYearEPSGrowth: 12.64,
-    ttmRevenueGrowth: 8.66,
-    currentYearExpectedRevenueGrowth: 8.67,
-    nextYearRevenueGrowth: 8.95,
-    grossMargin: 40.23,
-    netMargin: 14.31,
-    ttmPriceToSales: 2.55,
-    forwardPriceToSales: 2.54
+    TTM_PE: 17.80,
+    Forward_PE: 17.13,
+    Two_Year_Forward_PE: 15.97,
+    TTM_EPS_Growth: 15.37,
+    Current_Year_EPS_Growth: 7.60,
+    Next_Year_EPS_Growth: 12.64,
+    TTM_Revenue_Growth: 8.66,
+    Current_Year_Revenue_Growth: 8.67,
+    Next_Year_Revenue_Growth: 8.95,
+    Gross_Margin: 40.23,
+    Net_Margin: 14.31,
+    TTM_PS_Ratio: 2.55,
+    Forward_PS_Ratio: 2.54
   };
 
   const fetchMetrics = async (symbol: string) => {
@@ -118,29 +92,21 @@ export default function MetricsPage() {
     setError(null);
     
     try {
-      const convexUrl = import.meta.env.VITE_CONVEX_URL || "http://127.0.0.1:3211";
-      const response = await fetch(`${convexUrl}/stock/metrics?stock_name=${symbol.toUpperCase()}`);
+      const fastApiUrl = import.meta.env.VITE_FASTAPI_URL || "http://127.0.0.1:8000";
+      const response = await fetch(`${fastApiUrl}/metrics?ticker=${symbol.toUpperCase()}`);
       
       if (!response.ok) {
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
       
-      const data: MetricsResponse = await response.json();
-      
-      if (data.success) {
-        setMetrics(data.data);
-      } else {
-        setError(data.message || "Failed to fetch metrics");
-      }
+      const data: FinancialMetrics = await response.json();
+      setMetrics(data);
     } catch (err) {
       console.error("Error fetching stock metrics:", err);
       setError(err instanceof Error ? err.message : "Error fetching stock metrics");
       
       // Fallback to sample data if API fails
-      setMetrics({
-        ...sampleMetrics,
-        symbol: symbol.toUpperCase()
-      });
+      setMetrics(sampleMetrics);
     } finally {
       setLoading(false);
     }
@@ -160,7 +126,8 @@ export default function MetricsPage() {
   return (
     <div className="flex flex-1 flex-col">
       <div className="@container/main flex flex-1 flex-col gap-2">
-        <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
+        <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6 items-center">
+          <div className="w-full max-w-4xl">
           {/* Search Form */}
           <Card>
             <CardHeader>
@@ -212,11 +179,11 @@ export default function MetricsPage() {
             </Card>
           ) : metrics ? (
             <div className="space-y-6">
-              {/* Header with Stock Price and Market Cap */}
+              {/* Header with Stock Symbol */}
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-lg font-semibold text-center">
-                    <span className="uppercase">{metrics.symbol}</span> STOCK PRICE: {formatCurrency(metrics.currentPrice)} | MKT.CAP {formatLargeNumber(metrics.marketCap)}
+                    <span className="uppercase">{stockSymbol}</span> STOCK METRICS
                   </div>
                 </CardContent>
               </Card>
@@ -236,67 +203,67 @@ export default function MetricsPage() {
                       <tbody>
                         <MetricRow
                           metric="TTM PE"
-                          value={formatRatio(metrics.ttmPE)}
+                          value={formatRatio(metrics.TTM_PE)}
                           benchmark="Many stocks trade at 20-28"
                         />
                         <MetricRow
                           metric="Forward PE"
-                          value={formatRatio(metrics.forwardPE)}
+                          value={formatRatio(metrics.Forward_PE)}
                           benchmark="Many stocks trade at 18-26"
                         />
                         <MetricRow
                           metric="2 Year Forward PE"
-                          value={formatRatio(metrics.twoYearForwardPE)}
+                          value={formatRatio(metrics.Two_Year_Forward_PE)}
                           benchmark="Many stocks trade at 16-24"
                         />
                         <MetricRow
                           metric="TTM EPS Growth"
-                          value={formatPercentage(metrics.ttmEPSGrowth)}
+                          value={formatPercentage(metrics.TTM_EPS_Growth)}
                           benchmark="Many stocks trade at 8-12%"
                         />
                         <MetricRow
                           metric="Current Yr Exp EPS Growth"
-                          value={formatPercentage(metrics.currentYearEPSGrowth)}
+                          value={formatPercentage(metrics.Current_Year_EPS_Growth)}
                           benchmark="Many stocks trade at 8-12%"
                         />
                         <MetricRow
                           metric="Next Year EPS Growth"
-                          value={formatPercentage(metrics.nextYearEPSGrowth)}
+                          value={formatPercentage(metrics.Next_Year_EPS_Growth)}
                           benchmark="Many stocks trade at 8-12%"
                         />
                         <MetricRow
                           metric="TTM Rev Growth"
-                          value={formatPercentage(metrics.ttmRevenueGrowth)}
+                          value={formatPercentage(metrics.TTM_Revenue_Growth)}
                           benchmark="Many stocks trade at 4.5-6.5%"
                         />
                         <MetricRow
                           metric="Current Yr Exp Rev Growth"
-                          value={formatPercentage(metrics.currentYearExpectedRevenueGrowth)}
+                          value={formatPercentage(metrics.Current_Year_Revenue_Growth)}
                           benchmark="Many stocks trade at 4.5-6.5%"
                         />
                         <MetricRow
                           metric="Next Year Rev Growth"
-                          value={formatPercentage(metrics.nextYearRevenueGrowth)}
+                          value={formatPercentage(metrics.Next_Year_Revenue_Growth)}
                           benchmark="Many stocks trade at 4.5-6.5%"
                         />
                         <MetricRow
                           metric="Gross Margin"
-                          value={formatPercentage(metrics.grossMargin)}
+                          value={formatPercentage(metrics.Gross_Margin && metrics.Gross_Margin * 100)}
                           benchmark="Many stocks trade at 40-48%"
                         />
                         <MetricRow
                           metric="Net Margin"
-                          value={formatPercentage(metrics.netMargin)}
+                          value={formatPercentage(metrics.Net_Margin && metrics.Net_Margin * 100)}
                           benchmark="Many stocks trade at 8-10%"
                         />
                         <MetricRow
                           metric="TTM P/S Ratio"
-                          value={formatRatio(metrics.ttmPriceToSales)}
+                          value={formatRatio(metrics.TTM_PS_Ratio)}
                           benchmark="Many stocks trade at 1.8-2.6"
                         />
                         <MetricRow
                           metric="Forward P/S Ratio"
-                          value={formatRatio(metrics.forwardPriceToSales)}
+                          value={formatRatio(metrics.Forward_PS_Ratio)}
                           benchmark="Many stocks trade at 1.8-2.6"
                         />
                       </tbody>
@@ -306,6 +273,7 @@ export default function MetricsPage() {
               </Card>
             </div>
           ) : null}
+          </div>
         </div>
       </div>
     </div>
