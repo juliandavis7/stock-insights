@@ -1,4 +1,3 @@
-"use client";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -6,6 +5,22 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Search } from "lucide-react";
+import { Navbar } from "~/components/homepage/navbar";
+import type { Route } from "./+types/search";
+
+export function meta({}: Route.MetaArgs) {
+  return [
+    { title: "Stock Search - Stock Insights" },
+    { name: "description", content: "Search for stocks and view key financial metrics" },
+  ];
+}
+
+export async function loader() {
+  return {
+    isSignedIn: false,
+    hasActiveSubscription: false,
+  };
+}
 
 interface FinancialMetrics {
   TTM_PE: number | null;
@@ -64,7 +79,7 @@ const MetricRow = ({ metric, value, benchmark }: MetricRowProps) => (
   </tr>
 );
 
-export default function MetricsPage() {
+export default function SearchPage({ loaderData }: Route.ComponentProps) {
   const [metrics, setMetrics] = useState<FinancialMetrics | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,10 +139,14 @@ export default function MetricsPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="@container/main flex flex-1 flex-col gap-2">
-        <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6 items-center">
-          <div className="w-full max-w-4xl">
+    <>
+      <Navbar loaderData={loaderData} />
+      <main className="min-h-screen pt-20 bg-background">
+        <div className="container mx-auto px-6 py-8">
+          <h1 className="text-3xl font-bold text-foreground mb-6">
+            Stock Search
+          </h1>
+          <div className="w-full max-w-4xl mx-auto">
           {/* Search Form */}
           <Card>
             <CardHeader>
@@ -275,7 +294,7 @@ export default function MetricsPage() {
           ) : null}
           </div>
         </div>
-      </div>
-    </div>
+      </main>
+    </>
   );
 }

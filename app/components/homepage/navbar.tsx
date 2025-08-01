@@ -7,10 +7,12 @@ import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 
 const menuItems = [
-  { name: "Home", href: "#hero" },
-  { name: "Features", href: "#features" },
-  { name: "Team", href: "#team" },
-  { name: "Pricing", href: "#pricing" },
+  { name: "Search", href: "/search" },
+  { name: "Compare", href: "/compare" },
+  { name: "Earnings Calls", href: "/earnings" },
+  { name: "SEC Filings", href: "/filings" },
+  { name: "Projections", href: "/projections" },
+  { name: "Financials", href: "/financials" },
 ];
 
 export const Navbar = ({
@@ -29,16 +31,7 @@ export const Navbar = ({
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const handleNavClick = useCallback((href: string) => {
-    if (href.startsWith("#")) {
-      const element = document.querySelector(href);
-      if (element) {
-        element.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }
-    }
+  const handleNavClick = useCallback(() => {
     setMenuState(false); // Close mobile menu
   }, []);
 
@@ -88,12 +81,13 @@ export const Navbar = ({
               <ul className="flex gap-8 text-sm">
                 {menuItems.map((item, index) => (
                   <li key={index}>
-                    <div
-                      onClick={() => handleNavClick(item.href)}
-                      className="hover:cursor-pointer text-muted-foreground block duration-150 transition-colors"
+                    <Link
+                      to={item.href}
+                      className="hover:text-foreground text-muted-foreground block duration-150 transition-colors"
+                      prefetch="viewport"
                     >
                       <span>{item.name}</span>
-                    </div>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -104,12 +98,14 @@ export const Navbar = ({
                 <ul className="space-y-6 text-base">
                   {menuItems.map((item, index) => (
                     <li key={index}>
-                      <button
-                        onClick={() => handleNavClick(item.href)}
-                        className="text-muted-foreground hover:cursor-pointer  block duration-150 transition-colors w-full text-left"
+                      <Link
+                        to={item.href}
+                        onClick={handleNavClick}
+                        className="text-muted-foreground hover:text-foreground block duration-150 transition-colors w-full text-left"
+                        prefetch="viewport"
                       >
                         <span>{item.name}</span>
-                      </button>
+                      </Link>
                     </li>
                   ))}
                 </ul>
