@@ -73,9 +73,9 @@ interface MetricRowProps {
 
 const MetricRow = ({ metric, value, benchmark }: MetricRowProps) => (
   <tr className="border-b">
-    <td className="py-3 px-4 font-medium">{metric}</td>
-    <td className="py-3 px-4">{value}</td>
-    <td className="py-3 px-4 text-muted-foreground">{benchmark}</td>
+    <td className="py-3 px-4 font-medium w-1/3 text-left">{metric}</td>
+    <td className="py-3 px-4 w-1/3 text-center">{value}</td>
+    <td className="py-3 px-4 text-muted-foreground w-1/3 text-center">{benchmark}</td>
   </tr>
 );
 
@@ -148,30 +148,29 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
           </h1>
           <div className="w-full max-w-4xl mx-auto">
           {/* Search Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Stock Metrics</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSearch} className="flex gap-2 max-w-md">
-                <div className="flex-1">
-                  <Label htmlFor="stock-symbol" className="sr-only">
-                    Stock Symbol
-                  </Label>
-                  <Input
-                    id="stock-symbol"
-                    placeholder="Enter stock symbol (e.g., AAPL)"
-                    value={stockSymbol}
-                    onChange={(e) => setStockSymbol(e.target.value)}
-                  />
-                </div>
-                <Button type="submit" disabled={loading}>
-                  <Search className="h-4 w-4" />
-                  Search
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+          <div className="sticky top-20 z-10 mb-6">
+            <Card>
+              <CardContent>
+                <form onSubmit={handleSearch} className="flex gap-2 max-w-md mx-auto">
+                  <div className="flex-1">
+                    <Label htmlFor="stock-symbol" className="sr-only">
+                      Stock Symbol
+                    </Label>
+                    <Input
+                      id="stock-symbol"
+                      placeholder="Enter stock symbol (e.g., AAPL)"
+                      value={stockSymbol}
+                      onChange={(e) => setStockSymbol(e.target.value)}
+                    />
+                  </div>
+                  <Button type="submit" disabled={loading}>
+                    <Search className="h-4 w-4" />
+                    Search
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Error State */}
           {error && (
@@ -198,27 +197,11 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
             </Card>
           ) : metrics ? (
             <div className="space-y-6">
-              {/* Header with Stock Symbol */}
+              {/* P/E Ratios Group */}
               <Card>
-                <CardContent className="pt-6">
-                  <div className="text-lg font-semibold text-center">
-                    <span className="uppercase">{stockSymbol}</span> STOCK METRICS
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Metrics Table */}
-              <Card>
-                <CardContent className="pt-6">
+                <CardContent>
                   <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="py-3 px-4 text-left font-medium">Metric</th>
-                          <th className="py-3 px-4 text-left font-medium">Value</th>
-                          <th className="py-3 px-4 text-left font-medium">Benchmark Range</th>
-                        </tr>
-                      </thead>
+                    <table id="search-pe-ratios-table" className="w-full">
                       <tbody>
                         <MetricRow
                           metric="TTM PE"
@@ -235,6 +218,18 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
                           value={formatRatio(metrics.Two_Year_Forward_PE)}
                           benchmark="Many stocks trade at 16-24"
                         />
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* EPS Growth Group */}
+              <Card>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table id="search-eps-growth-table" className="w-full">
+                      <tbody>
                         <MetricRow
                           metric="TTM EPS Growth"
                           value={formatPercentage(metrics.TTM_EPS_Growth)}
@@ -250,6 +245,18 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
                           value={formatPercentage(metrics.Next_Year_EPS_Growth)}
                           benchmark="Many stocks trade at 8-12%"
                         />
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Revenue Growth Group */}
+              <Card>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table id="search-revenue-growth-table" className="w-full">
+                      <tbody>
                         <MetricRow
                           metric="TTM Rev Growth"
                           value={formatPercentage(metrics.TTM_Revenue_Growth)}
@@ -265,6 +272,18 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
                           value={formatPercentage(metrics.Next_Year_Revenue_Growth)}
                           benchmark="Many stocks trade at 4.5-6.5%"
                         />
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Margins & Ratios Group */}
+              <Card>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table id="search-margins-ratios-table" className="w-full">
+                      <tbody>
                         <MetricRow
                           metric="Gross Margin"
                           value={formatPercentage(metrics.Gross_Margin && metrics.Gross_Margin * 100)}
