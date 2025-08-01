@@ -1,5 +1,5 @@
 import { IconDashboard, IconSettings } from "@tabler/icons-react";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, BarChart3 } from "lucide-react";
 import { Link } from "react-router";
 import { NavMain } from "./nav-main";
 import { NavSecondary } from "./nav-secondary";
@@ -19,6 +19,11 @@ const data = {
       title: "Dashboard",
       url: "/dashboard",
       icon: IconDashboard,
+    },
+    {
+      title: "Metrics",
+      url: "/dashboard/metrics",
+      icon: BarChart3,
     },
     {
       title: "Chat",

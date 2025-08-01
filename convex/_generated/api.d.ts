@@ -9,6 +9,8 @@
  */
 
 import type * as http from "../http.js";
+import type * as lib_services_analyst_estimates from "../lib/services/analyst_estimates.js";
+import type * as lib_types_financial from "../lib/types/financial.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as users from "../users.js";
 
@@ -28,6 +30,8 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   http: typeof http;
+  "lib/services/analyst_estimates": typeof lib_services_analyst_estimates;
+  "lib/types/financial": typeof lib_types_financial;
   subscriptions: typeof subscriptions;
   users: typeof users;
 }>;

@@ -16,7 +16,7 @@ A modern, production-ready SaaS starter template for building full-stack React a
 - 🤖 **AI Chat Integration** - OpenAI-powered chat functionality
 - 📊 **Interactive Dashboard** - User management and analytics
 - 🎯 **Webhook handling** - Payment and subscription events
-- 📱 **Responsive Design** - Mobile-first approach
+- 📱 **Responsive Design** - Mobile-first approach 
 - 🚢 **Vercel Deployment Ready** - One-click deployment
 
 ## Tech Stack

@@ -3,6 +3,7 @@ import { paymentWebhook } from "./subscriptions";
 import { httpAction } from "./_generated/server";
 import { openai } from "@ai-sdk/openai";
 import { streamText } from "ai";
+import { AnalystEstimatesService } from "./lib/services/analyst_estimates";
 
 export const chat = httpAction(async (ctx, req) => {
   // Extract the `messages` from the body of the request
@@ -112,6 +113,106 @@ http.route({
   path: "/payments/webhook",
   method: "POST",
   handler: paymentWebhook,
+});
+
+// Stock metrics endpoint
+http.route({
+  path: "/stock/metrics",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const url = new URL(request.url);
+      const stockName = url.searchParams.get("stock_name");
+      const currentPriceParam = url.searchParams.get("current_price");
+
+      // Validate required parameters
+      if (!stockName) {
+        return new Response(JSON.stringify({
+          error: "Missing required parameter: stock_name",
+          message: "Please provide a stock symbol (e.g., ?stock_name=AAPL)"
+        }), {
+          status: 400,
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type"
+          }
+        });
+      }
+
+      // Parse current price if provided
+      let providedPrice: number | undefined;
+      if (currentPriceParam) {
+        providedPrice = parseFloat(currentPriceParam);
+        if (isNaN(providedPrice) || providedPrice <= 0) {
+          return new Response(JSON.stringify({
+            error: "Invalid current_price parameter",
+            message: "current_price must be a positive number"
+          }), {
+            status: 400,
+            headers: { 
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*",
+              "Access-Control-Allow-Methods": "GET, OPTIONS",
+              "Access-Control-Allow-Headers": "Content-Type"
+            }
+          });
+        }
+      }
+
+      // Initialize service and fetch metrics (will fetch current price if not provided)
+      const service = new AnalystEstimatesService();
+      const metrics = await service.calculateAllMetrics(stockName.toUpperCase(), providedPrice);
+
+      return new Response(JSON.stringify({
+        success: true,
+        data: metrics,
+        timestamp: new Date().toISOString()
+      }), {
+        status: 200,
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
+      });
+
+    } catch (error) {
+      console.error("Error fetching stock metrics:", error);
+      
+      return new Response(JSON.stringify({
+        error: "Internal server error",
+        message: "Failed to fetch stock metrics",
+        details: error instanceof Error ? error.message : "Unknown error"
+      }), {
+        status: 500,
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
+      });
+    }
+  }),
+});
+
+// CORS preflight for stock metrics endpoint
+http.route({
+  path: "/stock/metrics",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return new Response(null, {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Max-Age": "86400",
+      },
+    });
+  }),
 });
 
 // Log that routes are configured
