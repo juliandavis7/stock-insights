@@ -21,8 +21,8 @@ const data = {
       icon: IconDashboard,
     },
     {
-      title: "Metrics",
-      url: "/dashboard/metrics",
+      title: "Search",
+      url: "/dashboard/search",
       icon: BarChart3,
     },
     {
