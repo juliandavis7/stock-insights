@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any, Optional
 from .fmp_service import FMPService
 from .yfinance_service import YFinanceService
-from ..utils.calculators import MetricsCalculator
+from .. import util
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,6 @@ class MetricsService:
     def __init__(self, fmp_service: Optional[FMPService] = None, yfinance_service: Optional[YFinanceService] = None):
         self.fmp_service = fmp_service or FMPService()
         self.yfinance_service = yfinance_service or YFinanceService()
-        self.calculator = MetricsCalculator()
     
     def get_metrics(self, ticker: str) -> Dict[str, Any]:
         """
@@ -110,7 +109,7 @@ class MetricsService:
                 
                 if stock_info and revenue_forecast is not None:
                     logger.info(f"🧮 Calculating forward P/S ratio")
-                    forward_ps = self.calculator.get_forward_ps_ratio(stock_info, revenue_forecast)
+                    forward_ps = util.get_forward_ps_ratio(stock_info, revenue_forecast)
                     logger.info(f"📊 Forward P/S calculated: {forward_ps}")
                     
                     if forward_ps:
@@ -196,13 +195,13 @@ class MetricsService:
     def _calculate_basic_metrics(self, stock_info: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate basic metrics from stock info."""
         return {
-            'TTM_PE': self.calculator.get_ttm_pe(stock_info),
-            'Forward_PE': self.calculator.get_forward_pe(stock_info),
-            'TTM_EPS_Growth': self.calculator.get_earnings_growth(stock_info),
-            'TTM_Revenue_Growth': self.calculator.get_revenue_growth(stock_info),
-            'Gross_Margin': self.calculator.get_gross_margin(stock_info),
-            'Net_Margin': self.calculator.get_net_margin(stock_info),
-            'TTM_PS_Ratio': self.calculator.get_ttm_ps(stock_info)
+            'TTM_PE': util.get_ttm_pe(stock_info),
+            'Forward_PE': util.get_forward_pe(stock_info),
+            'TTM_EPS_Growth': util.get_earnings_growth(stock_info),
+            'TTM_Revenue_Growth': util.get_revenue_growth(stock_info),
+            'Gross_Margin': util.get_gross_margin(stock_info),
+            'Net_Margin': util.get_net_margin(stock_info),
+            'TTM_PS_Ratio': util.get_ttm_ps(stock_info)
         }
     
     def _calculate_fmp_metrics(self, ticker: str, stock_info: Dict[str, Any], fmp_data: list) -> Dict[str, Any]:
@@ -212,7 +211,7 @@ class MetricsService:
         # Two-year forward PE requires current price and FMP data
         current_price = stock_info.get('current_price')
         if current_price:
-            two_year_pe = self.calculator.get_two_year_forward_pe(ticker, current_price, fmp_data)
+            two_year_pe = util.get_two_year_forward_pe(ticker, current_price, fmp_data)
             if two_year_pe:
                 result['Two_Year_Forward_PE'] = two_year_pe
         
@@ -229,8 +228,8 @@ class MetricsService:
         logger.info(f"📈 Earnings forecast available: {earnings_available} - Type: {type(earnings_forecast)}")
         
         if earnings_available:
-            current_year_eps = self.calculator.get_current_year_eps_growth(earnings_forecast)
-            next_year_eps = self.calculator.get_next_year_eps_growth(earnings_forecast)
+            current_year_eps = util.extract_forecast_growth(earnings_forecast, '0y')
+            next_year_eps = util.extract_forecast_growth(earnings_forecast, '+1y')
             
             logger.info(f"📊 YFinance EPS growth - Current: {current_year_eps}, Next: {next_year_eps}")
             
@@ -244,8 +243,8 @@ class MetricsService:
         logger.info(f"💰 Revenue forecast available: {revenue_available} - Type: {type(revenue_forecast)}")
         
         if revenue_available:
-            current_year_rev = self.calculator.get_current_year_revenue_growth(revenue_forecast)
-            next_year_rev = self.calculator.get_next_year_revenue_growth(revenue_forecast)
+            current_year_rev = util.extract_forecast_growth(revenue_forecast, '0y')
+            next_year_rev = util.extract_forecast_growth(revenue_forecast, '+1y')
             
             logger.info(f"📊 YFinance Revenue growth - Current: {current_year_rev}, Next: {next_year_rev}")
             
@@ -276,7 +275,6 @@ class MetricsService:
     
     def _calculate_fmp_growth_metrics(self, fmp_data: list) -> Dict[str, Any]:
         """Calculate growth metrics from FMP analyst estimates data."""
-        from ..utils.data_extractors import DataExtractor
         from datetime import datetime
         
         result = {}
@@ -296,8 +294,8 @@ class MetricsService:
                 fmp_list = fmp_data
             
             # Extract EPS and revenue by year
-            eps_by_year = DataExtractor.extract_metric_by_year(fmp_list, 'epsAvg')
-            revenue_by_year = DataExtractor.extract_metric_by_year(fmp_list, 'revenueAvg')
+            eps_by_year = util.extract_metric_by_year(fmp_list, 'epsAvg')
+            revenue_by_year = util.extract_metric_by_year(fmp_list, 'revenueAvg')
             
             logger.info(f"Extracted data - EPS years: {list(eps_by_year.keys())}, Revenue years: {list(revenue_by_year.keys())}")
             
