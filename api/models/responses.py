@@ -32,6 +32,19 @@ class ProjectionResponse(BaseModel):
     error: Optional[str] = None
 
 
+class ProjectionBaseDataResponse(BaseModel):
+    """Model for projection base data response"""
+    ticker: str
+    price: float
+    market_cap: float
+    shares_outstanding: float
+    revenue: Optional[float] = None
+    net_income: Optional[float] = None
+    eps: Optional[float] = None
+    net_income_margin: Optional[float] = None
+    data_year: int
+
+
 class ErrorResponse(BaseModel):
     """Model for error responses"""
     success: bool = False
