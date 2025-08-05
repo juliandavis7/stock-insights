@@ -1,7 +1,7 @@
 """Response models for the FastAPI application"""
 
 from pydantic import BaseModel
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 
 
 class MetricsResponse(BaseModel):
@@ -47,6 +47,80 @@ class ProjectionBaseDataResponse(BaseModel):
     eps: Optional[float] = None
     net_income_margin: Optional[float] = None
     data_year: int
+
+
+class FinancialStatementResponse(BaseModel):
+    """Model for financial statement response (mock FMP API response)"""
+    date: str
+    symbol: str
+    reportedCurrency: str
+    cik: str
+    filingDate: str
+    acceptedDate: str
+    fiscalYear: str
+    period: str
+    revenue: int
+    costOfRevenue: int
+    grossProfit: int
+    researchAndDevelopmentExpenses: int
+    generalAndAdministrativeExpenses: int
+    sellingAndMarketingExpenses: int
+    sellingGeneralAndAdministrativeExpenses: int
+    otherExpenses: int
+    operatingExpenses: int
+    costAndExpenses: int
+    netInterestIncome: int
+    interestIncome: int
+    interestExpense: int
+    depreciationAndAmortization: int
+    ebitda: int
+    ebit: int
+    nonOperatingIncomeExcludingInterest: int
+    operatingIncome: int
+    totalOtherIncomeExpensesNet: int
+    incomeBeforeTax: int
+    incomeTaxExpense: int
+    netIncomeFromContinuingOperations: int
+    netIncomeFromDiscontinuedOperations: int
+    otherAdjustmentsToNetIncome: int
+    netIncome: int
+    netIncomeDeductions: int
+    bottomLineNetIncome: int
+    eps: float
+    epsDiluted: float
+    weightedAverageShsOut: int
+    weightedAverageShsOutDil: int
+
+
+class AnalystEstimateResponse(BaseModel):
+    """Model for analyst estimates data"""
+    fiscalYear: str
+    totalRevenue: int | None
+    netIncome: int | None
+    eps: float | None
+    dilutedEps: float | None
+
+class FinancialDataResponse(BaseModel):
+    """Model for processed financial data response"""
+    fiscalYear: str
+    totalRevenue: int | None
+    costOfRevenue: int | None
+    grossProfit: int | None
+    sellingGeneralAndAdministrative: int | None
+    researchAndDevelopment: int | None
+    operatingExpenses: int | None
+    operatingIncome: int | None
+    netIncome: int | None
+    eps: float | None
+    dilutedEps: float | None
+
+class ComprehensiveFinancialResponse(BaseModel):
+    """Model for comprehensive financial data including historical and analyst estimates"""
+    ticker: str
+    price: float | None
+    market_cap: float | None
+    historical: List[FinancialDataResponse]
+    estimates: List[AnalystEstimateResponse]
 
 
 class ErrorResponse(BaseModel):
