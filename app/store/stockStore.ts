@@ -51,6 +51,36 @@ interface CalculatedProjections {
   cagrHigh: { [year: string]: number };
 }
 
+interface HistoricalData {
+  fiscalYear: string;
+  totalRevenue: number | null;
+  costOfRevenue: number | null;
+  grossProfit: number | null;
+  sellingGeneralAndAdministrative: number | null;
+  researchAndDevelopment: number | null;
+  operatingExpenses: number | null;
+  operatingIncome: number | null;
+  netIncome: number | null;
+  eps: number | null;
+  dilutedEps: number | null;
+}
+
+interface EstimateData {
+  fiscalYear: string;
+  totalRevenue: number | null;
+  netIncome: number | null;
+  eps: number | null;
+  dilutedEps: number | null;
+}
+
+interface FinancialsData {
+  ticker: string;
+  price: number;
+  market_cap: number;
+  historical: HistoricalData[];
+  estimates: EstimateData[];
+}
+
 // Store state interface
 interface StockStore {
   // Search state
@@ -81,10 +111,19 @@ interface StockStore {
     error: string | null;
   };
   
+  // Financials state
+  financials: {
+    currentTicker: string;
+    data: FinancialsData | null;
+    loading: boolean;
+    error: string | null;
+  };
+  
   // Global cache for all fetched data
   cache: {
     metrics: { [ticker: string]: FinancialMetrics };
     projections: { [ticker: string]: ProjectionBaseData };
+    financials: { [ticker: string]: FinancialsData };
   };
 
   // Actions
@@ -109,13 +148,21 @@ interface StockStore {
     setProjectionsLoading: (loading: boolean) => void;
     setProjectionsError: (error: string | null) => void;
     
+    // Financials actions
+    setFinancialsTicker: (ticker: string) => void;
+    setFinancialsData: (data: FinancialsData) => void;
+    setFinancialsLoading: (loading: boolean) => void;
+    setFinancialsError: (error: string | null) => void;
+    
     // Cache actions
     getCachedMetrics: (ticker: string) => FinancialMetrics | null;
     getCachedProjections: (ticker: string) => ProjectionBaseData | null;
+    getCachedFinancials: (ticker: string) => FinancialsData | null;
     
     // API actions
     fetchMetrics: (ticker: string) => Promise<FinancialMetrics>;
     fetchProjections: (ticker: string) => Promise<ProjectionBaseData>;
+    fetchFinancials: (ticker: string) => Promise<FinancialsData>;
   };
 }
 
@@ -168,9 +215,17 @@ export const useStockStore = create<StockStore>()(
         error: null,
       },
       
+      financials: {
+        currentTicker: 'AAPL',
+        data: null,
+        loading: false,
+        error: null,
+      },
+      
       cache: {
         metrics: {},
         projections: {},
+        financials: {},
       },
 
       actions: {
@@ -258,6 +313,27 @@ export const useStockStore = create<StockStore>()(
           projections: { ...state.projections, error }
         }), false, 'setProjectionsError'),
 
+        // Financials actions
+        setFinancialsTicker: (ticker: string) => set((state) => ({
+          financials: { ...state.financials, currentTicker: ticker }
+        }), false, 'setFinancialsTicker'),
+        
+        setFinancialsData: (data: FinancialsData) => set((state) => ({
+          financials: { ...state.financials, data },
+          cache: { 
+            ...state.cache, 
+            financials: { ...state.cache.financials, [data.ticker]: data }
+          }
+        }), false, 'setFinancialsData'),
+        
+        setFinancialsLoading: (loading: boolean) => set((state) => ({
+          financials: { ...state.financials, loading }
+        }), false, 'setFinancialsLoading'),
+        
+        setFinancialsError: (error: string | null) => set((state) => ({
+          financials: { ...state.financials, error }
+        }), false, 'setFinancialsError'),
+
         // Cache actions
         getCachedMetrics: (ticker: string) => {
           const state = get();
@@ -267,6 +343,11 @@ export const useStockStore = create<StockStore>()(
         getCachedProjections: (ticker: string) => {
           const state = get();
           return state.cache.projections[ticker] || null;
+        },
+        
+        getCachedFinancials: (ticker: string) => {
+          const state = get();
+          return state.cache.financials[ticker] || null;
         },
 
         // API actions
@@ -331,6 +412,37 @@ export const useStockStore = create<StockStore>()(
           
           return data;
         },
+        
+        fetchFinancials: async (ticker: string): Promise<FinancialsData> => {
+          const { cache } = get();
+          
+          // Check cache first
+          const cached = cache.financials[ticker];
+          if (cached) {
+            console.log(`Using cached financials for ${ticker}`);
+            return cached;
+          }
+          
+          console.log(`Fetching financials for ${ticker}`);
+          const response = await fetch(`http://localhost:8000/financials?ticker=${ticker.toUpperCase()}`);
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail?.error || `Failed to fetch financials for ${ticker}`);
+          }
+          
+          const data: FinancialsData = await response.json();
+          
+          // Cache the data
+          set((state) => ({
+            cache: { 
+              ...state.cache, 
+              financials: { ...state.cache.financials, [ticker]: data }
+            }
+          }), false, 'cacheFinancials');
+          
+          return data;
+        },
       },
     }),
     { name: 'stock-store' }
@@ -341,4 +453,5 @@ export const useStockStore = create<StockStore>()(
 export const useSearchState = () => useStockStore((state) => state.search);
 export const useCompareState = () => useStockStore((state) => state.compare);
 export const useProjectionsState = () => useStockStore((state) => state.projections);
+export const useFinancialsState = () => useStockStore((state) => state.financials);
 export const useStockActions = () => useStockStore((state) => state.actions);
