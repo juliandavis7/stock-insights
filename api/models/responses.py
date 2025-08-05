@@ -6,19 +6,23 @@ from typing import Dict, Optional, Any
 
 class MetricsResponse(BaseModel):
     """Model for stock metrics response"""
-    TTM_PE: float | None
-    Forward_PE: float | None
-    Two_Year_Forward_PE: float | None
-    TTM_EPS_Growth: float | None
-    Current_Year_EPS_Growth: float | None
-    Next_Year_EPS_Growth: float | None
-    TTM_Revenue_Growth: float | None
-    Current_Year_Revenue_Growth: float | None
-    Next_Year_Revenue_Growth: float | None
-    Gross_Margin: float | None
-    Net_Margin: float | None
-    TTM_PS_Ratio: float | None
-    Forward_PS_Ratio: float | None
+    ttm_pe: float | None
+    forward_pe: float | None
+    two_year_forward_pe: float | None
+    ttm_eps_growth: float | None
+    current_year_eps_growth: float | None
+    next_year_eps_growth: float | None
+    ttm_revenue_growth: float | None
+    current_year_revenue_growth: float | None
+    next_year_revenue_growth: float | None
+    gross_margin: float | None
+    net_margin: float | None
+    ttm_ps_ratio: float | None
+    forward_ps_ratio: float | None
+    # Stock info fields
+    ticker: str | None
+    price: float | None
+    market_cap: float | None
 
 
 class ProjectionResponse(BaseModel):

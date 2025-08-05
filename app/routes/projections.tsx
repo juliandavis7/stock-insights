@@ -6,6 +6,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Search } from "lucide-react";
 import { Navbar } from "~/components/homepage/navbar";
+import { useProjectionsState, useStockActions } from "~/store/stockStore";
 import type { Route } from "./+types/projections";
 
 export function meta({}: Route.MetaArgs) {
@@ -144,6 +145,9 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
           nextMetric = 'pe-low';
         } else if (metric === 'pe-low') {
           nextMetric = 'pe-high';
+        } else if (metric === 'pe-high') {
+          // After pe-high, go back to revenue-growth for next year or stop
+          nextMetric = 'revenue-growth';
         }
         
         if (nextMetric) {
@@ -157,8 +161,11 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   };
 
   // Format percentage values for display
-  const formatPercentageInput = (value: number): string => {
-    return value === 0 ? '' : `${value}%`;
+  const formatPercentageInput = (value: number | undefined): string => {
+    if (value === undefined || value === null || isNaN(value) || value === 0) {
+      return '';
+    }
+    return `${value}%`;
   };
 
   // Calculation functions
@@ -197,27 +204,9 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     const growthRate = ((currentNetIncome / previousNetIncome) - 1) * 100;
     return Math.round(growthRate * 100) / 100; // Round to 2 decimal places
   };
-  const [stockInfo, setStockInfo] = useState<StockInfo>({ ticker: "", price: null, marketCap: null, sharesOutstanding: null });
-  const [baseData, setBaseData] = useState<BaseFinancialData>({ revenue: null, netIncome: null, netIncomeMargin: null, eps: null });
-  const [projectionInputs, setProjectionInputs] = useState<ProjectionInputs>({
-    revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
-    netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
-    peLow: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
-    peHigh: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 }
-  });
-  
-  const [calculatedProjections, setCalculatedProjections] = useState<CalculatedProjections>({
-    revenue: {},
-    netIncome: {},
-    netIncomeMargin: {},
-    eps: {},
-    sharePriceLow: {},
-    sharePriceHigh: {},
-    cagrLow: {},
-    cagrHigh: {}
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const projectionsState = useProjectionsState();
+  const actions = useStockActions();
+  const [stockSymbol, setStockSymbol] = useState(projectionsState?.currentTicker || 'AAPL');
 
   // Sample data for initial display
   const sampleStockInfo: StockInfo = {
@@ -237,78 +226,104 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   const currentYearMargin = 15.04;
 
   const handleTickerChange = (ticker: string) => {
-    setStockInfo({ ...stockInfo, ticker: ticker.toUpperCase() });
+    setStockSymbol(ticker.toUpperCase());
   };
 
   const handleProjectionInputChange = (metric: keyof ProjectionInputs, year: string, value: number) => {
-    setProjectionInputs(prev => {
-      const updated = {
-        ...prev,
-        [metric]: {
-          ...prev[metric],
-          [year]: value
-        }
-      };
-      
-      // Trigger recalculation after state update
-      setTimeout(() => recalculateProjections(updated), 0);
-      
-      return updated;
-    });
+    if (!projectionsState?.projectionInputs) return;
+    
+    const updated = {
+      ...projectionsState.projectionInputs,
+      [metric]: {
+        ...projectionsState.projectionInputs[metric],
+        [year]: value
+      }
+    };
+    
+    actions.setProjectionsInputs(updated);
+    
+    // Trigger recalculation after state update
+    setTimeout(() => recalculateProjections(updated), 0);
   };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!stockInfo.ticker.trim()) {
-      setError("Please enter a valid ticker symbol");
+    if (!stockSymbol.trim()) {
+      actions.setProjectionsError("Please enter a valid ticker symbol");
       return;
     }
     
-    setLoading(true);
-    setError(null);
+    actions.setProjectionsLoading(true);
+    actions.setProjectionsError(null);
+    actions.setProjectionsTicker(stockSymbol);
     
     try {
-      const response = await fetch(`http://localhost:8000/projections?ticker=${stockInfo.ticker.toUpperCase()}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail?.error || `Failed to fetch data for ${stockInfo.ticker}`);
+      // Check cache first, then fetch if needed
+      const cachedData = actions.getCachedProjections(stockSymbol);
+      if (cachedData) {
+        actions.setProjectionsBaseData(cachedData);
+        actions.setProjectionsLoading(false);
+        
+        // Clear user inputs when switching to cached ticker
+        const clearedInputs = {
+          revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+          netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+          peLow: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+          peHigh: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 }
+        };
+        actions.setProjectionsInputs(clearedInputs);
+        
+        // Clear calculated projections
+        actions.setCalculatedProjections({
+          revenue: {},
+          netIncome: {},
+          netIncomeMargin: {},
+          eps: {},
+          sharePriceLow: {},
+          sharePriceHigh: {},
+          cagrLow: {},
+          cagrHigh: {}
+        });
+        return;
       }
       
-      const data: ProjectionApiResponse = await response.json();
+      const data = await actions.fetchProjections(stockSymbol);
+      actions.setProjectionsBaseData(data);
       
-      // Update stock info
-      setStockInfo({
-        ticker: data.ticker,
-        price: data.price,
-        marketCap: data.market_cap,
-        sharesOutstanding: data.shares_outstanding
-      });
+      // Clear all user inputs when searching for a new ticker
+      const clearedInputs = {
+        revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        peLow: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        peHigh: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 }
+      };
+      actions.setProjectionsInputs(clearedInputs);
       
-      // Update base financial data
-      setBaseData({
-        revenue: data.revenue,
-        netIncome: data.net_income,
-        netIncomeMargin: data.net_income_margin,
-        eps: data.eps
+      // Clear calculated projections
+      actions.setCalculatedProjections({
+        revenue: {},
+        netIncome: {},
+        netIncomeMargin: {},
+        eps: {},
+        sharePriceLow: {},
+        sharePriceHigh: {},
+        cagrLow: {},
+        cagrHigh: {}
       });
       
     } catch (err) {
       console.error('Error fetching stock data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch stock data');
-      // Clear data on error
-      setStockInfo({ ticker: stockInfo.ticker, price: null, marketCap: null, sharesOutstanding: null });
-      setBaseData({ revenue: null, netIncome: null, netIncomeMargin: null, eps: null });
+      actions.setProjectionsError(err instanceof Error ? err.message : 'Failed to fetch stock data');
     } finally {
-      setLoading(false);
+      actions.setProjectionsLoading(false);
     }
   };
 
 
   // Recalculate all projections based on current inputs
   const recalculateProjections = (inputs: ProjectionInputs) => {
-    if (!stockInfo.price || !stockInfo.sharesOutstanding || !baseData.revenue || !baseData.netIncome) {
+    if (!projectionsState.baseData?.price || !projectionsState.baseData?.shares_outstanding || !projectionsState.baseData?.revenue || !projectionsState.baseData?.net_income) {
       return; // Wait for base data to be loaded
     }
 
@@ -324,15 +339,15 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     };
 
     // Calculate current year share prices using current year PE ratios and current EPS
-    const currentEPS = calculateEPS(baseData.netIncome, stockInfo.sharesOutstanding!);
+    const currentEPS = calculateEPS(projectionsState.baseData.net_income!, projectionsState.baseData.shares_outstanding!);
     const currentPeLow = inputs.peLow[currentYear] || 0;
     const currentPeHigh = inputs.peHigh[currentYear] || 0;
     newProjections.sharePriceLow[currentYear] = calculateStockPrice(currentEPS, currentPeLow);
     newProjections.sharePriceHigh[currentYear] = calculateStockPrice(currentEPS, currentPeHigh);
 
     // Start with current year values
-    let previousRevenue = baseData.revenue;
-    let previousNetIncome = baseData.netIncome;
+    let previousRevenue = projectionsState.baseData.revenue!;
+    let previousNetIncome = projectionsState.baseData.net_income!;
 
     // Calculate for each projection year
     projectionYears.forEach((year, index) => {
@@ -356,7 +371,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       newProjections.netIncomeMargin[year] = projectedNetIncomeMargin;
 
       // 4. Calculate EPS
-      const projectedEPS = calculateEPS(projectedNetIncome, stockInfo.sharesOutstanding!);
+      const projectedEPS = calculateEPS(projectedNetIncome, projectionsState.baseData.shares_outstanding!);
       newProjections.eps[year] = projectedEPS;
 
       // 5. Calculate Stock Prices
@@ -369,8 +384,8 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
 
       // 6. Calculate CAGR (start from year 2, which is index 1, so yearsFromCurrent >= 2)
       if (yearsFromCurrent >= 2) {
-        const cagrLow = calculateCAGR(priceLow, stockInfo.price!, yearsFromCurrent);
-        const cagrHigh = calculateCAGR(priceHigh, stockInfo.price!, yearsFromCurrent);
+        const cagrLow = calculateCAGR(priceLow, projectionsState.baseData.price!, yearsFromCurrent);
+        const cagrHigh = calculateCAGR(priceHigh, projectionsState.baseData.price!, yearsFromCurrent);
         newProjections.cagrLow[year] = cagrLow;
         newProjections.cagrHigh[year] = cagrHigh;
       }
@@ -380,17 +395,51 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       previousNetIncome = projectedNetIncome;
     });
 
-    setCalculatedProjections(newProjections);
+    actions.setCalculatedProjections(newProjections);
   };
 
   // Recalculate when base data changes
   useEffect(() => {
-    if (stockInfo.price && stockInfo.sharesOutstanding && baseData.revenue && baseData.netIncome) {
-      recalculateProjections(projectionInputs);
+    if (projectionsState?.baseData?.price && projectionsState?.baseData?.shares_outstanding && projectionsState?.baseData?.revenue && projectionsState?.baseData?.net_income && projectionsState?.projectionInputs) {
+      recalculateProjections(projectionsState.projectionInputs);
     }
-  }, [stockInfo, baseData]);
+  }, [projectionsState?.baseData, projectionsState?.projectionInputs]);
 
-  // Remove auto-loading of sample data - now fetched via API
+  // Auto-load AAPL data on component mount (only run once)
+  useEffect(() => {
+    const loadDefaultData = async () => {
+      actions.setProjectionsLoading(true);
+      actions.setProjectionsError(null);
+      
+      try {
+        // Check cache first
+        const cachedData = actions.getCachedProjections('AAPL');
+        if (cachedData) {
+          actions.setProjectionsBaseData(cachedData);
+          actions.setProjectionsLoading(false);
+          return;
+        }
+        
+        const data = await actions.fetchProjections('AAPL');
+        actions.setProjectionsBaseData(data);
+        
+      } catch (err) {
+        console.error('Error loading AAPL data:', err);
+        actions.setProjectionsError(err instanceof Error ? err.message : 'Failed to load AAPL data');
+      } finally {
+        actions.setProjectionsLoading(false);
+      }
+    };
+    
+    loadDefaultData();
+  }, []); // Empty dependency array - run only once on mount
+
+  // Sync input field when returning to tab with different ticker
+  useEffect(() => {
+    if (projectionsState?.currentTicker && projectionsState.currentTicker !== stockSymbol) {
+      setStockSymbol(projectionsState.currentTicker);
+    }
+  }, [projectionsState?.currentTicker]);
 
   return (
     <>
@@ -407,55 +456,51 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
               <Card>
                 <CardContent>
                   <div id="projections-stock-selection-container">
-                    <form onSubmit={handleSearch} className="flex gap-2 max-w-md mx-auto">
-                      <div className="flex-1">
+                    <form onSubmit={handleSearch} className="flex gap-2 max-w-xs mx-auto">
+                      <div className="w-32">
                         <Label htmlFor="projections-stock-input" className="sr-only">
                           Stock Symbol
                         </Label>
                         <Input
                           id="projections-stock-input"
-                          placeholder="Enter ticker (e.g., CELH)"
-                          value={stockInfo.ticker}
+                          value={stockSymbol}
                           onChange={(e) => handleTickerChange(e.target.value)}
                         />
                       </div>
-                      <Button type="submit" disabled={loading}>
+                      <Button type="submit" disabled={projectionsState?.loading || false}>
                         <Search className="h-4 w-4" />
-                        {loading ? 'Searching...' : 'Search'}
+                        {projectionsState?.loading ? 'Searching...' : 'Search'}
                       </Button>
                     </form>
+                    
+                    {/* Stock Info Display */}
+                    <div id="projections-current-info-display" className="mt-4">
+                      <div id="stock-price-info" className="text-center">
+                        <span className="text-lg text-foreground font-medium">
+                          {formatCurrency(projectionsState.baseData?.price || 0)}
+                        </span>
+                        <span className="mx-6 text-base text-muted-foreground">
+                          MKT.CAP {formatCurrency(projectionsState.baseData?.market_cap || 0)}
+                        </span>
+                        <span className="text-base text-muted-foreground">
+                          SHARES OUTSTANDING: {formatNumber(projectionsState.baseData?.shares_outstanding || 0)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
             {/* Error State */}
-            {error && (
+            {projectionsState?.error && (
               <Card>
                 <CardContent>
-                  <div className="text-red-600 text-center bg-red-50 p-3 rounded-md border border-red-200">{error}</div>
+                  <div className="text-red-600 text-center bg-red-50 p-3 rounded-md border border-red-200">{projectionsState.error}</div>
                 </CardContent>
               </Card>
             )}
 
-            {/* Current Stock Info Display */}
-            <Card>
-              <CardContent>
-                <div id="projections-current-info-display">
-                  <div id="stock-price-info" className="flex flex-col md:flex-row gap-4 justify-center items-center text-center">
-                    <span id="stock-price-value" className="text-2xl font-bold">
-                      {formatCurrency(stockInfo.price)}
-                    </span>
-                    <span id="market-cap-value" className="text-lg text-muted-foreground">
-                      MKT.CAP {formatCurrency(stockInfo.marketCap)}
-                    </span>
-                    <span id="shares-outstanding-value" className="text-lg text-muted-foreground">
-                      SHARES OUTSTANDING: {formatNumber(stockInfo.sharesOutstanding)}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
             {/* Combined Financial Data Table with Grouped Spacing */}
             <Card>
@@ -477,11 +522,11 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         {/* Revenue Section */}
                         <tr id="revenue-data-row" className="border-b bg-gray-50">
                           <td className="py-3 px-4 font-medium text-left">Revenue</td>
-                          <td id={`revenue-${currentYear}`} className="py-3 px-4 text-center">{formatCurrency(baseData.revenue)}</td>
-                          <td id={`revenue-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(calculatedProjections.revenue[projectionYears[0]])}</td>
-                          <td id={`revenue-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(calculatedProjections.revenue[projectionYears[1]])}</td>
-                          <td id={`revenue-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(calculatedProjections.revenue[projectionYears[2]])}</td>
-                          <td id={`revenue-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(calculatedProjections.revenue[projectionYears[3]])}</td>
+                          <td id={`revenue-${currentYear}`} className="py-3 px-4 text-center">{formatCurrency(projectionsState.baseData?.revenue)}</td>
+                          <td id={`revenue-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState.projectionsState?.calculatedProjections?.revenue[projectionYears[0]])}</td>
+                          <td id={`revenue-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState.projectionsState?.calculatedProjections?.revenue[projectionYears[1]])}</td>
+                          <td id={`revenue-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState.projectionsState?.calculatedProjections?.revenue[projectionYears[2]])}</td>
+                          <td id={`revenue-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState.projectionsState?.calculatedProjections?.revenue[projectionYears[3]])}</td>
                         </tr>
                         <tr id="revenue-growth-input-row" className="bg-white" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-3 px-4 font-medium text-left">Rev Growth</td>
@@ -491,7 +536,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                               <Input
                                 id={`revenue-growth-${year}`}
                                 type="text"
-                                value={formatPercentageInput(projectionInputs.revenueGrowth[year])}
+                                value={formatPercentageInput(projectionsState.projectionsState?.projectionInputs?.revenueGrowth[year])}
                                 onChange={(e) => {
                                   const cleanValue = e.target.value.replace('%', '');
                                   handlePercentageInputChange('revenueGrowth', year, cleanValue);
@@ -508,11 +553,11 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         {/* Net Income Section */}
                         <tr id="net-income-data-row" className="border-b bg-gray-50">
                           <td className="py-3 px-4 font-medium text-left">Net Income</td>
-                          <td id={`net-income-${currentYear}`} className="py-3 px-4 text-center">{formatCurrency(baseData.netIncome)}</td>
-                          <td id={`net-income-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(calculatedProjections.netIncome[projectionYears[0]])}</td>
-                          <td id={`net-income-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(calculatedProjections.netIncome[projectionYears[1]])}</td>
-                          <td id={`net-income-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(calculatedProjections.netIncome[projectionYears[2]])}</td>
-                          <td id={`net-income-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(calculatedProjections.netIncome[projectionYears[3]])}</td>
+                          <td id={`net-income-${currentYear}`} className="py-3 px-4 text-center">{formatCurrency(projectionsState.baseData?.net_income)}</td>
+                          <td id={`net-income-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[0]])}</td>
+                          <td id={`net-income-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[1]])}</td>
+                          <td id={`net-income-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[2]])}</td>
+                          <td id={`net-income-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[3]])}</td>
                         </tr>
                         <tr id="net-income-growth-input-row" className="bg-white">
                           <td className="py-3 px-4 font-medium text-left">Net Inc Growth</td>
@@ -522,7 +567,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                               <Input
                                 id={`net-income-growth-${year}`}
                                 type="text"
-                                value={formatPercentageInput(projectionInputs.netIncomeGrowth[year])}
+                                value={formatPercentageInput(projectionsState?.projectionInputs?.netIncomeGrowth[year])}
                                 onChange={(e) => {
                                   const cleanValue = e.target.value.replace('%', '');
                                   handlePercentageInputChange('netIncomeGrowth', year, cleanValue);
@@ -539,21 +584,21 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         {/* Net Income Margins Section - Calculated Field */}
                         <tr id="net-income-margin-row" className="bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-3 px-4 font-medium text-left">Net Inc Margins</td>
-                          <td className="py-3 px-4 text-center">{formatPercentage(baseData.netIncomeMargin)}</td>
-                          <td className="py-3 px-4 text-center text-muted-foreground">{formatPercentage(calculatedProjections.netIncomeMargin[projectionYears[0]])}</td>
-                          <td className="py-3 px-4 text-center text-muted-foreground">{formatPercentage(calculatedProjections.netIncomeMargin[projectionYears[1]])}</td>
-                          <td className="py-3 px-4 text-center text-muted-foreground">{formatPercentage(calculatedProjections.netIncomeMargin[projectionYears[2]])}</td>
-                          <td className="py-3 px-4 text-center text-muted-foreground">{formatPercentage(calculatedProjections.netIncomeMargin[projectionYears[3]])}</td>
+                          <td className="py-3 px-4 text-center">{formatPercentage(projectionsState.baseData?.net_income_margin)}</td>
+                          <td className="py-3 px-4 text-center text-muted-foreground">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[0]])}</td>
+                          <td className="py-3 px-4 text-center text-muted-foreground">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[1]])}</td>
+                          <td className="py-3 px-4 text-center text-muted-foreground">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[2]])}</td>
+                          <td className="py-3 px-4 text-center text-muted-foreground">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[3]])}</td>
                         </tr>
 
                         {/* EPS Section */}
                         <tr id="eps-data-row" className="border-b bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-3 px-4 font-medium text-left">EPS</td>
-                          <td id={`eps-${currentYear}`} className="py-3 px-4 text-center">{formatCurrency(baseData.eps)}</td>
-                          <td id={`eps-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(calculatedProjections.eps[projectionYears[0]])}</td>
-                          <td id={`eps-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(calculatedProjections.eps[projectionYears[1]])}</td>
-                          <td id={`eps-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(calculatedProjections.eps[projectionYears[2]])}</td>
-                          <td id={`eps-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(calculatedProjections.eps[projectionYears[3]])}</td>
+                          <td id={`eps-${currentYear}`} className="py-3 px-4 text-center">{formatCurrency(projectionsState.baseData?.eps)}</td>
+                          <td id={`eps-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[0]])}</td>
+                          <td id={`eps-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[1]])}</td>
+                          <td id={`eps-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[2]])}</td>
+                          <td id={`eps-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[3]])}</td>
                         </tr>
                         <tr id="pe-low-input-row" className="border-b bg-white">
                           <td className="py-3 px-4 font-medium text-left">PE Low Est</td>
@@ -561,12 +606,12 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                             <Input
                               id={`pe-low-${currentYear}`}
                               type="text"
-                              value={projectionInputs.peLow[currentYear] || ''}
+                              value={projectionsState?.projectionInputs?.peLow[currentYear] || ''}
                               onChange={(e) => handleProjectionInputChange('peLow', currentYear.toString(), parseFloat(e.target.value) || 0)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
-                                  const nextInput = document.getElementById(`pe-high-${currentYear}`);
+                                  const nextInput = document.getElementById(`pe-low-${projectionYears[0]}`);
                                   if (nextInput) nextInput.focus();
                                 }
                               }}
@@ -580,7 +625,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                               <Input
                                 id={`pe-low-${year}`}
                                 type="text"
-                                value={projectionInputs.peLow[year] || ''}
+                                value={projectionsState?.projectionInputs?.peLow[year] || ''}
                                 onChange={(e) => handleProjectionInputChange('peLow', year, parseFloat(e.target.value) || 0)}
                                 onKeyDown={(e) => handleKeyDown(e, 'pe-low', year)}
                                 className="text-center h-8 w-16 mx-auto"
@@ -596,12 +641,12 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                             <Input
                               id={`pe-high-${currentYear}`}
                               type="text"
-                              value={projectionInputs.peHigh[currentYear] || ''}
+                              value={projectionsState?.projectionInputs?.peHigh[currentYear] || ''}
                               onChange={(e) => handleProjectionInputChange('peHigh', currentYear.toString(), parseFloat(e.target.value) || 0)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
-                                  const nextInput = document.getElementById(`revenue-growth-${projectionYears[0]}`);
+                                  const nextInput = document.getElementById(`pe-high-${projectionYears[0]}`);
                                   if (nextInput) nextInput.focus();
                                 }
                               }}
@@ -615,7 +660,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                               <Input
                                 id={`pe-high-${year}`}
                                 type="text"
-                                value={projectionInputs.peHigh[year] || ''}
+                                value={projectionsState?.projectionInputs?.peHigh[year] || ''}
                                 onChange={(e) => handleProjectionInputChange('peHigh', year, parseFloat(e.target.value) || 0)}
                                 onKeyDown={(e) => handleKeyDown(e, 'pe-high', year)}
                                 className="text-center h-8 w-16 mx-auto"
@@ -629,19 +674,19 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         {/* Share Price Section */}
                         <tr id="share-price-low-data-row" className="border-b bg-gray-50">
                           <td className="py-3 px-4 font-medium text-left">Share Price Low</td>
-                          <td id={`share-price-low-${currentYear}`} className="py-3 px-4 text-center bg-orange-100">{formatCurrency(calculatedProjections.sharePriceLow[currentYear])}</td>
-                          <td id={`share-price-low-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(calculatedProjections.sharePriceLow[projectionYears[0]])}</td>
-                          <td id={`share-price-low-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(calculatedProjections.sharePriceLow[projectionYears[1]])}</td>
-                          <td id={`share-price-low-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(calculatedProjections.sharePriceLow[projectionYears[2]])}</td>
-                          <td id={`share-price-low-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(calculatedProjections.sharePriceLow[projectionYears[3]])}</td>
+                          <td id={`share-price-low-${currentYear}`} className="py-3 px-4 text-center bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[currentYear])}</td>
+                          <td id={`share-price-low-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[0]])}</td>
+                          <td id={`share-price-low-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[1]])}</td>
+                          <td id={`share-price-low-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[2]])}</td>
+                          <td id={`share-price-low-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[3]])}</td>
                         </tr>
                         <tr id="share-price-high-data-row" className="bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-3 px-4 font-medium text-left">Share Price High</td>
-                          <td id={`share-price-high-${currentYear}`} className="py-3 px-4 text-center bg-orange-100">{formatCurrency(calculatedProjections.sharePriceHigh[currentYear])}</td>
-                          <td id={`share-price-high-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(calculatedProjections.sharePriceHigh[projectionYears[0]])}</td>
-                          <td id={`share-price-high-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(calculatedProjections.sharePriceHigh[projectionYears[1]])}</td>
-                          <td id={`share-price-high-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(calculatedProjections.sharePriceHigh[projectionYears[2]])}</td>
-                          <td id={`share-price-high-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(calculatedProjections.sharePriceHigh[projectionYears[3]])}</td>
+                          <td id={`share-price-high-${currentYear}`} className="py-3 px-4 text-center bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[currentYear])}</td>
+                          <td id={`share-price-high-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[0]])}</td>
+                          <td id={`share-price-high-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[1]])}</td>
+                          <td id={`share-price-high-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[2]])}</td>
+                          <td id={`share-price-high-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[3]])}</td>
                         </tr>
 
                         {/* CAGR Section */}
@@ -649,17 +694,17 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                           <td className="py-3 px-4 font-medium text-left">CAGR Low</td>
                           <td id={`cagr-low-${currentYear}`} className="py-3 px-4 text-center"></td>
                           <td id={`cagr-low-${projectionYears[0]}`} className="py-3 px-4 text-center"></td>
-                          <td id={`cagr-low-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(calculatedProjections.cagrLow[projectionYears[1]])}</td>
-                          <td id={`cagr-low-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(calculatedProjections.cagrLow[projectionYears[2]])}</td>
-                          <td id={`cagr-low-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(calculatedProjections.cagrLow[projectionYears[3]])}</td>
+                          <td id={`cagr-low-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(projectionsState?.calculatedProjections?.cagrLow[projectionYears[1]])}</td>
+                          <td id={`cagr-low-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(projectionsState?.calculatedProjections?.cagrLow[projectionYears[2]])}</td>
+                          <td id={`cagr-low-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(projectionsState?.calculatedProjections?.cagrLow[projectionYears[3]])}</td>
                         </tr>
                         <tr id="cagr-high-data-row" className="bg-gray-50">
                           <td className="py-3 px-4 font-medium text-left">CAGR High</td>
                           <td id={`cagr-high-${currentYear}`} className="py-3 px-4 text-center"></td>
                           <td id={`cagr-high-${projectionYears[0]}`} className="py-3 px-4 text-center"></td>
-                          <td id={`cagr-high-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(calculatedProjections.cagrHigh[projectionYears[1]])}</td>
-                          <td id={`cagr-high-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(calculatedProjections.cagrHigh[projectionYears[2]])}</td>
-                          <td id={`cagr-high-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(calculatedProjections.cagrHigh[projectionYears[3]])}</td>
+                          <td id={`cagr-high-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(projectionsState?.calculatedProjections?.cagrHigh[projectionYears[1]])}</td>
+                          <td id={`cagr-high-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(projectionsState?.calculatedProjections?.cagrHigh[projectionYears[2]])}</td>
+                          <td id={`cagr-high-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(projectionsState?.calculatedProjections?.cagrHigh[projectionYears[3]])}</td>
                         </tr>
                       </tbody>
                     </table>
