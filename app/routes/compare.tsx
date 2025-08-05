@@ -157,9 +157,6 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
       <Navbar loaderData={loaderData} />
       <main className="min-h-screen pt-20 bg-background">
         <div className="container mx-auto px-6 py-8">
-          <h1 className="text-3xl font-bold text-foreground mb-6">
-            Compare Stocks
-          </h1>
           <div className="w-full max-w-6xl mx-auto">
             
             {/* Stock Selection Form */}
