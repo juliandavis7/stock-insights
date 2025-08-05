@@ -144,6 +144,9 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
           nextMetric = 'pe-low';
         } else if (metric === 'pe-low') {
           nextMetric = 'pe-high';
+        } else if (metric === 'pe-high') {
+          // After pe-high, go back to revenue-growth for next year or stop
+          nextMetric = 'revenue-growth';
         }
         
         if (nextMetric) {
@@ -157,8 +160,11 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   };
 
   // Format percentage values for display
-  const formatPercentageInput = (value: number): string => {
-    return value === 0 ? '' : `${value}%`;
+  const formatPercentageInput = (value: number | undefined): string => {
+    if (value === undefined || value === null || isNaN(value) || value === 0) {
+      return '0%';
+    }
+    return `${value}%`;
   };
 
   // Calculation functions
@@ -294,6 +300,26 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
         eps: data.eps
       });
       
+      // Clear all user inputs when searching for a new ticker
+      setProjectionInputs({
+        revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        peLow: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        peHigh: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 }
+      });
+      
+      // Clear calculated projections
+      setCalculatedProjections({
+        revenue: {},
+        netIncome: {},
+        netIncomeMargin: {},
+        eps: {},
+        sharePriceLow: {},
+        sharePriceHigh: {},
+        cagrLow: {},
+        cagrHigh: {}
+      });
+      
     } catch (err) {
       console.error('Error fetching stock data:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch stock data');
@@ -414,7 +440,6 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         </Label>
                         <Input
                           id="projections-stock-input"
-                          placeholder="Enter ticker (e.g., CELH)"
                           value={stockInfo.ticker}
                           onChange={(e) => handleTickerChange(e.target.value)}
                         />
