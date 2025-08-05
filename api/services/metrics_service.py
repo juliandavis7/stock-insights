@@ -30,19 +30,23 @@ class MetricsService:
         
         # Initialize result with default None values
         result = {
-            'TTM_PE': None,
-            'Forward_PE': None,
-            'Two_Year_Forward_PE': None,
-            'TTM_EPS_Growth': None,
-            'Current_Year_EPS_Growth': None,
-            'Next_Year_EPS_Growth': None,
-            'TTM_Revenue_Growth': None,
-            'Current_Year_Revenue_Growth': None,
-            'Next_Year_Revenue_Growth': None,
-            'Gross_Margin': None,
-            'Net_Margin': None,
-            'TTM_PS_Ratio': None,
-            'Forward_PS_Ratio': None
+            'ttm_pe': None,
+            'forward_pe': None,
+            'two_year_forward_pe': None,
+            'ttm_eps_growth': None,
+            'current_year_eps_growth': None,
+            'next_year_eps_growth': None,
+            'ttm_revenue_growth': None,
+            'current_year_revenue_growth': None,
+            'next_year_revenue_growth': None,
+            'gross_margin': None,
+            'net_margin': None,
+            'ttm_ps_ratio': None,
+            'forward_ps_ratio': None,
+            # Stock info fields
+            'ticker': ticker.upper(),
+            'price': None,
+            'market_cap': None
         }
         
         try:
@@ -83,6 +87,11 @@ class MetricsService:
                 basic_metrics = self._calculate_basic_metrics(stock_info)
                 logger.info(f"✅ Basic metrics calculated: {basic_metrics}")
                 result.update(basic_metrics)
+                
+                # Extract stock info fields
+                stock_data = self._extract_stock_info_fields(stock_info)
+                logger.info(f"✅ Stock info fields extracted: {stock_data}")
+                result.update(stock_data)
             
             # Calculate FMP-based metrics
             fmp_data_valid = self._is_valid_data(fmp_data)
@@ -113,7 +122,7 @@ class MetricsService:
                     logger.info(f"📊 Forward P/S calculated: {forward_ps}")
                     
                     if forward_ps:
-                        result['Forward_PS_Ratio'] = forward_ps
+                        result['forward_ps_ratio'] = forward_ps
                 else:
                     logger.info(f"⚠️ Skipping derived metrics - Stock info: {bool(stock_info)}, Revenue forecast: {revenue_forecast is not None}")
             except Exception as derived_error:
@@ -195,13 +204,20 @@ class MetricsService:
     def _calculate_basic_metrics(self, stock_info: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate basic metrics from stock info."""
         return {
-            'TTM_PE': util.get_ttm_pe(stock_info),
-            'Forward_PE': util.get_forward_pe(stock_info),
-            'TTM_EPS_Growth': util.get_earnings_growth(stock_info),
-            'TTM_Revenue_Growth': util.get_revenue_growth(stock_info),
-            'Gross_Margin': util.get_gross_margin(stock_info),
-            'Net_Margin': util.get_net_margin(stock_info),
-            'TTM_PS_Ratio': util.get_ttm_ps(stock_info)
+            'ttm_pe': util.get_ttm_pe(stock_info),
+            'forward_pe': util.get_forward_pe(stock_info),
+            'ttm_eps_growth': util.get_earnings_growth(stock_info),
+            'ttm_revenue_growth': util.get_revenue_growth(stock_info),
+            'gross_margin': util.get_gross_margin(stock_info),
+            'net_margin': util.get_net_margin(stock_info),
+            'ttm_ps_ratio': util.get_ttm_ps(stock_info)
+        }
+    
+    def _extract_stock_info_fields(self, stock_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract stock price and market cap from stock info."""
+        return {
+            'price': stock_info.get('current_price'),
+            'market_cap': stock_info.get('market_cap')
         }
     
     def _calculate_fmp_metrics(self, ticker: str, stock_info: Dict[str, Any], fmp_data: list) -> Dict[str, Any]:
@@ -213,7 +229,7 @@ class MetricsService:
         if current_price:
             two_year_pe = util.get_two_year_forward_pe(ticker, current_price, fmp_data)
             if two_year_pe:
-                result['Two_Year_Forward_PE'] = two_year_pe
+                result['two_year_forward_pe'] = two_year_pe
         
         return result
     
@@ -234,9 +250,9 @@ class MetricsService:
             logger.info(f"📊 YFinance EPS growth - Current: {current_year_eps}, Next: {next_year_eps}")
             
             if current_year_eps:
-                result['Current_Year_EPS_Growth'] = current_year_eps
+                result['current_year_eps_growth'] = current_year_eps
             if next_year_eps:
-                result['Next_Year_EPS_Growth'] = next_year_eps
+                result['next_year_eps_growth'] = next_year_eps
         
         revenue_forecast = forecast_data.get('revenue_forecast')
         revenue_available = self._is_valid_data(revenue_forecast)
@@ -249,15 +265,15 @@ class MetricsService:
             logger.info(f"📊 YFinance Revenue growth - Current: {current_year_rev}, Next: {next_year_rev}")
             
             if current_year_rev:
-                result['Current_Year_Revenue_Growth'] = current_year_rev
+                result['current_year_revenue_growth'] = current_year_rev
             if next_year_rev:
-                result['Next_Year_Revenue_Growth'] = next_year_rev
+                result['next_year_revenue_growth'] = next_year_rev
         
         logger.info(f"📊 YFinance forecast results: {result}")
         
         # If YFinance forecasts failed, try to calculate from FMP data
-        missing_eps = 'Current_Year_EPS_Growth' not in result or 'Next_Year_EPS_Growth' not in result
-        missing_rev = 'Current_Year_Revenue_Growth' not in result or 'Next_Year_Revenue_Growth' not in result
+        missing_eps = 'current_year_eps_growth' not in result or 'next_year_eps_growth' not in result
+        missing_rev = 'current_year_revenue_growth' not in result or 'next_year_revenue_growth' not in result
         fmp_valid = self._is_valid_data(fmp_data)
         
         logger.info(f"🔍 FMP fallback check - FMP valid: {fmp_valid}, Missing EPS: {missing_eps}, Missing Rev: {missing_rev}")
@@ -315,8 +331,8 @@ class MetricsService:
                 
                 if prev_eps and prev_eps != 0:
                     growth = ((current_eps - prev_eps) / abs(prev_eps)) * 100
-                    result['Current_Year_EPS_Growth'] = round(growth, 2)
-                    logger.info(f"✅ Calculated Current Year EPS Growth: {result['Current_Year_EPS_Growth']}%")
+                    result['current_year_eps_growth'] = round(growth, 2)
+                    logger.info(f"✅ Calculated Current Year EPS Growth: {result['current_year_eps_growth']}%")
                 else:
                     logger.warning(f"⚠️ Invalid previous EPS value: {prev_eps}")
             else:
@@ -329,8 +345,8 @@ class MetricsService:
                 
                 if current_eps and current_eps != 0:
                     growth = ((next_eps - current_eps) / abs(current_eps)) * 100
-                    result['Next_Year_EPS_Growth'] = round(growth, 2)
-                    logger.info(f"✅ Calculated Next Year EPS Growth: {result['Next_Year_EPS_Growth']}%")
+                    result['next_year_eps_growth'] = round(growth, 2)
+                    logger.info(f"✅ Calculated Next Year EPS Growth: {result['next_year_eps_growth']}%")
                 else:
                     logger.warning(f"⚠️ Invalid current EPS value: {current_eps}")
             else:
@@ -342,14 +358,14 @@ class MetricsService:
                 current_rev = revenue_by_year[current_year_str]
                 if prev_rev and prev_rev != 0:
                     growth = ((current_rev - prev_rev) / abs(prev_rev)) * 100
-                    result['Current_Year_Revenue_Growth'] = round(growth, 2)
+                    result['current_year_revenue_growth'] = round(growth, 2)
             
             if next_year_str in revenue_by_year and current_year_str in revenue_by_year:
                 current_rev = revenue_by_year[current_year_str]
                 next_rev = revenue_by_year[next_year_str]
                 if current_rev and current_rev != 0:
                     growth = ((next_rev - current_rev) / abs(current_rev)) * 100
-                    result['Next_Year_Revenue_Growth'] = round(growth, 2)
+                    result['next_year_revenue_growth'] = round(growth, 2)
             
             logger.info(f"Calculated FMP growth metrics: {result}")
             

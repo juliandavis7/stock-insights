@@ -6,6 +6,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { BarChart3 } from "lucide-react";
 import { Navbar } from "~/components/homepage/navbar";
+import { useCompareState, useStockActions } from "~/store/stockStore";
 import type { Route } from "./+types/compare";
 
 export function meta({}: Route.MetaArgs) {
@@ -23,35 +24,32 @@ export async function loader() {
 }
 
 interface FinancialMetrics {
-  TTM_PE: number | null;
-  Forward_PE: number | null;
-  Two_Year_Forward_PE: number | null;
-  TTM_EPS_Growth: number | null;
-  Current_Year_EPS_Growth: number | null;
-  Next_Year_EPS_Growth: number | null;
-  TTM_Revenue_Growth: number | null;
-  Current_Year_Revenue_Growth: number | null;
-  Next_Year_Revenue_Growth: number | null;
-  Gross_Margin: number | null;
-  Net_Margin: number | null;
-  TTM_PS_Ratio: number | null;
-  Forward_PS_Ratio: number | null;
+  ttm_pe: number | null;
+  forward_pe: number | null;
+  two_year_forward_pe: number | null;
+  ttm_eps_growth: number | null;
+  current_year_eps_growth: number | null;
+  next_year_eps_growth: number | null;
+  ttm_revenue_growth: number | null;
+  current_year_revenue_growth: number | null;
+  next_year_revenue_growth: number | null;
+  gross_margin: number | null;
+  net_margin: number | null;
+  ttm_ps_ratio: number | null;
+  forward_ps_ratio: number | null;
+  // Stock info fields from expanded metrics endpoint
+  ticker: string | null;
+  price: number | null;
+  market_cap: number | null;
 }
 
-interface StockComparison {
-  ticker: string;
-  metrics: FinancialMetrics | null;
-  loading: boolean;
-  error: string | null;
-}
-
-const formatPercentage = (value: number | null): string => {
-  if (value === null) return "N/A";
+const formatPercentage = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value)) return "-";
   return `${value.toFixed(2)}%`;
 };
 
-const formatRatio = (value: number | null): string => {
-  if (value === null) return "N/A";
+const formatRatio = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value)) return "-";
   return value.toFixed(2);
 };
 
@@ -62,24 +60,27 @@ const getMetricValue = (metrics: FinancialMetrics | null, metricKey: keyof Finan
 
 interface MetricRowProps {
   metric: string;
-  stock1: StockComparison;
-  stock2: StockComparison;
-  stock3: StockComparison;
+  ticker1: string;
+  ticker2: string;
+  ticker3: string;
+  data1: FinancialMetrics | null;
+  data2: FinancialMetrics | null;
+  data3: FinancialMetrics | null;
   metricKey: keyof FinancialMetrics;
   formatter: (value: number | null) => string;
   benchmark: string;
   higherIsBetter?: boolean;
 }
 
-const MetricRow = ({ metric, stock1, stock2, stock3, metricKey, formatter, benchmark, higherIsBetter = true }: MetricRowProps) => {
+const MetricRow = ({ metric, ticker1, ticker2, ticker3, data1, data2, data3, metricKey, formatter, benchmark, higherIsBetter = true }: MetricRowProps) => {
   return (
     <tr className="border-b" id={`compare-metric-row-${metricKey.toLowerCase().replace(/_/g, '-')}`}>
       <td className="py-3 px-4 font-medium w-1/3 text-left">{metric}</td>
       <td className="py-3 px-4 w-1/3 text-center">
         <div className="grid grid-cols-3 gap-4">
-          <span className="text-center">{formatter(getMetricValue(stock1.metrics, metricKey))}</span>
-          <span className="text-center">{formatter(getMetricValue(stock2.metrics, metricKey))}</span>
-          <span className="text-center">{formatter(getMetricValue(stock3.metrics, metricKey))}</span>
+          <span className="text-center font-medium" style={{ color: '#D97706' }}>{formatter(getMetricValue(data1, metricKey))}</span>
+          <span className="text-center">{formatter(getMetricValue(data2, metricKey))}</span>
+          <span className="text-center font-medium" style={{ color: '#0369A1' }}>{formatter(getMetricValue(data3, metricKey))}</span>
         </div>
       </td>
       <td className="py-3 px-4 text-muted-foreground w-1/3 text-center">{benchmark}</td>
@@ -88,62 +89,68 @@ const MetricRow = ({ metric, stock1, stock2, stock3, metricKey, formatter, bench
 };
 
 export default function Compare({ loaderData }: Route.ComponentProps) {
-  const [stocks, setStocks] = useState<StockComparison[]>([
-    { ticker: "AAPL", metrics: null, loading: false, error: null },
-    { ticker: "MSFT", metrics: null, loading: false, error: null },
-    { ticker: "GOOGL", metrics: null, loading: false, error: null }
-  ]);
+  const compareState = useCompareState();
+  const actions = useStockActions();
+  const [inputTickers, setInputTickers] = useState<[string, string, string]>(compareState?.tickers || ['AAPL', 'MSFT', 'GOOGL']);
 
   const fetchMetrics = async (ticker: string, index: number) => {
-    setStocks(prev => prev.map((stock, i) => 
-      i === index ? { ...stock, loading: true, error: null } : stock
-    ));
+    actions.setCompareLoading(index, true);
+    actions.setCompareError(index, null);
+    actions.setCompareTicker(index, ticker);
     
     try {
-      const fastApiUrl = import.meta.env.VITE_FASTAPI_URL || "http://127.0.0.1:8000";
-      const response = await fetch(`${fastApiUrl}/metrics?ticker=${ticker.toUpperCase()}`);
-      
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      // Check cache first, then fetch if needed
+      const cachedData = actions.getCachedMetrics(ticker);
+      if (cachedData) {
+        actions.setCompareData(ticker, cachedData);
+        actions.setCompareLoading(index, false);
+        return;
       }
       
-      const data: FinancialMetrics = await response.json();
-      
-      setStocks(prev => prev.map((stock, i) => 
-        i === index ? { ...stock, metrics: data, loading: false } : stock
-      ));
+      const data = await actions.fetchMetrics(ticker);
+      actions.setCompareData(ticker, data);
     } catch (err) {
       console.error(`Error fetching stock metrics for ${ticker}:`, err);
       const errorMessage = err instanceof Error ? err.message : "Error fetching stock metrics";
-      
-      setStocks(prev => prev.map((stock, i) => 
-        i === index ? { ...stock, error: errorMessage, loading: false } : stock
-      ));
+      actions.setCompareError(index, errorMessage);
+    } finally {
+      actions.setCompareLoading(index, false);
     }
   };
 
   const handleTickerChange = (index: number, value: string) => {
-    setStocks(prev => prev.map((stock, i) => 
-      i === index ? { ...stock, ticker: value.toUpperCase(), metrics: null, error: null } : stock
-    ));
+    const newTickers = [...inputTickers] as [string, string, string];
+    newTickers[index] = value.toUpperCase();
+    setInputTickers(newTickers);
   };
 
   const handleCompare = (e: React.FormEvent) => {
     e.preventDefault();
-    stocks.forEach((stock, index) => {
-      if (stock.ticker.trim()) {
-        fetchMetrics(stock.ticker.trim(), index);
+    inputTickers.forEach((ticker, index) => {
+      if (ticker.trim()) {
+        fetchMetrics(ticker.trim(), index);
       }
     });
   };
 
+  // Auto-load default stocks on component mount (only run once)
   useEffect(() => {
-    // Auto-fetch initial comparison on component mount
-    handleCompare({ preventDefault: () => {} } as React.FormEvent);
-  }, []);
+    const defaultTickers = ['AAPL', 'MSFT', 'GOOGL'];
+    defaultTickers.forEach((ticker, index) => {
+      fetchMetrics(ticker, index);
+    });
+  }, []); // Empty dependency array - run only once on mount
 
-  const hasData = stocks.some(stock => stock.metrics !== null);
-  const isLoading = stocks.some(stock => stock.loading);
+  // Sync input fields when returning to tab
+  useEffect(() => {
+    if (compareState?.tickers) {
+      setInputTickers(compareState.tickers);
+    }
+  }, [compareState?.tickers]);
+
+
+  const hasData = compareState?.data ? Object.values(compareState.data).some(data => data !== null) : false;
+  const isLoading = compareState?.loading ? Object.values(compareState.loading).some(loading => loading) : false;
 
   return (
     <>
@@ -166,17 +173,16 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                         <div>
                           <Input
                             id="compare-stock-input-1"
-                            placeholder="Enter ticker (e.g., AAPL)"
-                            value={stocks[0].ticker}
+                            value={inputTickers[0]}
                             onChange={(e) => handleTickerChange(0, e.target.value)}
-                            className="text-center"
+                            className="text-center border-2 focus:border-amber-200 focus:ring-amber-200"
+                            style={{ borderColor: '#FED7AA' }}
                           />
                         </div>
                         <div>
                           <Input
                             id="compare-stock-input-2"
-                            placeholder="Enter ticker (e.g., MSFT)"
-                            value={stocks[1].ticker}
+                            value={inputTickers[1]}
                             onChange={(e) => handleTickerChange(1, e.target.value)}
                             className="text-center"
                           />
@@ -184,10 +190,10 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                         <div>
                           <Input
                             id="compare-stock-input-3"
-                            placeholder="Enter ticker (e.g., GOOGL)"
-                            value={stocks[2].ticker}
+                            value={inputTickers[2]}
                             onChange={(e) => handleTickerChange(2, e.target.value)}
-                            className="text-center"
+                            className="text-center border-2 focus:border-blue-200 focus:ring-blue-200"
+                            style={{ borderColor: '#BFDBFE' }}
                           />
                         </div>
                       </div>
@@ -207,14 +213,14 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
             </div>
 
             {/* Error States */}
-            {stocks.some(stock => stock.error) && (
+            {compareState?.errors && Object.values(compareState.errors).some(error => error) && (
               <Card className="mt-6">
                 <CardContent className="pt-6">
                   <div className="space-y-2">
-                    {stocks.map((stock, index) => 
-                      stock.error ? (
+                    {Object.entries(compareState.errors).map(([index, error]) => 
+                      error ? (
                         <div key={index} className="text-red-600">
-                          {stock.ticker}: {stock.error}
+                          {compareState.tickers?.[parseInt(index)]}: {error}
                         </div>
                       ) : null
                     )}
@@ -240,7 +246,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
             )}
 
             {/* Comparison Results */}
-            {hasData && !isLoading && (
+            {!isLoading && (
               <div className="space-y-6 mt-6">
                 {/* P/E Ratios Group */}
                 <Card>
@@ -250,30 +256,39 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                         <tbody>
                           <MetricRow
                             metric="TTM PE"
-                            stock1={stocks[0]}
-                            stock2={stocks[1]}
-                            stock3={stocks[2]}
-                            metricKey="TTM_PE"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="ttm_pe"
                             formatter={formatRatio}
                             benchmark="Many stocks trade at 20-28"
                             higherIsBetter={false}
                           />
                           <MetricRow
                             metric="Forward PE"
-                            stock1={stocks[0]}
-                            stock2={stocks[1]}
-                            stock3={stocks[2]}
-                            metricKey="Forward_PE"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="forward_pe"
                             formatter={formatRatio}
                             benchmark="Many stocks trade at 18-26"
                             higherIsBetter={false}
                           />
                           <MetricRow
                             metric="2 Year Forward PE"
-                            stock1={stocks[0]}
-                            stock2={stocks[1]}
-                            stock3={stocks[2]}
-                            metricKey="Two_Year_Forward_PE"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="two_year_forward_pe"
                             formatter={formatRatio}
                             benchmark="Many stocks trade at 16-24"
                             higherIsBetter={false}
@@ -292,28 +307,37 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                         <tbody>
                           <MetricRow
                             metric="TTM EPS Growth"
-                            stock1={stocks[0]}
-                            stock2={stocks[1]}
-                            stock3={stocks[2]}
-                            metricKey="TTM_EPS_Growth"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="ttm_eps_growth"
                             formatter={formatPercentage}
                             benchmark="Many stocks trade at 8-12%"
                           />
                           <MetricRow
                             metric="Current Yr Exp EPS Growth"
-                            stock1={stocks[0]}
-                            stock2={stocks[1]}
-                            stock3={stocks[2]}
-                            metricKey="Current_Year_EPS_Growth"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="current_year_eps_growth"
                             formatter={formatPercentage}
                             benchmark="Many stocks trade at 8-12%"
                           />
                           <MetricRow
                             metric="Next Year EPS Growth"
-                            stock1={stocks[0]}
-                            stock2={stocks[1]}
-                            stock3={stocks[2]}
-                            metricKey="Next_Year_EPS_Growth"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="next_year_eps_growth"
                             formatter={formatPercentage}
                             benchmark="Many stocks trade at 8-12%"
                           />
@@ -331,28 +355,37 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                         <tbody>
                           <MetricRow
                             metric="TTM Rev Growth"
-                            stock1={stocks[0]}
-                            stock2={stocks[1]}
-                            stock3={stocks[2]}
-                            metricKey="TTM_Revenue_Growth"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="ttm_revenue_growth"
                             formatter={formatPercentage}
                             benchmark="Many stocks trade at 4.5-6.5%"
                           />
                           <MetricRow
                             metric="Current Yr Exp Rev Growth"
-                            stock1={stocks[0]}
-                            stock2={stocks[1]}
-                            stock3={stocks[2]}
-                            metricKey="Current_Year_Revenue_Growth"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="current_year_revenue_growth"
                             formatter={formatPercentage}
                             benchmark="Many stocks trade at 4.5-6.5%"
                           />
                           <MetricRow
                             metric="Next Year Rev Growth"
-                            stock1={stocks[0]}
-                            stock2={stocks[1]}
-                            stock3={stocks[2]}
-                            metricKey="Next_Year_Revenue_Growth"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="next_year_revenue_growth"
                             formatter={formatPercentage}
                             benchmark="Many stocks trade at 4.5-6.5%"
                           />
@@ -370,38 +403,50 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                         <tbody>
                           <MetricRow
                             metric="Gross Margin"
-                            stock1={stocks[0]}
-                            stock2={stocks[1]}
-                            stock3={stocks[2]}
-                            metricKey="Gross_Margin"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="gross_margin"
                             formatter={(val) => formatPercentage(val && val * 100)}
                             benchmark="Many stocks trade at 40-48%"
                           />
                           <MetricRow
                             metric="Net Margin"
-                            stock1={stocks[0]}
-                            stock2={stocks[1]}
-                            stock3={stocks[2]}
-                            metricKey="Net_Margin"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="net_margin"
                             formatter={(val) => formatPercentage(val && val * 100)}
                             benchmark="Many stocks trade at 8-10%"
                           />
                           <MetricRow
                             metric="TTM P/S Ratio"
-                            stock1={stocks[0]}
-                            stock2={stocks[1]}
-                            stock3={stocks[2]}
-                            metricKey="TTM_PS_Ratio"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="ttm_ps_ratio"
                             formatter={formatRatio}
                             benchmark="Many stocks trade at 1.8-2.6"
                             higherIsBetter={false}
                           />
                           <MetricRow
                             metric="Forward P/S Ratio"
-                            stock1={stocks[0]}
-                            stock2={stocks[1]}
-                            stock3={stocks[2]}
-                            metricKey="Forward_PS_Ratio"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="forward_ps_ratio"
                             formatter={formatRatio}
                             benchmark="Many stocks trade at 1.8-2.6"
                             higherIsBetter={false}

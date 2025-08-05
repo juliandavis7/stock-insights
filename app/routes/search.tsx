@@ -6,6 +6,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Search } from "lucide-react";
 import { Navbar } from "~/components/homepage/navbar";
+import { useSearchState, useStockActions } from "~/store/stockStore";
 import type { Route } from "./+types/search";
 
 export function meta({}: Route.MetaArgs) {
@@ -23,28 +24,44 @@ export async function loader() {
 }
 
 interface FinancialMetrics {
-  TTM_PE: number | null;
-  Forward_PE: number | null;
-  Two_Year_Forward_PE: number | null;
-  TTM_EPS_Growth: number | null;
-  Current_Year_EPS_Growth: number | null;
-  Next_Year_EPS_Growth: number | null;
-  TTM_Revenue_Growth: number | null;
-  Current_Year_Revenue_Growth: number | null;
-  Next_Year_Revenue_Growth: number | null;
-  Gross_Margin: number | null;
-  Net_Margin: number | null;
-  TTM_PS_Ratio: number | null;
-  Forward_PS_Ratio: number | null;
+  ttm_pe: number | null;
+  forward_pe: number | null;
+  two_year_forward_pe: number | null;
+  ttm_eps_growth: number | null;
+  current_year_eps_growth: number | null;
+  next_year_eps_growth: number | null;
+  ttm_revenue_growth: number | null;
+  current_year_revenue_growth: number | null;
+  next_year_revenue_growth: number | null;
+  gross_margin: number | null;
+  net_margin: number | null;
+  ttm_ps_ratio: number | null;
+  forward_ps_ratio: number | null;
+  // Stock info fields from expanded metrics endpoint
+  ticker: string | null;
+  price: number | null;
+  market_cap: number | null;
 }
 
-const formatCurrency = (value: number | null): string => {
-  if (value === null) return "N/A";
+const formatCurrency = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value)) return "$0";
+  if (value >= 1e12) {
+    return `$${(value / 1e12).toFixed(2)}T`;
+  } else if (value >= 1e9) {
+    return `$${(value / 1e9).toFixed(2)}B`;
+  } else if (value >= 1e6) {
+    return `$${(value / 1e6).toFixed(2)}M`;
+  }
   return `$${value.toFixed(2)}`;
 };
 
-const formatLargeNumber = (value: number | null): string => {
-  if (value === null) return "N/A";
+const formatNumber = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value)) return "0";
+  return value.toLocaleString();
+};
+
+const formatLargeNumber = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value)) return "-";
   
   if (value >= 1e9) {
     return `${(value / 1e9).toFixed(2)}B`;
@@ -55,13 +72,13 @@ const formatLargeNumber = (value: number | null): string => {
   return value.toFixed(2);
 };
 
-const formatPercentage = (value: number | null): string => {
-  if (value === null) return "N/A";
+const formatPercentage = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value)) return "-";
   return `${value.toFixed(2)}%`;
 };
 
-const formatRatio = (value: number | null): string => {
-  if (value === null) return "N/A";
+const formatRatio = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value)) return "-";
   return value.toFixed(2);
 };
 
@@ -80,56 +97,63 @@ const MetricRow = ({ metric, value, benchmark }: MetricRowProps) => (
 );
 
 export default function SearchPage({ loaderData }: Route.ComponentProps) {
-  const [metrics, setMetrics] = useState<FinancialMetrics | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [stockSymbol, setStockSymbol] = useState("AAPL");
+  const searchState = useSearchState();
+  const actions = useStockActions();
+  const [stockSymbol, setStockSymbol] = useState(searchState?.currentTicker || 'AAPL');
 
   // Hard-coded sample data matching the FastAPI response structure
   const sampleMetrics: FinancialMetrics = {
-    TTM_PE: 17.80,
-    Forward_PE: 17.13,
-    Two_Year_Forward_PE: 15.97,
-    TTM_EPS_Growth: 15.37,
-    Current_Year_EPS_Growth: 7.60,
-    Next_Year_EPS_Growth: 12.64,
-    TTM_Revenue_Growth: 8.66,
-    Current_Year_Revenue_Growth: 8.67,
-    Next_Year_Revenue_Growth: 8.95,
-    Gross_Margin: 40.23,
-    Net_Margin: 14.31,
-    TTM_PS_Ratio: 2.55,
-    Forward_PS_Ratio: 2.54
+    ttm_pe: 17.80,
+    forward_pe: 17.13,
+    two_year_forward_pe: 15.97,
+    ttm_eps_growth: 15.37,
+    current_year_eps_growth: 7.60,
+    next_year_eps_growth: 12.64,
+    ttm_revenue_growth: 8.66,
+    current_year_revenue_growth: 8.67,
+    next_year_revenue_growth: 8.95,
+    gross_margin: 40.23,
+    net_margin: 14.31,
+    ttm_ps_ratio: 2.55,
+    forward_ps_ratio: 2.54,
+    // Sample stock info
+    ticker: "AAPL",
+    price: 150.25,
+    market_cap: 2500000000000
   };
 
   const fetchMetrics = async (symbol: string) => {
-    setLoading(true);
-    setError(null);
+    actions.setSearchLoading(true);
+    actions.setSearchError(null);
+    actions.setSearchTicker(symbol);
     
     try {
-      const fastApiUrl = import.meta.env.VITE_FASTAPI_URL || "http://127.0.0.1:8000";
-      const response = await fetch(`${fastApiUrl}/metrics?ticker=${symbol.toUpperCase()}`);
-      
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      // Check cache first, then fetch if needed
+      const cachedData = actions.getCachedMetrics(symbol);
+      if (cachedData) {
+        actions.setSearchData(cachedData);
+        actions.setSearchLoading(false);
+        return;
       }
       
-      const data: FinancialMetrics = await response.json();
-      setMetrics(data);
+      const data = await actions.fetchMetrics(symbol);
+      actions.setSearchData(data);
     } catch (err) {
       console.error("Error fetching stock metrics:", err);
-      setError(err instanceof Error ? err.message : "Error fetching stock metrics");
+      actions.setSearchError(err instanceof Error ? err.message : "Error fetching stock metrics");
       
       // Fallback to sample data if API fails
-      setMetrics(sampleMetrics);
+      actions.setSearchData(sampleMetrics);
     } finally {
-      setLoading(false);
+      actions.setSearchLoading(false);
     }
   };
 
+  // Auto-load AAPL data on component mount (only run once)
   useEffect(() => {
-    fetchMetrics(stockSymbol);
-  }, []);
+    fetchMetrics('AAPL');
+  }, []); // Empty dependency array - run only once on mount
+
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,6 +161,13 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
       fetchMetrics(stockSymbol.trim());
     }
   };
+
+  // Sync input field when returning to tab with different ticker
+  useEffect(() => {
+    if (searchState?.currentTicker && searchState.currentTicker !== stockSymbol) {
+      setStockSymbol(searchState.currentTicker);
+    }
+  }, [searchState?.currentTicker]);
 
   return (
     <>
@@ -151,38 +182,49 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
           <div className="sticky top-20 z-10 mb-6">
             <Card>
               <CardContent>
-                <form onSubmit={handleSearch} className="flex gap-2 max-w-md mx-auto">
-                  <div className="flex-1">
+                <form onSubmit={handleSearch} className="flex gap-2 max-w-xs mx-auto">
+                  <div className="w-32">
                     <Label htmlFor="stock-symbol" className="sr-only">
                       Stock Symbol
                     </Label>
                     <Input
                       id="stock-symbol"
-                      placeholder="Enter stock symbol (e.g., AAPL)"
                       value={stockSymbol}
                       onChange={(e) => setStockSymbol(e.target.value)}
                     />
                   </div>
-                  <Button type="submit" disabled={loading}>
+                  <Button type="submit" disabled={searchState.loading}>
                     <Search className="h-4 w-4" />
                     Search
                   </Button>
                 </form>
+                
+                {/* Stock Info Display */}
+                <div className="mt-4">
+                  <div className="text-center">
+                    <span className="text-lg text-foreground font-medium">
+                      {formatCurrency(searchState.data?.price || 0)}
+                    </span>
+                    <span className="mx-6 text-base text-muted-foreground">
+                      MKT.CAP {formatCurrency(searchState.data?.market_cap || 0)}
+                    </span>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Error State */}
-          {error && (
+          {searchState.error && (
             <Card>
               <CardContent className="pt-6">
-                <div className="text-red-600 text-center">{error}</div>
+                <div className="text-red-600 text-center">{searchState.error}</div>
               </CardContent>
             </Card>
           )}
 
           {/* Loading State */}
-          {loading ? (
+          {searchState.loading ? (
             <Card>
               <CardContent className="pt-6">
                 <div className="space-y-4">
@@ -195,7 +237,7 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
                 </div>
               </CardContent>
             </Card>
-          ) : metrics ? (
+          ) : (
             <div className="space-y-6">
               {/* P/E Ratios Group */}
               <Card>
@@ -205,17 +247,17 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
                       <tbody>
                         <MetricRow
                           metric="TTM PE"
-                          value={formatRatio(metrics.TTM_PE)}
+                          value={formatRatio(searchState.data?.ttm_pe)}
                           benchmark="Many stocks trade at 20-28"
                         />
                         <MetricRow
                           metric="Forward PE"
-                          value={formatRatio(metrics.Forward_PE)}
+                          value={formatRatio(searchState.data?.forward_pe)}
                           benchmark="Many stocks trade at 18-26"
                         />
                         <MetricRow
                           metric="2 Year Forward PE"
-                          value={formatRatio(metrics.Two_Year_Forward_PE)}
+                          value={formatRatio(searchState.data?.two_year_forward_pe)}
                           benchmark="Many stocks trade at 16-24"
                         />
                       </tbody>
@@ -232,17 +274,17 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
                       <tbody>
                         <MetricRow
                           metric="TTM EPS Growth"
-                          value={formatPercentage(metrics.TTM_EPS_Growth)}
+                          value={formatPercentage(searchState.data?.ttm_eps_growth)}
                           benchmark="Many stocks trade at 8-12%"
                         />
                         <MetricRow
                           metric="Current Yr Exp EPS Growth"
-                          value={formatPercentage(metrics.Current_Year_EPS_Growth)}
+                          value={formatPercentage(searchState.data?.current_year_eps_growth)}
                           benchmark="Many stocks trade at 8-12%"
                         />
                         <MetricRow
                           metric="Next Year EPS Growth"
-                          value={formatPercentage(metrics.Next_Year_EPS_Growth)}
+                          value={formatPercentage(searchState.data?.next_year_eps_growth)}
                           benchmark="Many stocks trade at 8-12%"
                         />
                       </tbody>
@@ -259,17 +301,17 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
                       <tbody>
                         <MetricRow
                           metric="TTM Rev Growth"
-                          value={formatPercentage(metrics.TTM_Revenue_Growth)}
+                          value={formatPercentage(searchState.data?.ttm_revenue_growth)}
                           benchmark="Many stocks trade at 4.5-6.5%"
                         />
                         <MetricRow
                           metric="Current Yr Exp Rev Growth"
-                          value={formatPercentage(metrics.Current_Year_Revenue_Growth)}
+                          value={formatPercentage(searchState.data?.current_year_revenue_growth)}
                           benchmark="Many stocks trade at 4.5-6.5%"
                         />
                         <MetricRow
                           metric="Next Year Rev Growth"
-                          value={formatPercentage(metrics.Next_Year_Revenue_Growth)}
+                          value={formatPercentage(searchState.data?.next_year_revenue_growth)}
                           benchmark="Many stocks trade at 4.5-6.5%"
                         />
                       </tbody>
@@ -286,22 +328,22 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
                       <tbody>
                         <MetricRow
                           metric="Gross Margin"
-                          value={formatPercentage(metrics.Gross_Margin && metrics.Gross_Margin * 100)}
+                          value={formatPercentage(searchState.data?.gross_margin && searchState.data.gross_margin * 100)}
                           benchmark="Many stocks trade at 40-48%"
                         />
                         <MetricRow
                           metric="Net Margin"
-                          value={formatPercentage(metrics.Net_Margin && metrics.Net_Margin * 100)}
+                          value={formatPercentage(searchState.data?.net_margin && searchState.data.net_margin * 100)}
                           benchmark="Many stocks trade at 8-10%"
                         />
                         <MetricRow
                           metric="TTM P/S Ratio"
-                          value={formatRatio(metrics.TTM_PS_Ratio)}
+                          value={formatRatio(searchState.data?.ttm_ps_ratio)}
                           benchmark="Many stocks trade at 1.8-2.6"
                         />
                         <MetricRow
                           metric="Forward P/S Ratio"
-                          value={formatRatio(metrics.Forward_PS_Ratio)}
+                          value={formatRatio(searchState.data?.forward_ps_ratio)}
                           benchmark="Many stocks trade at 1.8-2.6"
                         />
                       </tbody>
@@ -310,7 +352,7 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
                 </CardContent>
               </Card>
             </div>
-          ) : null}
+          )}
           </div>
         </div>
       </main>
