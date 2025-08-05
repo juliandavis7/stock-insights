@@ -1,6 +1,6 @@
 # Models package for FastAPI application
 from .requests import YearProjection, ProjectionRequest
-from .responses import MetricsResponse, ProjectionResponse, ProjectionBaseDataResponse, ErrorResponse
+from .responses import MetricsResponse, ProjectionResponse, ProjectionBaseDataResponse, ErrorResponse, FinancialStatementResponse, FinancialDataResponse, AnalystEstimateResponse, ComprehensiveFinancialResponse
 
 __all__ = [
     "YearProjection",
@@ -8,5 +8,9 @@ __all__ = [
     "MetricsResponse",
     "ProjectionResponse",
     "ProjectionBaseDataResponse",
-    "ErrorResponse"
+    "ErrorResponse",
+    "FinancialStatementResponse",
+    "FinancialDataResponse",
+    "AnalystEstimateResponse",
+    "ComprehensiveFinancialResponse"
 ]

@@ -1,6 +1,7 @@
 """YFinance service for fetching stock data from Yahoo Finance."""
 
 import yfinance as yf
+import pandas as pd
 import logging
 from typing import Dict, Any, Optional
 from .. import util
@@ -229,4 +230,71 @@ class YFinanceService:
             
         except Exception as e:
             logger.error(f"Error fetching market cap for {ticker}: {e}")
+            return None
+    
+    def get_annual_income_statement(self, ticker: str) -> Optional[list]:
+        """
+        Get annual income statement data using yfinance.
+        
+        Args:
+            ticker: Stock ticker symbol
+            
+        Returns:
+            List of annual financial data or None if failed
+        """
+        try:
+            stock = yf.Ticker(ticker)
+            financials = stock.financials
+            
+            if financials.empty:
+                logger.warning(f"No financial data available for {ticker}")
+                return None
+            
+            # Define the metrics we want to extract (matching the test.py approach exactly)
+            metric_mapping = {
+                'totalRevenue': ['Total Revenue', 'Revenue'],
+                'costOfRevenue': ['Cost Of Revenue', 'Cost of Revenue'],
+                'grossProfit': ['Gross Profit'],
+                'sellingGeneralAndAdministrative': ['Selling General And Administration', 'Selling General And Administrative', 'Selling General Administrative'],
+                'researchAndDevelopment': ['Research And Development', 'Research Development'],
+                'operatingExpenses': ['Operating Expense', 'Total Operating Expenses'],
+                'operatingIncome': ['Operating Income', 'Operating Revenue'],
+                'netIncome': ['Net Income', 'Net Income Common Stockholders'],
+                'eps': ['Basic EPS', 'Earnings Per Share'],
+                'dilutedEps': ['Diluted EPS', 'Diluted Earnings Per Share']
+            }
+            
+            # Extract data for each year
+            financial_data = []
+            
+            for year_col in financials.columns:
+                year_data = {
+                    'fiscalYear': str(year_col.year)
+                }
+                
+                for our_key, possible_names in metric_mapping.items():
+                    value = None
+                    
+                    # Try to find the metric in financials
+                    for name in possible_names:
+                        if name in financials.index:
+                            value = financials.loc[name, year_col]
+                            break
+                    
+                    if value is not None and not pd.isna(value):
+                        # For EPS fields, keep as float; for others, convert to int
+                        if our_key in ['eps', 'dilutedEps']:
+                            year_data[our_key] = float(value)
+                        else:
+                            year_data[our_key] = int(float(value))
+                    else:
+                        year_data[our_key] = None
+                
+                financial_data.append(year_data)
+            
+            logger.info(f"Successfully fetched annual income statement for {ticker}")
+            return financial_data
+            
+        except Exception as e:
+            logger.error(f"Error fetching annual income statement for {ticker}: {e}")
             return None
