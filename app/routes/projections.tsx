@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
-import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
-import { Search } from "lucide-react";
 import { Navbar } from "~/components/homepage/navbar";
+import { StockSearchHeader } from "~/components/stock-search-header";
 import { useProjectionsState, useStockActions } from "~/store/stockStore";
 import type { Route } from "./+types/projections";
 
@@ -107,20 +105,21 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   // Handle percentage input formatting
   const handlePercentageInputChange = (metric: 'revenueGrowth' | 'netIncomeGrowth', year: string, value: string) => {
     const numValue = parseFloat(value) || 0;
-    setProjectionInputs(prev => {
-      const updated = {
-        ...prev,
-        [metric]: {
-          ...prev[metric],
-          [year]: numValue
-        }
-      };
-      
-      // Trigger recalculation after state update
-      setTimeout(() => recalculateProjections(updated), 0);
-      
-      return updated;
-    });
+    
+    if (!projectionsState?.projectionInputs) return;
+    
+    const updated = {
+      ...projectionsState.projectionInputs,
+      [metric]: {
+        ...projectionsState.projectionInputs[metric],
+        [year]: numValue
+      }
+    };
+    
+    actions.setProjectionsInputs(updated);
+    
+    // Trigger recalculation after state update
+    setTimeout(() => recalculateProjections(updated), 0);
   };
 
   // Handle Enter key to move to next input
@@ -323,7 +322,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
 
   // Recalculate all projections based on current inputs
   const recalculateProjections = (inputs: ProjectionInputs) => {
-    if (!projectionsState.baseData?.price || !projectionsState.baseData?.shares_outstanding || !projectionsState.baseData?.revenue || !projectionsState.baseData?.net_income) {
+    if (!projectionsState?.baseData?.price || !projectionsState?.baseData?.shares_outstanding || !projectionsState?.baseData?.revenue || !projectionsState?.baseData?.net_income) {
       return; // Wait for base data to be loaded
     }
 
@@ -339,15 +338,15 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     };
 
     // Calculate current year share prices using current year PE ratios and current EPS
-    const currentEPS = calculateEPS(projectionsState.baseData.net_income!, projectionsState.baseData.shares_outstanding!);
+    const currentEPS = calculateEPS(projectionsState?.baseData.net_income!, projectionsState?.baseData.shares_outstanding!);
     const currentPeLow = inputs.peLow[currentYear] || 0;
     const currentPeHigh = inputs.peHigh[currentYear] || 0;
     newProjections.sharePriceLow[currentYear] = calculateStockPrice(currentEPS, currentPeLow);
     newProjections.sharePriceHigh[currentYear] = calculateStockPrice(currentEPS, currentPeHigh);
 
     // Start with current year values
-    let previousRevenue = projectionsState.baseData.revenue!;
-    let previousNetIncome = projectionsState.baseData.net_income!;
+    let previousRevenue = projectionsState?.baseData.revenue!;
+    let previousNetIncome = projectionsState?.baseData.net_income!;
 
     // Calculate for each projection year
     projectionYears.forEach((year, index) => {
@@ -371,7 +370,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       newProjections.netIncomeMargin[year] = projectedNetIncomeMargin;
 
       // 4. Calculate EPS
-      const projectedEPS = calculateEPS(projectedNetIncome, projectionsState.baseData.shares_outstanding!);
+      const projectedEPS = calculateEPS(projectedNetIncome, projectionsState?.baseData.shares_outstanding!);
       newProjections.eps[year] = projectedEPS;
 
       // 5. Calculate Stock Prices
@@ -384,8 +383,8 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
 
       // 6. Calculate CAGR (start from year 2, which is index 1, so yearsFromCurrent >= 2)
       if (yearsFromCurrent >= 2) {
-        const cagrLow = calculateCAGR(priceLow, projectionsState.baseData.price!, yearsFromCurrent);
-        const cagrHigh = calculateCAGR(priceHigh, projectionsState.baseData.price!, yearsFromCurrent);
+        const cagrLow = calculateCAGR(priceLow, projectionsState?.baseData.price!, yearsFromCurrent);
+        const cagrHigh = calculateCAGR(priceHigh, projectionsState?.baseData.price!, yearsFromCurrent);
         newProjections.cagrLow[year] = cagrLow;
         newProjections.cagrHigh[year] = cagrHigh;
       }
@@ -448,46 +447,19 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
         <div className="container mx-auto px-6 py-8">
           <div className="w-full max-w-6xl mx-auto">
             
-            {/* Stock Selection Form - Sticky */}
-            <div className="sticky top-20 z-10 mb-6">
-              <Card>
-                <CardContent>
-                  <div id="projections-stock-selection-container">
-                    <form onSubmit={handleSearch} className="flex gap-2 max-w-xs mx-auto">
-                      <div className="w-32">
-                        <Label htmlFor="projections-stock-input" className="sr-only">
-                          Stock Symbol
-                        </Label>
-                        <Input
-                          id="projections-stock-input"
-                          value={stockSymbol}
-                          onChange={(e) => handleTickerChange(e.target.value)}
-                        />
-                      </div>
-                      <Button type="submit" disabled={projectionsState?.loading || false}>
-                        <Search className="h-4 w-4" />
-                        {projectionsState?.loading ? 'Searching...' : 'Search'}
-                      </Button>
-                    </form>
-                    
-                    {/* Stock Info Display */}
-                    <div id="projections-current-info-display" className="mt-4">
-                      <div id="stock-price-info" className="text-center">
-                        <span className="text-lg text-foreground font-medium">
-                          {formatCurrency(projectionsState.baseData?.price || 0)}
-                        </span>
-                        <span className="mx-6 text-base text-muted-foreground">
-                          MKT.CAP {formatCurrency(projectionsState.baseData?.market_cap || 0)}
-                        </span>
-                        <span className="text-base text-muted-foreground">
-                          SHARES OUTSTANDING: {formatNumber(projectionsState.baseData?.shares_outstanding || 0)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <StockSearchHeader
+              stockSymbol={stockSymbol}
+              onStockSymbolChange={handleTickerChange}
+              onSearch={handleSearch}
+              loading={projectionsState?.loading || false}
+              ticker={stockSymbol}
+              stockPrice={projectionsState?.baseData?.price}
+              marketCap={projectionsState?.baseData?.market_cap}
+              sharesOutstanding={projectionsState?.baseData?.shares_outstanding}
+              showSharesOutstanding={true}
+              formatCurrency={formatCurrency}
+              formatNumber={formatNumber}
+            />
 
             {/* Error State */}
             {projectionsState?.error && (
@@ -507,33 +479,33 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                     <table className="w-full">
                       <thead>
                         <tr id="financial-data-year-headers" className="border-b">
-                          <th id="financial-metric-column" className="py-3 px-4 text-left font-medium w-1/6">Year</th>
-                          <th id={`year-${currentYear}-column`} className="py-3 px-4 text-center font-medium w-1/6">{currentYear}</th>
-                          <th id={`year-${projectionYears[0]}-column`} className="py-3 px-4 text-center font-medium w-1/6">{projectionYears[0]}</th>
-                          <th id={`year-${projectionYears[1]}-column`} className="py-3 px-4 text-center font-medium w-1/6">{projectionYears[1]}</th>
-                          <th id={`year-${projectionYears[2]}-column`} className="py-3 px-4 text-center font-medium w-1/6">{projectionYears[2]}</th>
-                          <th id={`year-${projectionYears[3]}-column`} className="py-3 px-4 text-center font-medium w-1/6">{projectionYears[3]}</th>
+                          <th id="financial-metric-column" className="py-3 px-4 text-left font-bold text-gray-900 text-sm w-1/6">Year</th>
+                          <th id={`year-${currentYear}-column`} className="py-3 px-4 text-center font-bold text-gray-900 text-sm w-1/6">{currentYear}</th>
+                          <th id={`year-${projectionYears[0]}-column`} className="py-3 px-4 text-center font-bold text-gray-900 text-sm w-1/6">{projectionYears[0]}</th>
+                          <th id={`year-${projectionYears[1]}-column`} className="py-3 px-4 text-center font-bold text-gray-900 text-sm w-1/6">{projectionYears[1]}</th>
+                          <th id={`year-${projectionYears[2]}-column`} className="py-3 px-4 text-center font-bold text-gray-900 text-sm w-1/6">{projectionYears[2]}</th>
+                          <th id={`year-${projectionYears[3]}-column`} className="py-3 px-4 text-center font-bold text-gray-900 text-sm w-1/6">{projectionYears[3]}</th>
                         </tr>
                       </thead>
                       <tbody id="financial-data-rows">
                         {/* Revenue Section */}
                         <tr id="revenue-data-row" className="border-b bg-gray-50">
-                          <td className="py-3 px-4 font-medium text-left">Revenue</td>
-                          <td id={`revenue-${currentYear}`} className="py-3 px-4 text-center">{formatCurrency(projectionsState.baseData?.revenue)}</td>
-                          <td id={`revenue-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState.projectionsState?.calculatedProjections?.revenue[projectionYears[0]])}</td>
-                          <td id={`revenue-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState.projectionsState?.calculatedProjections?.revenue[projectionYears[1]])}</td>
-                          <td id={`revenue-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState.projectionsState?.calculatedProjections?.revenue[projectionYears[2]])}</td>
-                          <td id={`revenue-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState.projectionsState?.calculatedProjections?.revenue[projectionYears[3]])}</td>
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Revenue</td>
+                          <td id={`revenue-${currentYear}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState.baseData?.revenue)}</td>
+                          <td id={`revenue-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[0]])}</td>
+                          <td id={`revenue-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[1]])}</td>
+                          <td id={`revenue-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[2]])}</td>
+                          <td id={`revenue-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[3]])}</td>
                         </tr>
                         <tr id="revenue-growth-input-row" className="bg-white" style={{borderBottom: '4px solid #e5e7eb'}}>
-                          <td className="py-3 px-4 font-medium text-left">Rev Growth</td>
-                          <td className="py-3 px-4 text-center"></td>
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Rev Growth</td>
+                          <td className="py-2 px-4 text-center"></td>
                           {projectionYears.map(year => (
-                            <td key={year} className="py-3 px-4 text-center">
+                            <td key={year} className="py-2 px-4 text-center">
                               <Input
                                 id={`revenue-growth-${year}`}
                                 type="text"
-                                value={formatPercentageInput(projectionsState.projectionsState?.projectionInputs?.revenueGrowth[year])}
+                                value={formatPercentageInput(projectionsState?.projectionInputs?.revenueGrowth[year])}
                                 onChange={(e) => {
                                   const cleanValue = e.target.value.replace('%', '');
                                   handlePercentageInputChange('revenueGrowth', year, cleanValue);
@@ -549,18 +521,18 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
 
                         {/* Net Income Section */}
                         <tr id="net-income-data-row" className="border-b bg-gray-50">
-                          <td className="py-3 px-4 font-medium text-left">Net Income</td>
-                          <td id={`net-income-${currentYear}`} className="py-3 px-4 text-center">{formatCurrency(projectionsState.baseData?.net_income)}</td>
-                          <td id={`net-income-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[0]])}</td>
-                          <td id={`net-income-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[1]])}</td>
-                          <td id={`net-income-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[2]])}</td>
-                          <td id={`net-income-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[3]])}</td>
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Net Income</td>
+                          <td id={`net-income-${currentYear}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState.baseData?.net_income)}</td>
+                          <td id={`net-income-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[0]])}</td>
+                          <td id={`net-income-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[1]])}</td>
+                          <td id={`net-income-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[2]])}</td>
+                          <td id={`net-income-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[3]])}</td>
                         </tr>
                         <tr id="net-income-growth-input-row" className="bg-white">
-                          <td className="py-3 px-4 font-medium text-left">Net Inc Growth</td>
-                          <td className="py-3 px-4 text-center"></td>
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Net Inc Growth</td>
+                          <td className="py-2 px-4 text-center"></td>
                           {projectionYears.map(year => (
-                            <td key={year} className="py-3 px-4 text-center">
+                            <td key={year} className="py-2 px-4 text-center">
                               <Input
                                 id={`net-income-growth-${year}`}
                                 type="text"
@@ -580,26 +552,26 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
 
                         {/* Net Income Margins Section - Calculated Field */}
                         <tr id="net-income-margin-row" className="bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
-                          <td className="py-3 px-4 font-medium text-left">Net Inc Margins</td>
-                          <td className="py-3 px-4 text-center">{formatPercentage(projectionsState.baseData?.net_income_margin)}</td>
-                          <td className="py-3 px-4 text-center text-muted-foreground">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[0]])}</td>
-                          <td className="py-3 px-4 text-center text-muted-foreground">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[1]])}</td>
-                          <td className="py-3 px-4 text-center text-muted-foreground">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[2]])}</td>
-                          <td className="py-3 px-4 text-center text-muted-foreground">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[3]])}</td>
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Net Inc Margins</td>
+                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatPercentage(projectionsState.baseData?.net_income_margin)}</td>
+                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[0]])}</td>
+                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[1]])}</td>
+                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[2]])}</td>
+                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[3]])}</td>
                         </tr>
 
                         {/* EPS Section */}
                         <tr id="eps-data-row" className="border-b bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
-                          <td className="py-3 px-4 font-medium text-left">EPS</td>
-                          <td id={`eps-${currentYear}`} className="py-3 px-4 text-center">{formatCurrency(projectionsState.baseData?.eps)}</td>
-                          <td id={`eps-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[0]])}</td>
-                          <td id={`eps-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[1]])}</td>
-                          <td id={`eps-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[2]])}</td>
-                          <td id={`eps-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[3]])}</td>
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">EPS</td>
+                          <td id={`eps-${currentYear}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState.baseData?.eps)}</td>
+                          <td id={`eps-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[0]])}</td>
+                          <td id={`eps-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[1]])}</td>
+                          <td id={`eps-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[2]])}</td>
+                          <td id={`eps-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[3]])}</td>
                         </tr>
                         <tr id="pe-low-input-row" className="border-b bg-white">
-                          <td className="py-3 px-4 font-medium text-left">PE Low Est</td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">PE Low Est</td>
+                          <td className="py-2 px-4 text-center">
                             <Input
                               id={`pe-low-${currentYear}`}
                               type="text"
@@ -618,7 +590,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                             />
                           </td>
                           {projectionYears.map(year => (
-                            <td key={year} className="py-3 px-4 text-center">
+                            <td key={year} className="py-2 px-4 text-center">
                               <Input
                                 id={`pe-low-${year}`}
                                 type="text"
@@ -633,8 +605,8 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                           ))}
                         </tr>
                         <tr id="pe-high-input-row" className="bg-white" style={{borderBottom: '4px solid #e5e7eb'}}>
-                          <td className="py-3 px-4 font-medium text-left">PE High Est</td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">PE High Est</td>
+                          <td className="py-2 px-4 text-center">
                             <Input
                               id={`pe-high-${currentYear}`}
                               type="text"
@@ -653,7 +625,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                             />
                           </td>
                           {projectionYears.map(year => (
-                            <td key={year} className="py-3 px-4 text-center">
+                            <td key={year} className="py-2 px-4 text-center">
                               <Input
                                 id={`pe-high-${year}`}
                                 type="text"
@@ -670,38 +642,38 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
 
                         {/* Share Price Section */}
                         <tr id="share-price-low-data-row" className="border-b bg-gray-50">
-                          <td className="py-3 px-4 font-medium text-left">Share Price Low</td>
-                          <td id={`share-price-low-${currentYear}`} className="py-3 px-4 text-center bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[currentYear])}</td>
-                          <td id={`share-price-low-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[0]])}</td>
-                          <td id={`share-price-low-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[1]])}</td>
-                          <td id={`share-price-low-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[2]])}</td>
-                          <td id={`share-price-low-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[3]])}</td>
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Share Price Low</td>
+                          <td id={`share-price-low-${currentYear}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[currentYear])}</td>
+                          <td id={`share-price-low-${projectionYears[0]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[0]])}</td>
+                          <td id={`share-price-low-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[1]])}</td>
+                          <td id={`share-price-low-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[2]])}</td>
+                          <td id={`share-price-low-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[3]])}</td>
                         </tr>
                         <tr id="share-price-high-data-row" className="bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
-                          <td className="py-3 px-4 font-medium text-left">Share Price High</td>
-                          <td id={`share-price-high-${currentYear}`} className="py-3 px-4 text-center bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[currentYear])}</td>
-                          <td id={`share-price-high-${projectionYears[0]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[0]])}</td>
-                          <td id={`share-price-high-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[1]])}</td>
-                          <td id={`share-price-high-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[2]])}</td>
-                          <td id={`share-price-high-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[3]])}</td>
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Share Price High</td>
+                          <td id={`share-price-high-${currentYear}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[currentYear])}</td>
+                          <td id={`share-price-high-${projectionYears[0]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[0]])}</td>
+                          <td id={`share-price-high-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[1]])}</td>
+                          <td id={`share-price-high-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[2]])}</td>
+                          <td id={`share-price-high-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[3]])}</td>
                         </tr>
 
                         {/* CAGR Section */}
                         <tr id="cagr-low-data-row" className="border-b bg-gray-50">
-                          <td className="py-3 px-4 font-medium text-left">CAGR Low</td>
-                          <td id={`cagr-low-${currentYear}`} className="py-3 px-4 text-center"></td>
-                          <td id={`cagr-low-${projectionYears[0]}`} className="py-3 px-4 text-center"></td>
-                          <td id={`cagr-low-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(projectionsState?.calculatedProjections?.cagrLow[projectionYears[1]])}</td>
-                          <td id={`cagr-low-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(projectionsState?.calculatedProjections?.cagrLow[projectionYears[2]])}</td>
-                          <td id={`cagr-low-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(projectionsState?.calculatedProjections?.cagrLow[projectionYears[3]])}</td>
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">CAGR Low</td>
+                          <td id={`cagr-low-${currentYear}`} className="py-2 px-4 text-center"></td>
+                          <td id={`cagr-low-${projectionYears[0]}`} className="py-2 px-4 text-center"></td>
+                          <td id={`cagr-low-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.cagrLow[projectionYears[1]])}</td>
+                          <td id={`cagr-low-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.cagrLow[projectionYears[2]])}</td>
+                          <td id={`cagr-low-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.cagrLow[projectionYears[3]])}</td>
                         </tr>
                         <tr id="cagr-high-data-row" className="bg-gray-50">
-                          <td className="py-3 px-4 font-medium text-left">CAGR High</td>
-                          <td id={`cagr-high-${currentYear}`} className="py-3 px-4 text-center"></td>
-                          <td id={`cagr-high-${projectionYears[0]}`} className="py-3 px-4 text-center"></td>
-                          <td id={`cagr-high-${projectionYears[1]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(projectionsState?.calculatedProjections?.cagrHigh[projectionYears[1]])}</td>
-                          <td id={`cagr-high-${projectionYears[2]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(projectionsState?.calculatedProjections?.cagrHigh[projectionYears[2]])}</td>
-                          <td id={`cagr-high-${projectionYears[3]}`} className="py-3 px-4 text-center text-muted-foreground bg-orange-100">{formatPercentage(projectionsState?.calculatedProjections?.cagrHigh[projectionYears[3]])}</td>
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">CAGR High</td>
+                          <td id={`cagr-high-${currentYear}`} className="py-2 px-4 text-center"></td>
+                          <td id={`cagr-high-${projectionYears[0]}`} className="py-2 px-4 text-center"></td>
+                          <td id={`cagr-high-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.cagrHigh[projectionYears[1]])}</td>
+                          <td id={`cagr-high-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.cagrHigh[projectionYears[2]])}</td>
+                          <td id={`cagr-high-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.cagrHigh[projectionYears[3]])}</td>
                         </tr>
                       </tbody>
                     </table>
