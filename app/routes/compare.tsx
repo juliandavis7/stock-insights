@@ -160,53 +160,53 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
           <div className="w-full max-w-6xl mx-auto">
             
             {/* Stock Selection Form */}
-            <div className="sticky top-20 z-10 mb-6">
-              <Card>
-                <CardContent>
-                  <form onSubmit={handleCompare}>
-                    <div id="compare-stock-selection-container" className="flex flex-col md:flex-row gap-4 items-end">
-                      <div className="w-1/3"></div>
-                      <div id="compare-stock-inputs-row" className="w-1/3 grid grid-cols-3 gap-4 -ml-4">
-                        <div>
-                          <Input
-                            id="compare-stock-input-1"
-                            value={inputTickers[0]}
-                            onChange={(e) => handleTickerChange(0, e.target.value)}
-                            className="text-center border-2 focus:border-amber-200 focus:ring-amber-200"
-                            style={{ borderColor: '#FED7AA' }}
-                          />
-                        </div>
-                        <div>
-                          <Input
-                            id="compare-stock-input-2"
-                            value={inputTickers[1]}
-                            onChange={(e) => handleTickerChange(1, e.target.value)}
-                            className="text-center"
-                          />
-                        </div>
-                        <div>
-                          <Input
-                            id="compare-stock-input-3"
-                            value={inputTickers[2]}
-                            onChange={(e) => handleTickerChange(2, e.target.value)}
-                            className="text-center border-2 focus:border-blue-200 focus:ring-blue-200"
-                            style={{ borderColor: '#BFDBFE' }}
-                          />
-                        </div>
-                      </div>
-                      <Button 
-                        id="compare-stocks-submit-button" 
-                        type="submit" 
-                        disabled={isLoading}
-                        className="shrink-0"
-                      >
-                        <BarChart3 className="h-4 w-4 mr-2" />
-                        Compare
-                      </Button>
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
+            <div className="mb-4">
+              <div className="flex flex-col items-center gap-3 py-2">
+                {/* Compare Button - moved to top */}
+                <Button 
+                  id="compare-stocks-submit-button" 
+                  type="submit" 
+                  disabled={isLoading}
+                  onClick={handleCompare}
+                  className="flex-shrink-0"
+                >
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Compare
+                </Button>
+                
+                {/* Stock Input Fields - centered below button */}
+                <div id="compare-stock-inputs-row" className="flex gap-4 justify-center">
+                  <div>
+                    <Input
+                      id="compare-stock-input-1"
+                      value={inputTickers[0]}
+                      onChange={(e) => handleTickerChange(0, e.target.value)}
+                      className="text-center border-2 focus:border-amber-200 focus:ring-amber-200 w-20"
+                      style={{ borderColor: '#FED7AA' }}
+                      placeholder="Stock 1"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      id="compare-stock-input-2"
+                      value={inputTickers[1]}
+                      onChange={(e) => handleTickerChange(1, e.target.value)}
+                      className="text-center w-20"
+                      placeholder="Stock 2"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      id="compare-stock-input-3"
+                      value={inputTickers[2]}
+                      onChange={(e) => handleTickerChange(2, e.target.value)}
+                      className="text-center border-2 focus:border-blue-200 focus:ring-blue-200 w-20"
+                      style={{ borderColor: '#BFDBFE' }}
+                      placeholder="Stock 3"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Error States */}

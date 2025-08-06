@@ -1,11 +1,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
-import { Search } from "lucide-react";
 import { Navbar } from "~/components/homepage/navbar";
+import { StockSearchHeader } from "~/components/stock-search-header";
 import { useFinancialsState, useStockActions } from "~/store/stockStore";
 import type { Route } from "./+types/financials";
 
@@ -56,15 +53,29 @@ interface FinancialsData {
 // Utility functions as per documentation
 const formatLargeNumber = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value)) return "";
-  if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
-  if (value >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
-  if (value >= 1e3) return `$${(value / 1e3).toFixed(2)}K`;
+  
+  const absValue = Math.abs(value);
+  
+  if (absValue >= 1e12) {
+    return `$${(value / 1e12).toFixed(2)}T`;
+  } else if (absValue >= 1e9) {
+    return `$${(value / 1e9).toFixed(2)}B`;
+  } else if (absValue >= 1e6) {
+    return `$${(value / 1e6).toFixed(2)}M`;
+  } else if (absValue >= 1e3) {
+    return `$${(value / 1e3).toFixed(2)}K`;
+  }
   return `$${value.toFixed(2)}`;
 };
 
 const formatEPS = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value)) return "";
   return `$${value.toFixed(2)}`;
+};
+
+const formatNumber = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value)) return "0";
+  return value.toLocaleString();
 };
 
 const calculateYoYGrowth = (current: number | null, previous: number | null): { text: string; color: string } => {
@@ -89,7 +100,7 @@ interface MetricRowProps {
 const MetricRow = ({ metricName, data, allYears, getHistoricalValue, getEstimateValue, formatter }: MetricRowProps) => {
   return (
     <tr className="border-b border-gray-100">
-      <td className="py-4 px-6 font-semibold text-gray-900">{metricName}</td>
+      <td className="py-3 px-4 font-semibold text-gray-900 text-sm">{metricName}</td>
       {allYears.map((year, index) => {
         const historical = data.historical.find(h => h.fiscalYear === year);
         const estimate = data.estimates.find(e => e.fiscalYear === year);
@@ -109,9 +120,9 @@ const MetricRow = ({ metricName, data, allYears, getHistoricalValue, getEstimate
         }
         
         return (
-          <td key={year} className="py-4 px-6 text-left">
-            <div className="flex items-center gap-3">
-              <div className="font-medium text-gray-900">
+          <td key={year} className="py-3 px-4 text-left">
+            <div className="flex items-center gap-2">
+              <div className="font-medium text-gray-900 text-sm">
                 {formatter(value)}
               </div>
               {growth && growth.text && (
@@ -191,53 +202,21 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
         <div className="container mx-auto px-6 py-8">
           <div className="w-full max-w-7xl mx-auto">
             
-            {/* Stock Selection Section - Following documentation layout */}
-            <div id="financials-stock-selection-container" className="sticky top-20 z-10 mb-6">
-              <Card>
-                <CardContent>
-                  <div id="financials-stock-input-row" className="flex gap-2 max-w-xs mx-auto">
-                    <div className="w-32">
-                      <Label htmlFor="financials-stock-input" className="sr-only">
-                        Stock Symbol
-                      </Label>
-                      <Input
-                        id="financials-stock-input"
-                        placeholder="Enter ticker (e.g., PYPL)"
-                        value={stockSymbol}
-                        onChange={(e) => setStockSymbol(e.target.value.toUpperCase())}
-                      />
-                    </div>
-                    <Button id="financials-submit-button" type="submit" disabled={loading} onClick={handleSearch}>
-                      <Search className="h-4 w-4 mr-2" />
-                      Get Financials
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Stock Info Header */}
-            {data && (
-              <div id="financials-stock-info-header" className="mb-6">  
-                <div className="text-center">
-                  <h1 id="financials-ticker-display" className="text-2xl font-bold text-gray-900 mb-2">
-                    {data.ticker}
-                  </h1>
-                  <div id="financials-stock-metrics" className="space-x-6 text-sm text-gray-600">
-                    <span id="stock-price">
-                      STOCK PRICE: {formatLargeNumber(data.price)}
-                    </span>
-                    <span id="market-cap">
-                      MKT.CAP: {formatLargeNumber(data.market_cap)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
+            <StockSearchHeader
+              stockSymbol={stockSymbol}
+              onStockSymbolChange={(value) => setStockSymbol(value.toUpperCase())}
+              onSearch={handleSearch}
+              loading={loading}
+              ticker={data?.ticker}
+              stockPrice={data?.price}
+              marketCap={data?.market_cap}
+              formatCurrency={formatLargeNumber}
+              formatNumber={formatNumber}
+            />
 
             {/* Error State */}
             {error && (
-              <Card className="mb-6">
+              <Card className="mb-4">
                 <CardContent className="pt-6">
                   <div className="text-red-600 text-center">{error}</div>
                 </CardContent>
@@ -267,15 +246,15 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                       {/* Table Header */}
                       <thead>
                         <tr id="financials-table-header" className="border-b border-gray-200">
-                          <th id="metric-column" className="py-4 px-6 text-left font-bold text-gray-900 text-base uppercase tracking-wider">
+                          <th id="metric-column" className="py-3 px-4 text-left font-bold text-gray-900 text-sm uppercase tracking-wider">
                             METRIC
                           </th>
                           {allYears.map(year => (
-                            <th key={year} id={`year-${year}`} className="py-4 px-6 text-center font-bold text-base min-w-[140px] align-top">
+                            <th key={year} id={`year-${year}`} className="py-3 px-4 text-center font-bold text-sm min-w-[120px] align-top">
                               <div className={estimateYears.includes(year) ? "text-blue-600" : "text-gray-900"}>
                                 {year}
                               </div>
-                              <div className="h-5 flex items-center justify-center">
+                              <div className="h-4 flex items-center justify-center">
                                 {estimateYears.includes(year) && (
                                   <span className="text-xs text-blue-600 font-semibold">EST</span>
                                 )}
@@ -287,13 +266,13 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                       <tbody id="financials-table-sections">
                         {/* Revenue & Profitability Section */}
                         <tr className="bg-gray-50">
-                          <td colSpan={allYears.length + 1} className="py-4 px-6 font-semibold text-gray-900 text-sm uppercase tracking-wider">
+                          <td colSpan={allYears.length + 1} className="py-2 px-4 font-semibold text-gray-900 text-xs uppercase tracking-wider">
                             REVENUE & PROFITABILITY
                           </td>
                         </tr>
 
                         <MetricRow
-                          metricName="TOTAL REVENUE"
+                          metricName="Total Revenue"
                           data={data}
                           allYears={allYears}
                           getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.totalRevenue || null}
@@ -302,7 +281,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                         />
 
                         <MetricRow
-                          metricName="COST OF REVENUE"
+                          metricName="Cost of Revenue"
                           data={data}
                           allYears={allYears}
                           getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.costOfRevenue || null}
@@ -311,7 +290,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                         />
 
                         <MetricRow
-                          metricName="GROSS PROFIT"
+                          metricName="Gross Profit"
                           data={data}
                           allYears={allYears}
                           getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.grossProfit || null}
@@ -321,7 +300,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
 
                         {/* Operating Expenses (OPEX) Section */}
                         <tr className="bg-gray-50">
-                          <td colSpan={allYears.length + 1} className="py-4 px-6 font-semibold text-gray-900 text-sm uppercase tracking-wider">
+                          <td colSpan={allYears.length + 1} className="py-2 px-4 font-semibold text-gray-900 text-xs uppercase tracking-wider">
                             OPERATING EXPENSES (OPEX)
                           </td>
                         </tr>
@@ -345,7 +324,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                         />
 
                         <MetricRow
-                          metricName="TOTAL OPEX"
+                          metricName="Total OpEx"
                           data={data}
                           allYears={allYears}
                           getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.operatingExpenses || null}
@@ -354,7 +333,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                         />
 
                         <MetricRow
-                          metricName="OPERATING INCOME"
+                          metricName="Operating Income"
                           data={data}
                           allYears={allYears}
                           getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.operatingIncome || null}
@@ -364,13 +343,13 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
 
                         {/* Net Income & EPS Section */}
                         <tr className="bg-gray-50">
-                          <td colSpan={allYears.length + 1} className="py-4 px-6 font-semibold text-gray-900 text-sm uppercase tracking-wider">
+                          <td colSpan={allYears.length + 1} className="py-2 px-4 font-semibold text-gray-900 text-xs uppercase tracking-wider">
                             NET INCOME & EPS
                           </td>
                         </tr>
 
                         <MetricRow
-                          metricName="NET INCOME"
+                          metricName="Net Income"
                           data={data}
                           allYears={allYears}
                           getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.netIncome || null}
@@ -379,7 +358,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                         />
 
                         <MetricRow
-                          metricName="BASIC EPS"
+                          metricName="Basic EPS"
                           data={data}
                           allYears={allYears}
                           getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.eps || null}
@@ -388,7 +367,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                         />
 
                         <MetricRow
-                          metricName="DILUTED EPS"
+                          metricName="Diluted EPS"
                           data={data}
                           allYears={allYears}
                           getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.dilutedEps || null}

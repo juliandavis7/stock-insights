@@ -1,11 +1,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
-import { Search } from "lucide-react";
 import { Navbar } from "~/components/homepage/navbar";
+import { StockSearchHeader } from "~/components/stock-search-header";
 import { useSearchState, useStockActions } from "~/store/stockStore";
 import type { Route } from "./+types/search";
 
@@ -175,45 +172,21 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
       <main className="min-h-screen pt-20 bg-background">
         <div className="container mx-auto px-6 py-8">
           <div className="w-full max-w-4xl mx-auto">
-          {/* Search Form */}
-          <div className="sticky top-20 z-10 mb-6">
-            <Card>
-              <CardContent>
-                <form onSubmit={handleSearch} className="flex gap-2 max-w-xs mx-auto">
-                  <div className="w-32">
-                    <Label htmlFor="stock-symbol" className="sr-only">
-                      Stock Symbol
-                    </Label>
-                    <Input
-                      id="stock-symbol"
-                      value={stockSymbol}
-                      onChange={(e) => setStockSymbol(e.target.value)}
-                    />
-                  </div>
-                  <Button type="submit" disabled={searchState.loading}>
-                    <Search className="h-4 w-4" />
-                    Search
-                  </Button>
-                </form>
-                
-                {/* Stock Info Display */}
-                <div className="mt-4">
-                  <div className="text-center">
-                    <span className="text-lg text-foreground font-medium">
-                      {formatCurrency(searchState.data?.price || 0)}
-                    </span>
-                    <span className="mx-6 text-base text-muted-foreground">
-                      MKT.CAP {formatCurrency(searchState.data?.market_cap || 0)}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <StockSearchHeader
+            stockSymbol={stockSymbol}
+            onStockSymbolChange={setStockSymbol}
+            onSearch={handleSearch}
+            loading={searchState.loading}
+            ticker={searchState.data?.ticker}
+            stockPrice={searchState.data?.price}
+            marketCap={searchState.data?.market_cap}
+            formatCurrency={formatCurrency}
+            formatNumber={formatNumber}
+          />
 
           {/* Error State */}
           {searchState.error && (
-            <Card>
+            <Card className="mb-4">
               <CardContent className="pt-6">
                 <div className="text-red-600 text-center">{searchState.error}</div>
               </CardContent>
