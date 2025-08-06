@@ -86,10 +86,10 @@ interface MetricRowProps {
 }
 
 const MetricRow = ({ metric, value, benchmark }: MetricRowProps) => (
-  <tr className="border-b">
-    <td className="py-3 px-4 font-medium w-1/3 text-left">{metric}</td>
-    <td className="py-3 px-4 w-1/3 text-center">{value}</td>
-    <td className="py-3 px-4 text-muted-foreground w-1/3 text-center">{benchmark}</td>
+  <tr className="border-b border-gray-100 hover:bg-gray-50">
+    <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">{metric}</td>
+    <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{value}</td>
+    <td className="py-2 px-4 text-muted-foreground text-sm w-[200px]">{benchmark}</td>
   </tr>
 );
 
@@ -213,7 +213,7 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
               <Card>
                 <CardContent>
                   <div className="overflow-x-auto">
-                    <table id="search-pe-ratios-table" className="w-full">
+                    <table id="search-pe-ratios-table" className="w-full table-fixed">
                       <tbody>
                         <MetricRow
                           metric="TTM PE"
@@ -240,7 +240,7 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
               <Card>
                 <CardContent>
                   <div className="overflow-x-auto">
-                    <table id="search-eps-growth-table" className="w-full">
+                    <table id="search-eps-growth-table" className="w-full table-fixed">
                       <tbody>
                         <MetricRow
                           metric="TTM EPS Growth"
@@ -267,7 +267,7 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
               <Card>
                 <CardContent>
                   <div className="overflow-x-auto">
-                    <table id="search-revenue-growth-table" className="w-full">
+                    <table id="search-revenue-growth-table" className="w-full table-fixed">
                       <tbody>
                         <MetricRow
                           metric="TTM Rev Growth"
@@ -294,16 +294,16 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
               <Card>
                 <CardContent>
                   <div className="overflow-x-auto">
-                    <table id="search-margins-ratios-table" className="w-full">
+                    <table id="search-margins-ratios-table" className="w-full table-fixed">
                       <tbody>
                         <MetricRow
                           metric="Gross Margin"
-                          value={formatPercentage(searchState.data?.gross_margin && searchState.data.gross_margin * 100)}
+                          value={formatPercentage(searchState.data?.gross_margin)}
                           benchmark="Many stocks trade at 40-48%"
                         />
                         <MetricRow
                           metric="Net Margin"
-                          value={formatPercentage(searchState.data?.net_margin && searchState.data.net_margin * 100)}
+                          value={formatPercentage(searchState.data?.net_margin)}
                           benchmark="Many stocks trade at 8-10%"
                         />
                         <MetricRow
