@@ -99,8 +99,8 @@ interface MetricRowProps {
 
 const MetricRow = ({ metricName, data, allYears, getHistoricalValue, getEstimateValue, formatter }: MetricRowProps) => {
   return (
-    <tr className="border-b border-gray-100">
-      <td className="py-3 px-4 font-semibold text-gray-900 text-sm">{metricName}</td>
+    <tr className="border-b border-gray-100 hover:bg-gray-50">
+      <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">{metricName}</td>
       {allYears.map((year, index) => {
         const historical = data.historical.find(h => h.fiscalYear === year);
         const estimate = data.estimates.find(e => e.fiscalYear === year);
@@ -120,13 +120,13 @@ const MetricRow = ({ metricName, data, allYears, getHistoricalValue, getEstimate
         }
         
         return (
-          <td key={year} className="py-3 px-4 text-left">
+          <td key={year} className="py-2 px-4 text-left w-[120px]">
             <div className="flex items-center gap-2">
-              <div className="font-medium text-gray-900 text-sm">
+              <div className="font-medium text-gray-900 text-sm text-right flex-1">
                 {formatter(value)}
               </div>
               {growth && growth.text && (
-                <div className={`text-xs ${growth.color} whitespace-nowrap`}>
+                <div className={`text-xs ${growth.color} whitespace-nowrap ml-1`}>
                   {growth.text}
                 </div>
               )}
@@ -240,17 +240,17 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
             ) : data && (
               /* Financial Metrics Table */
               <Card>
-                <CardContent className="pt-6">
+                <CardContent className="pt-6 pb-5">
                   <div id="financials-metrics-table" className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full table-fixed">
                       {/* Table Header */}
                       <thead>
                         <tr id="financials-table-header" className="border-b border-gray-200">
-                          <th id="metric-column" className="py-3 px-4 text-left font-bold text-gray-900 text-sm uppercase tracking-wider">
+                          <th id="metric-column" className="py-3 px-4 text-left font-bold text-gray-900 text-sm uppercase tracking-wider w-[200px]">
                             METRIC
                           </th>
                           {allYears.map(year => (
-                            <th key={year} id={`year-${year}`} className="py-3 px-4 text-center font-bold text-sm min-w-[120px] align-top">
+                            <th key={year} id={`year-${year}`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
                               <div className={estimateYears.includes(year) ? "text-blue-600" : "text-gray-900"}>
                                 {year}
                               </div>

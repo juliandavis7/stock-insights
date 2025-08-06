@@ -476,32 +476,54 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
               <CardContent>
                 <div id="projections-financial-data-table">
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full table-fixed">
                       <thead>
                         <tr id="financial-data-year-headers" className="border-b">
-                          <th id="financial-metric-column" className="py-3 px-4 text-left font-bold text-gray-900 text-sm w-1/6">Year</th>
-                          <th id={`year-${currentYear}-column`} className="py-3 px-4 text-center font-bold text-gray-900 text-sm w-1/6">{currentYear}</th>
-                          <th id={`year-${projectionYears[0]}-column`} className="py-3 px-4 text-center font-bold text-gray-900 text-sm w-1/6">{projectionYears[0]}</th>
-                          <th id={`year-${projectionYears[1]}-column`} className="py-3 px-4 text-center font-bold text-gray-900 text-sm w-1/6">{projectionYears[1]}</th>
-                          <th id={`year-${projectionYears[2]}-column`} className="py-3 px-4 text-center font-bold text-gray-900 text-sm w-1/6">{projectionYears[2]}</th>
-                          <th id={`year-${projectionYears[3]}-column`} className="py-3 px-4 text-center font-bold text-gray-900 text-sm w-1/6">{projectionYears[3]}</th>
+                          <th id="financial-metric-column" className="py-3 px-4 text-left font-bold text-gray-900 text-sm uppercase tracking-wider w-[200px]">METRIC</th>
+                          <th id={`year-${currentYear}-column`} className="py-3 px-4 text-center font-bold text-gray-900 text-sm w-[120px] align-top">
+                            <div className="text-gray-900">{currentYear}</div>
+                          </th>
+                          <th id={`year-${projectionYears[0]}-column`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
+                            <div className="text-blue-600">{projectionYears[0]}</div>
+                            <div className="h-4 flex items-center justify-center">
+                              <span className="text-xs text-blue-600 font-semibold">EST</span>
+                            </div>
+                          </th>
+                          <th id={`year-${projectionYears[1]}-column`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
+                            <div className="text-blue-600">{projectionYears[1]}</div>
+                            <div className="h-4 flex items-center justify-center">
+                              <span className="text-xs text-blue-600 font-semibold">EST</span>
+                            </div>
+                          </th>
+                          <th id={`year-${projectionYears[2]}-column`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
+                            <div className="text-blue-600">{projectionYears[2]}</div>
+                            <div className="h-4 flex items-center justify-center">
+                              <span className="text-xs text-blue-600 font-semibold">EST</span>
+                            </div>
+                          </th>
+                          <th id={`year-${projectionYears[3]}-column`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
+                            <div className="text-blue-600">{projectionYears[3]}</div>
+                            <div className="h-4 flex items-center justify-center">
+                              <span className="text-xs text-blue-600 font-semibold">EST</span>
+                            </div>
+                          </th>
                         </tr>
                       </thead>
                       <tbody id="financial-data-rows">
                         {/* Revenue Section */}
-                        <tr id="revenue-data-row" className="border-b bg-gray-50">
-                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Revenue</td>
-                          <td id={`revenue-${currentYear}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState.baseData?.revenue)}</td>
-                          <td id={`revenue-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[0]])}</td>
-                          <td id={`revenue-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[1]])}</td>
-                          <td id={`revenue-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[2]])}</td>
-                          <td id={`revenue-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[3]])}</td>
+                        <tr id="revenue-data-row" className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">Revenue</td>
+                          <td id={`revenue-${currentYear}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState.baseData?.revenue)}</td>
+                          <td id={`revenue-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[0]])}</td>
+                          <td id={`revenue-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[1]])}</td>
+                          <td id={`revenue-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[2]])}</td>
+                          <td id={`revenue-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[3]])}</td>
                         </tr>
-                        <tr id="revenue-growth-input-row" className="bg-white" style={{borderBottom: '4px solid #e5e7eb'}}>
-                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Rev Growth</td>
-                          <td className="py-2 px-4 text-center"></td>
+                        <tr id="revenue-growth-input-row" className="border-b border-gray-100 hover:bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">Revenue Growth</td>
+                          <td className="py-2 px-4 text-center w-[120px]"></td>
                           {projectionYears.map(year => (
-                            <td key={year} className="py-2 px-4 text-center">
+                            <td key={year} className="py-2 px-4 text-center w-[120px]">
                               <Input
                                 id={`revenue-growth-${year}`}
                                 type="text"
@@ -520,19 +542,19 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         </tr>
 
                         {/* Net Income Section */}
-                        <tr id="net-income-data-row" className="border-b bg-gray-50">
-                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Net Income</td>
-                          <td id={`net-income-${currentYear}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState.baseData?.net_income)}</td>
-                          <td id={`net-income-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[0]])}</td>
-                          <td id={`net-income-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[1]])}</td>
-                          <td id={`net-income-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[2]])}</td>
-                          <td id={`net-income-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[3]])}</td>
+                        <tr id="net-income-data-row" className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">Net Income</td>
+                          <td id={`net-income-${currentYear}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState.baseData?.net_income)}</td>
+                          <td id={`net-income-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[0]])}</td>
+                          <td id={`net-income-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[1]])}</td>
+                          <td id={`net-income-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[2]])}</td>
+                          <td id={`net-income-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[3]])}</td>
                         </tr>
-                        <tr id="net-income-growth-input-row" className="bg-white">
+                        <tr id="net-income-growth-input-row" className="border-b border-gray-100 hover:bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Net Inc Growth</td>
                           <td className="py-2 px-4 text-center"></td>
                           {projectionYears.map(year => (
-                            <td key={year} className="py-2 px-4 text-center">
+                            <td key={year} className="py-2 px-4 text-center w-[120px]">
                               <Input
                                 id={`net-income-growth-${year}`}
                                 type="text"
@@ -590,7 +612,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                             />
                           </td>
                           {projectionYears.map(year => (
-                            <td key={year} className="py-2 px-4 text-center">
+                            <td key={year} className="py-2 px-4 text-center w-[120px]">
                               <Input
                                 id={`pe-low-${year}`}
                                 type="text"
@@ -625,7 +647,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                             />
                           </td>
                           {projectionYears.map(year => (
-                            <td key={year} className="py-2 px-4 text-center">
+                            <td key={year} className="py-2 px-4 text-center w-[120px]">
                               <Input
                                 id={`pe-high-${year}`}
                                 type="text"

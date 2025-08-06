@@ -74,16 +74,16 @@ interface MetricRowProps {
 
 const MetricRow = ({ metric, ticker1, ticker2, ticker3, data1, data2, data3, metricKey, formatter, benchmark, higherIsBetter = true }: MetricRowProps) => {
   return (
-    <tr className="border-b" id={`compare-metric-row-${metricKey.toLowerCase().replace(/_/g, '-')}`}>
-      <td className="py-3 px-4 font-medium w-1/3 text-left">{metric}</td>
-      <td className="py-3 px-4 w-1/3 text-center">
+    <tr className="border-b border-gray-100 hover:bg-gray-50" id={`compare-metric-row-${metricKey.toLowerCase().replace(/_/g, '-')}`}>
+      <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">{metric}</td>
+      <td className="py-2 px-4 w-[360px]">
         <div className="grid grid-cols-3 gap-4">
-          <span className="text-center font-medium" style={{ color: '#D97706' }}>{formatter(getMetricValue(data1, metricKey))}</span>
-          <span className="text-center">{formatter(getMetricValue(data2, metricKey))}</span>
-          <span className="text-center font-medium" style={{ color: '#0369A1' }}>{formatter(getMetricValue(data3, metricKey))}</span>
+          <span className="text-center font-medium text-sm" style={{ color: '#D97706' }}>{formatter(getMetricValue(data1, metricKey))}</span>
+          <span className="text-center font-medium text-sm">{formatter(getMetricValue(data2, metricKey))}</span>
+          <span className="text-center font-medium text-sm" style={{ color: '#0369A1' }}>{formatter(getMetricValue(data3, metricKey))}</span>
         </div>
       </td>
-      <td className="py-3 px-4 text-muted-foreground w-1/3 text-center">{benchmark}</td>
+      <td className="py-2 px-4 text-muted-foreground text-sm w-[200px]">{benchmark}</td>
     </tr>
   );
 };
@@ -249,7 +249,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                 <Card>
                   <CardContent>
                     <div className="overflow-x-auto">
-                      <table id="compare-pe-ratios-table" className="w-full">
+                      <table id="compare-pe-ratios-table" className="w-full table-fixed">
                         <tbody>
                           <MetricRow
                             metric="TTM PE"
@@ -300,7 +300,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                 <Card>
                   <CardContent>
                     <div className="overflow-x-auto">
-                      <table id="compare-eps-growth-table" className="w-full">
+                      <table id="compare-eps-growth-table" className="w-full table-fixed">
                         <tbody>
                           <MetricRow
                             metric="TTM EPS Growth"
@@ -348,7 +348,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                 <Card>
                   <CardContent>
                     <div className="overflow-x-auto">
-                      <table id="compare-revenue-growth-table" className="w-full">
+                      <table id="compare-revenue-growth-table" className="w-full table-fixed">
                         <tbody>
                           <MetricRow
                             metric="TTM Rev Growth"
@@ -396,7 +396,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                 <Card>
                   <CardContent>
                     <div className="overflow-x-auto">
-                      <table id="compare-margins-ratios-table" className="w-full">
+                      <table id="compare-margins-ratios-table" className="w-full table-fixed">
                         <tbody>
                           <MetricRow
                             metric="Gross Margin"
