@@ -233,6 +233,24 @@ def calculate_financial_projections(
     )
 
 
+def fetch_chart_data(ticker: str, api_key: str = None) -> Optional[Dict[str, Any]]:
+    """
+    Fetch chart data (quarterly revenue and EPS estimates) for a ticker.
+    
+    Args:
+        ticker: Stock ticker symbol
+        api_key: Optional FMP API key (uses default if not provided)
+        
+    Returns:
+        Dictionary with ticker, quarters, revenue, and eps arrays or None if failed
+    """
+    from .services.fmp_service import FMPService
+    from .constants import FMP_API_KEY
+    
+    service = FMPService(api_key or FMP_API_KEY)
+    return service.fetch_chart_data(ticker)
+
+
 # =============================================================================
 # INPUT VALIDATION
 # =============================================================================

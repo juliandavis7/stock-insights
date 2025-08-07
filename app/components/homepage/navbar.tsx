@@ -1,9 +1,15 @@
 "use client";
 import { UserButton } from "@clerk/react-router";
-import { Github, Menu, X } from "lucide-react";
+import { Github, Menu, X, ChevronDown } from "lucide-react";
 import React, { useCallback } from "react";
 import { Link, useLocation } from "react-router";
 import { Button } from "~/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
 
 const menuItems = [
@@ -12,8 +18,21 @@ const menuItems = [
   { name: "Earnings Calls", href: "/earnings" },
   { name: "SEC Filings", href: "/filings" },
   { name: "Projections", href: "/projections" },
-  { name: "Financials", href: "/financials" },
+  { 
+    name: "Financials", 
+    href: "/financials",
+    dropdown: [
+      { name: "Financials", href: "/financials" },
+      { name: "Charts", href: "/charts" }
+    ]
+  },
 ];
+
+type MenuItem = {
+  name: string;
+  href: string;
+  dropdown?: { name: string; href: string; }[];
+};
 
 export const Navbar = ({
   loaderData,
@@ -80,8 +99,40 @@ export const Navbar = ({
 
             <div className="absolute inset-0 m-auto hidden size-fit lg:block">
               <ul className="flex gap-8 text-sm">
-                {menuItems.map((item, index) => {
-                  const isActive = location.pathname === item.href;
+                {menuItems.map((item: MenuItem, index) => {
+                  const isActive = item.dropdown 
+                    ? item.dropdown.some(dropdownItem => location.pathname === dropdownItem.href)
+                    : location.pathname === item.href;
+                  
+                  if (item.dropdown) {
+                    return (
+                      <li key={index}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger className={cn(
+                            "hover:text-foreground flex items-center gap-1 duration-150 transition-colors bg-transparent border-none p-0 h-auto font-normal",
+                            isActive ? "text-[#1F2937] font-semibold" : "text-muted-foreground"
+                          )}>
+                            <span>{item.name}</span>
+                            <ChevronDown className="h-3 w-3" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="center">
+                            {item.dropdown.map((dropdownItem, dropdownIndex) => (
+                              <DropdownMenuItem key={dropdownIndex} asChild>
+                                <Link
+                                  to={dropdownItem.href}
+                                  className="w-full cursor-pointer"
+                                  prefetch="viewport"
+                                >
+                                  {dropdownItem.name}
+                                </Link>
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </li>
+                    );
+                  }
+                  
                   return (
                     <li key={index}>
                       <Link
@@ -103,7 +154,43 @@ export const Navbar = ({
             <div className="bg-background in-data-[state=active]:block lg:in-data-[state=active]:flex mb-6 hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border p-6 shadow-2xl shadow-zinc-300/20 md:flex-nowrap lg:m-0 lg:flex lg:w-fit lg:gap-6 lg:space-y-0 lg:border-transparent lg:bg-transparent lg:p-0 lg:shadow-none dark:shadow-none dark:lg:bg-transparent">
               <div className="lg:hidden">
                 <ul className="space-y-6 text-base">
-                  {menuItems.map((item, index) => {
+                  {menuItems.map((item: MenuItem, index) => {
+                    if (item.dropdown) {
+                      return (
+                        <li key={index}>
+                          <div className="space-y-3">
+                            <div className={cn(
+                              "font-medium",
+                              item.dropdown.some(dropdownItem => location.pathname === dropdownItem.href) 
+                                ? "text-[#1F2937] font-semibold" : "text-muted-foreground"
+                            )}>
+                              {item.name}
+                            </div>
+                            <ul className="ml-4 space-y-3">
+                              {item.dropdown.map((dropdownItem, dropdownIndex) => {
+                                const isActive = location.pathname === dropdownItem.href;
+                                return (
+                                  <li key={dropdownIndex}>
+                                    <Link
+                                      to={dropdownItem.href}
+                                      onClick={handleNavClick}
+                                      className={cn(
+                                        "hover:text-foreground block duration-150 transition-colors w-full text-left",
+                                        isActive ? "text-[#1F2937] font-semibold" : "text-muted-foreground"
+                                      )}
+                                      prefetch="viewport"
+                                    >
+                                      <span>{dropdownItem.name}</span>
+                                    </Link>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        </li>
+                      );
+                    }
+                    
                     const isActive = location.pathname === item.href;
                     return (
                       <li key={index}>

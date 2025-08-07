@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import httpx
 from .models import MetricsResponse, ProjectionRequest, ProjectionResponse, ProjectionBaseDataResponse, ErrorResponse, FinancialStatementResponse, FinancialDataResponse, AnalystEstimateResponse, ComprehensiveFinancialResponse
-from .util import get_metrics, fetch_fmp_analyst_estimates, extract_metric_by_year, calculate_financial_projections, validate_projection_inputs
+from .util import get_metrics, fetch_fmp_analyst_estimates, extract_metric_by_year, calculate_financial_projections, validate_projection_inputs, fetch_chart_data
 from .services.projection_service import ProjectionService
 from .services.yfinance_service import YFinanceService
 from .constants import FMP_API_KEY
@@ -415,4 +415,55 @@ def get_financials(ticker: str = Query(..., description="Stock ticker symbol")):
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error: {str(e)}"
+        )
+
+
+@app.get("/charts")
+def get_chart_revenue(ticker: str = Query(..., description="Stock ticker symbol")):
+    """
+    Get quarterly revenue and EPS chart data for a ticker, including current price and market cap.
+    Returns chart data with quarterly data plus current stock info.
+    
+    Args:
+        ticker: Stock ticker symbol (e.g., AAPL)
+        
+    Returns:
+        Chart data with ticker, quarters, revenue, eps, price, and market_cap
+    """
+    try:
+        chart_data = fetch_chart_data(ticker.upper())
+        
+        if chart_data is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": f"Unable to fetch chart data for ticker {ticker}",
+                    "ticker": ticker.upper()
+                }
+            )
+        
+        # Get current price and market cap using yfinance service
+        yfinance_service = YFinanceService()
+        current_price = yfinance_service.get_current_price(ticker.upper())
+        market_cap = yfinance_service.get_market_cap(ticker.upper())
+        
+        # Return the enhanced format with price and market cap
+        return {
+            'ticker': chart_data['ticker'],
+            'quarters': chart_data['quarters'],
+            'revenue': chart_data['revenue'],
+            'eps': chart_data['eps'],
+            'price': current_price,
+            'market_cap': market_cap
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": f"Internal server error: {str(e)}",
+                "ticker": ticker.upper()
+            }
         )

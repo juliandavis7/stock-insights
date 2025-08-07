@@ -81,6 +81,15 @@ interface FinancialsData {
   estimates: EstimateData[];
 }
 
+interface ChartData {
+  ticker: string;
+  quarters: string[];
+  revenue: number[];
+  eps: number[];
+  price: number | null;
+  market_cap: number | null;
+}
+
 // Store state interface
 interface StockStore {
   // Search state
@@ -119,11 +128,20 @@ interface StockStore {
     error: string | null;
   };
   
+  // Charts state
+  charts: {
+    currentTicker: string;
+    data: ChartData | null;
+    loading: boolean;
+    error: string | null;
+  };
+  
   // Global cache for all fetched data
   cache: {
     metrics: { [ticker: string]: FinancialMetrics };
     projections: { [ticker: string]: ProjectionBaseData };
     financials: { [ticker: string]: FinancialsData };
+    charts: { [ticker: string]: ChartData };
   };
 
   // Actions
@@ -154,15 +172,23 @@ interface StockStore {
     setFinancialsLoading: (loading: boolean) => void;
     setFinancialsError: (error: string | null) => void;
     
+    // Charts actions
+    setChartsTicker: (ticker: string) => void;
+    setChartsData: (data: ChartData) => void;
+    setChartsLoading: (loading: boolean) => void;
+    setChartsError: (error: string | null) => void;
+    
     // Cache actions
     getCachedMetrics: (ticker: string) => FinancialMetrics | null;
     getCachedProjections: (ticker: string) => ProjectionBaseData | null;
     getCachedFinancials: (ticker: string) => FinancialsData | null;
+    getCachedCharts: (ticker: string) => ChartData | null;
     
     // API actions
     fetchMetrics: (ticker: string) => Promise<FinancialMetrics>;
     fetchProjections: (ticker: string) => Promise<ProjectionBaseData>;
     fetchFinancials: (ticker: string) => Promise<FinancialsData>;
+    fetchCharts: (ticker: string) => Promise<ChartData>;
   };
 }
 
@@ -222,10 +248,18 @@ export const useStockStore = create<StockStore>()(
         error: null,
       },
       
+      charts: {
+        currentTicker: '',
+        data: null,
+        loading: false,
+        error: null,
+      },
+      
       cache: {
         metrics: {},
         projections: {},
         financials: {},
+        charts: {},
       },
 
       actions: {
@@ -334,6 +368,27 @@ export const useStockStore = create<StockStore>()(
           financials: { ...state.financials, error }
         }), false, 'setFinancialsError'),
 
+        // Charts actions
+        setChartsTicker: (ticker: string) => set((state) => ({
+          charts: { ...state.charts, currentTicker: ticker }
+        }), false, 'setChartsTicker'),
+        
+        setChartsData: (data: ChartData) => set((state) => ({
+          charts: { ...state.charts, data },
+          cache: { 
+            ...state.cache, 
+            charts: { ...state.cache.charts, [data.ticker]: data }
+          }
+        }), false, 'setChartsData'),
+        
+        setChartsLoading: (loading: boolean) => set((state) => ({
+          charts: { ...state.charts, loading }
+        }), false, 'setChartsLoading'),
+        
+        setChartsError: (error: string | null) => set((state) => ({
+          charts: { ...state.charts, error }
+        }), false, 'setChartsError'),
+
         // Cache actions
         getCachedMetrics: (ticker: string) => {
           const state = get();
@@ -348,6 +403,11 @@ export const useStockStore = create<StockStore>()(
         getCachedFinancials: (ticker: string) => {
           const state = get();
           return state.cache.financials[ticker] || null;
+        },
+        
+        getCachedCharts: (ticker: string) => {
+          const state = get();
+          return state.cache.charts[ticker] || null;
         },
 
         // API actions
@@ -443,6 +503,37 @@ export const useStockStore = create<StockStore>()(
           
           return data;
         },
+        
+        fetchCharts: async (ticker: string): Promise<ChartData> => {
+          const { cache } = get();
+          
+          // Check cache first
+          const cached = cache.charts[ticker];
+          if (cached) {
+            console.log(`Using cached charts for ${ticker}`);
+            return cached;
+          }
+          
+          console.log(`Fetching charts for ${ticker}`);
+          const response = await fetch(`http://localhost:8000/charts?ticker=${ticker.toUpperCase()}`);
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail?.error || `Failed to fetch charts for ${ticker}`);
+          }
+          
+          const data: ChartData = await response.json();
+          
+          // Cache the data
+          set((state) => ({
+            cache: { 
+              ...state.cache, 
+              charts: { ...state.cache.charts, [ticker]: data }
+            }
+          }), false, 'cacheCharts');
+          
+          return data;
+        },
       },
     }),
     { name: 'stock-store' }
@@ -454,4 +545,5 @@ export const useSearchState = () => useStockStore((state) => state.search);
 export const useCompareState = () => useStockStore((state) => state.compare);
 export const useProjectionsState = () => useStockStore((state) => state.projections);
 export const useFinancialsState = () => useStockStore((state) => state.financials);
+export const useChartsState = () => useStockStore((state) => state.charts);
 export const useStockActions = () => useStockStore((state) => state.actions);

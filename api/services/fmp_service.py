@@ -3,6 +3,7 @@
 import requests
 import logging
 from typing import List, Dict, Any, Optional
+from datetime import datetime
 from ..constants import FMP_API_KEY, FMP_ANALYST_ESTIMATES_URL
 
 logger = logging.getLogger(__name__)
@@ -132,4 +133,117 @@ class FMPService:
             return None
         except Exception as e:
             logger.error(f"Unexpected error fetching company profile for {ticker}: {e}")
+            return None
+    
+    def fetch_chart_data(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch analyst estimates for chart data (revenue and EPS by quarter).
+        Based on test2.py logic for quarterly analyst estimates.
+        
+        Args:
+            ticker: Stock ticker symbol
+            
+        Returns:
+            Dictionary with ticker, quarters, revenue, and eps arrays or None if failed
+        """
+        try:
+            # API call to analyst estimates endpoint for quarterly data
+            url = f"{self.base_url}/analyst-estimates/{ticker}"
+            params = {
+                'period': 'quarter',
+                'apikey': self.api_key
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data:
+                logger.warning(f"No chart data returned from API for {ticker}")
+                return {
+                    'ticker': ticker,
+                    'quarters': [],
+                    'revenue': [],
+                    'eps': []
+                }
+            
+            # Get cutoff year (2 years prior to current year) and target year (2 years into future)
+            current_year = datetime.now().year
+            cutoff_year = current_year - 2
+            target_year = current_year + 2
+            
+            quarters = []
+            revenue = []
+            eps = []
+            
+            # Sort data by date (oldest to newest for chronological order)
+            sorted_data = sorted(data, key=lambda x: x.get('date', ''))
+            
+            for estimate in sorted_data:
+                try:
+                    # Get the year from the date
+                    estimate_date = estimate.get('date', '')
+                    if not estimate_date:
+                        continue
+                        
+                    estimate_year = int(estimate_date[:4])
+                    
+                    # Only include data from cutoff_year to target_year (inclusive)
+                    if cutoff_year <= estimate_year <= target_year:
+                        # Convert date to quarter format
+                        quarter_label = self._date_to_quarter(estimate_date)
+                        
+                        if quarter_label:
+                            # Get estimated revenue (convert to billions for readability)
+                            estimated_revenue = estimate.get('estimatedRevenueAvg', 0)
+                            revenue_billions = round(estimated_revenue / 1_000_000_000, 2) if estimated_revenue else 0
+                            
+                            # Get estimated EPS
+                            estimated_eps = estimate.get('estimatedEpsAvg', 0)
+                            
+                            # Add to lists
+                            quarters.append(quarter_label)
+                            revenue.append(revenue_billions)
+                            eps.append(estimated_eps)
+                        
+                except (ValueError, KeyError, TypeError):
+                    continue
+            
+            logger.info(f"Successfully fetched chart data for {ticker}: {len(quarters)} data points")
+            return {
+                'ticker': ticker,
+                'quarters': quarters,
+                'revenue': revenue,
+                'eps': eps
+            }
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"FMP API request failed for chart data {ticker}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error fetching chart data for {ticker}: {e}")
+            return None
+    
+    def _date_to_quarter(self, date_str: str) -> Optional[str]:
+        """
+        Convert date string to quarter format (e.g., "2025-03-28" -> "2025 Q1")
+        Using standard calendar quarters: Q1=Jan-Mar, Q2=Apr-Jun, Q3=Jul-Sep, Q4=Oct-Dec
+        """
+        try:
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+            year = date_obj.year
+            month = date_obj.month
+            
+            # Standard calendar quarters
+            if month <= 3:  # Jan-Mar
+                quarter = "Q1"
+            elif month <= 6:  # Apr-Jun
+                quarter = "Q2"
+            elif month <= 9:  # Jul-Sep
+                quarter = "Q3"
+            else:  # Oct-Dec
+                quarter = "Q4"
+                
+            return f"{year} {quarter}"
+        except (ValueError, TypeError):
             return None
