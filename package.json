@@ -49,6 +49,7 @@
     "sonner": "^2.0.3",
     "tailwind-merge": "^3.3.0",
     "vaul": "^1.1.2",
+    "yahoo-finance2": "^2.13.3",
     "zod": "^3.25.39",
     "zustand": "^5.0.7"
   },

@@ -9,6 +9,7 @@ export default [
   index("routes/home.tsx"),
   route("search", "routes/search.tsx"),
   route("compare", "routes/compare.tsx"),
+  route("charts", "routes/charts.tsx"),
   route("earnings", "routes/earnings.tsx"),
   route("filings", "routes/filings.tsx"),
   route("projections", "routes/projections.tsx"),

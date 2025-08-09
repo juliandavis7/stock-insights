@@ -33,7 +33,7 @@ export function StockSearchHeader({
   const hasStockData = ticker || stockPrice || marketCap;
 
   return (
-    <div className="mb-4">
+    <div className="pt-4 mb-4">
       {/* Search Section */}
       <div className="flex justify-center mb-4">
         <div className="flex gap-2">
@@ -43,7 +43,7 @@ export function StockSearchHeader({
             </Label>
             <Input
               id="stock-symbol"
-              placeholder="Enter ticker (e.g., PYPL)"
+              placeholder=""
               value={stockSymbol}
               onChange={(e) => onStockSymbolChange(e.target.value)}
             />
