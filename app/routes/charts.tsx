@@ -5,7 +5,7 @@ import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import { Navbar } from "~/components/homepage/navbar";
 import { StockSearchHeader } from "~/components/stock-search-header";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "~/components/ui/chart";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from "recharts";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Legend, Cell } from "recharts";
 import { useChartsState, useStockActions } from "~/store/stockStore";
 import type { Route } from "./+types/charts";
 
@@ -25,7 +25,10 @@ export async function loader() {
 
 export default function ChartsPage({ loaderData }: Route.ComponentProps) {
   const [ticker, setTicker] = useState("AAPL");
-  const [viewMode, setViewMode] = useState<"quarterly" | "ttm">("quarterly");
+  const [revenueViewMode, setRevenueViewMode] = useState<"quarterly" | "ttm">("quarterly");
+  const [marginViewMode, setMarginViewMode] = useState<"quarterly" | "ttm">("quarterly");
+  const [operatingIncomeViewMode, setOperatingIncomeViewMode] = useState<"quarterly" | "ttm">("quarterly");
+  const [epsViewMode, setEpsViewMode] = useState<"quarterly" | "ttm">("quarterly");
   const charts = useChartsState();
   const actions = useStockActions();
 
@@ -66,17 +69,107 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
     return yearRange;
   };
 
+  // Get the index of the most recent quarter with actual data (not projected)
+  const getMostRecentActualQuarterIndex = (data: any) => {
+    if (!data || !data.quarters) return -1;
+    
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1; // 1-based
+    
+    // Determine current quarter
+    const currentQuarter = Math.ceil(currentMonth / 3);
+    
+    // Find the most recent quarter that should have actual data (previous quarter, not current)
+    // Companies typically report quarterly data 1-2 months after quarter end
+    for (let i = data.quarters.length - 1; i >= 0; i--) {
+      const quarter = data.quarters[i];
+      const [year, q] = quarter.split(' ');
+      const quarterNum = parseInt(q.replace('Q', ''));
+      const quarterYear = parseInt(year);
+      
+      // Only previous quarters should have actual data, not current quarter
+      if (quarterYear < currentYear || (quarterYear === currentYear && quarterNum < currentQuarter)) {
+        return i;
+      }
+    }
+    
+    return -1;
+  };
+
+  // Check if a quarter is in the future (projected data)
+  const isQuarterFuture = (quarter: string) => {
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1; // 1-based
+    const currentQuarter = Math.ceil(currentMonth / 3);
+    
+    const [year, q] = quarter.split(' ');
+    const quarterNum = parseInt(q.replace('Q', ''));
+    const quarterYear = parseInt(year);
+    
+    // Current quarter and beyond are considered future/projected since earnings haven't been reported yet
+    return quarterYear > currentYear || (quarterYear === currentYear && quarterNum >= currentQuarter);
+  };
+
+  // Detect if chart has future data
+  const chartHasFutureData = (data: any) => {
+    if (!data || !data.quarters) return false;
+    return data.quarters.some((quarter: string) => isQuarterFuture(quarter));
+  };
+
   // Format data for Recharts with simplified quarter labels
   const formatChartData = (data: any) => {
+    const mostRecentActualIndex = getMostRecentActualQuarterIndex(data);
+    const hasFutureData = chartHasFutureData(data);
+    
     return data.quarters.map((quarter: string, index: number) => {
       // Extract just the quarter part (Q1, Q2, etc.)
       const quarterOnly = quarter.split(' ')[1] || quarter;
+      const isFuture = isQuarterFuture(quarter);
       
       return {
         quarter: quarterOnly,
         fullQuarter: quarter, // Keep full quarter for tooltips
         revenue: data.revenue[index],
         eps: data.eps[index],
+        isLastActual: index === mostRecentActualIndex,
+        isFuture: isFuture,
+        hasFutureData: hasFutureData,
+      };
+    });
+  };
+
+  // Format margin data for line chart (keep all quarters, null values create gaps)
+  const formatMarginData = (data: any) => {
+    const mostRecentActualIndex = getMostRecentActualQuarterIndex(data);
+    
+    return data.quarters.map((quarter: string, index: number) => {
+      const quarterOnly = quarter.split(' ')[1] || quarter;
+      const grossMargin = data.gross_margin[index];
+      const netMargin = data.net_margin[index];
+      
+      return {
+        quarter: quarterOnly,
+        fullQuarter: quarter,
+        grossMargin: grossMargin, // Keep null values - they create gaps in line charts
+        netMargin: netMargin,     // Keep null values - they create gaps in line charts
+        isLastActual: index === mostRecentActualIndex,
+      };
+    });
+  };
+
+  // Format operating income data for bar chart (keep all quarters, null values won't render bars)
+  const formatOperatingIncomeData = (data: any) => {
+    const mostRecentActualIndex = getMostRecentActualQuarterIndex(data);
+    
+    return data.quarters.map((quarter: string, index: number) => {
+      const quarterOnly = quarter.split(' ')[1] || quarter;
+      const operatingIncome = data.operating_income[index];
+      
+      return {
+        quarter: quarterOnly,
+        fullQuarter: quarter,
+        operatingIncome: operatingIncome, // Keep null values - they won't render as bars
+        isLastActual: index === mostRecentActualIndex,
       };
     });
   };
@@ -147,14 +240,39 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
     }
   };
 
+  const formatNumberInteger = (value: number | null | undefined): string => {
+    if (value === null || value === undefined || isNaN(value)) return "0";
+    if (value >= 1e9) {
+      return `${Math.round(value / 1e9)}B`;
+    } else if (value >= 1e6) {
+      return `${Math.round(value / 1e6)}M`;
+    } else if (value >= 1e3) {
+      return `${Math.round(value / 1e3)}K`;
+    } else {
+      return Math.round(value).toString();
+    }
+  };
+
   const chartConfig = {
     revenue: {
       label: "Revenue",
-      color: "hsl(var(--chart-1))",
+      color: "#F59E0B",
     },
     eps: {
       label: "EPS",
-      color: "hsl(var(--chart-2))",
+      color: "#F59E0B",
+    },
+    grossMargin: {
+      label: "Gross Margin",
+      color: "#E879F9",
+    },
+    netMargin: {
+      label: "Net Margin", 
+      color: "#22D3EE",
+    },
+    operatingIncome: {
+      label: "Operating Income",
+      color: "#F59E0B",
     },
   };
 
@@ -166,68 +284,53 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
       <main className="min-h-screen pt-20 bg-background">
         <div className="container mx-auto px-6 py-8">
           <div className="w-full max-w-6xl mx-auto">
-            {/* Stock Search Header */}
-            <StockSearchHeader
-              stockSymbol={ticker}
-              onStockSymbolChange={setTicker}
-              onSearch={handleSearch}
-              loading={charts.loading}
-              ticker={charts.data?.ticker}
-              stockPrice={charts.data?.price}
-              marketCap={charts.data?.market_cap}
-              formatCurrency={formatCurrency}
-              formatNumber={formatNumber}
-            />
-            
-            {charts.error && (
-              <div className="text-red-500 text-center mt-4 p-4 bg-red-50 rounded-lg max-w-md mx-auto">
-                {charts.error}
-              </div>
-            )}
+            {/* Sticky Header Section */}
+            <div className="sticky top-22 z-50 bg-background pb-4">
+              {/* Stock Search Header */}
+              <StockSearchHeader
+                stockSymbol={ticker}
+                onStockSymbolChange={setTicker}
+                onSearch={handleSearch}
+                loading={charts.loading}
+                ticker={charts.data?.ticker}
+                stockPrice={charts.data?.price}
+                marketCap={charts.data?.market_cap}
+                formatCurrency={formatCurrency}
+                formatNumber={formatNumber}
+              />
+              
+              {charts.error && (
+                <div className="text-red-500 text-center mt-4 p-4 bg-red-50 rounded-lg max-w-md mx-auto">
+                  {charts.error}
+                </div>
+              )}
 
-            {/* Sticky Year Headers */}
-            {charts.data && !charts.loading && (
-              <div className="sticky top-20 z-50 bg-background shadow-sm border-b pt-6 pb-4">
-                <div className="w-full max-w-6xl mx-auto px-6">
-                  <div className="flex justify-between items-center">
-                    {(() => {
-                      const yearGroups: { [year: string]: number } = {};
-                      charts.data.quarters.forEach(quarter => {
-                        const year = quarter.split(' ')[0];
-                        yearGroups[year] = (yearGroups[year] || 0) + 1;
-                      });
-                      
-                      return Object.entries(yearGroups).map(([year, quarterCount], index) => (
-                        <div key={year} className="flex-1 text-center">
-                          <div className="text-lg font-semibold text-gray-700">
-                            {year}
+              {/* Year Headers */}
+              {charts.data && !charts.loading && (
+                <div className="pt-6">
+                  <div className="w-full max-w-6xl mx-auto px-6">
+                    <div className="flex justify-between items-center">
+                      {(() => {
+                        const yearGroups: { [year: string]: number } = {};
+                        charts.data.quarters.forEach(quarter => {
+                          const year = quarter.split(' ')[0];
+                          yearGroups[year] = (yearGroups[year] || 0) + 1;
+                        });
+                        
+                        return Object.entries(yearGroups).map(([year, quarterCount], index) => (
+                          <div key={year} className="flex-1 text-center">
+                            <div className="text-lg font-semibold text-gray-700">
+                              {year}
+                            </div>
                           </div>
-                        </div>
-                      ));
-                    })()}
+                        ));
+                      })()}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            {/* View Mode Toggle */}
-            {charts.data && !charts.loading && (
-              <div className="flex justify-center mb-6">
-                <ToggleGroup 
-                  type="single" 
-                  value={viewMode} 
-                  onValueChange={(value) => value && setViewMode(value as "quarterly" | "ttm")}
-                  className="bg-gray-100"
-                >
-                  <ToggleGroupItem value="quarterly" className="px-4 py-2">
-                    Quarterly
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="ttm" className="px-4 py-2">
-                    TTM
-                  </ToggleGroupItem>
-                </ToggleGroup>
-              </div>
-            )}
 
             {/* Loading State */}
             {charts.loading && (
@@ -250,12 +353,41 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
             {/* Charts Section */}
             {charts.data && !charts.loading && (
               <div className="space-y-6">
+                {/* SVG Pattern Definitions for Projected Data */}
+                <svg width="0" height="0" style={{ position: 'absolute' }}>
+                  <defs>
+                    <pattern 
+                      id="diagonal-stripes-pattern" 
+                      patternUnits="userSpaceOnUse" 
+                      width="6" 
+                      height="6" 
+                      patternTransform="rotate(45)"
+                    >
+                      <rect width="6" height="6" fill="#F59E0B"/>
+                      <rect width="2" height="6" fill="rgba(255,255,255,0.3)"/>
+                    </pattern>
+                  </defs>
+                </svg>
+
                 {/* Revenue Chart */}
-                <Card id="revenue-chart-container">
-                  <CardContent className="p-6">
-                    <h2 className="text-xl font-semibold mb-4">Quarterly Revenue ({charts.data.ticker})</h2>
-                    <ChartContainer config={chartConfig} className="min-h-[300px]">
-                      <BarChart data={formatChartData(charts.data)} margin={{ left: 20, right: 20, top: 20, bottom: 60 }}>
+                <div id="revenue-chart-container">
+                  <div className="flex justify-center mb-4">
+                    <ToggleGroup 
+                      type="single" 
+                      value={revenueViewMode} 
+                      onValueChange={(value) => value && setRevenueViewMode(value as "quarterly" | "ttm")}
+                      className="bg-gray-100"
+                    >
+                      <ToggleGroupItem value="quarterly" className="px-4 py-2">
+                        Quarterly
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="ttm" className="px-4 py-2">
+                        TTM
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                  </div>
+                    <ChartContainer config={chartConfig} className="min-h-[225px]">
+                      <BarChart data={formatChartData(charts.data)} margin={{ left: 20, right: 20, top: 40, bottom: 20 }} maxBarSize={40}>
                         <XAxis 
                           dataKey="quarter" 
                           tick={{ fontSize: 12 }}
@@ -265,7 +397,8 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                         />
                         <YAxis 
                           tick={{ fontSize: 12 }}
-                          tickFormatter={(value) => formatCurrency(value)}
+                          tickFormatter={(value) => formatNumberInteger(value)}
+                          label={{ value: 'Revenue', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
                         />
                         <ChartTooltip 
                           content={<ChartTooltipContent />}
@@ -273,13 +406,40 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                             const fullQuarter = payload?.[0]?.payload?.fullQuarter || label;
                             return `Quarter: ${fullQuarter}`;
                           }}
-                          formatter={(value: number) => [formatCurrency(value), "Revenue"]}
+                          formatter={(value: number) => [formatNumber(value)]}
                         />
                         <Bar 
                           dataKey="revenue" 
-                          fill="var(--color-revenue)"
+                          fill="#F59E0B"
                           radius={[4, 4, 0, 0]}
-                        />
+                        >
+                          {formatChartData(charts.data).map((entry, index) => {
+                            // Apply visual distinction only if chart has future data
+                            if (entry.hasFutureData) {
+                              const fillColor = entry.isFuture ? "url(#diagonal-stripes-pattern)" : "#F59E0B"; // Pattern for future, solid for historical
+                              const fillOpacity = entry.isFuture ? 0.8 : 1; // 0.8 opacity for projected bars
+                              
+                              return (
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill={fillColor}
+                                  fillOpacity={fillOpacity}
+                                  style={{
+                                    filter: !entry.isFuture ? "drop-shadow(1px 1px 1px rgba(0,0,0,0.1))" : "none"
+                                  }}
+                                />
+                              );
+                            } else {
+                              // Fallback to current styling if no future data
+                              return (
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill="#F59E0B" 
+                                />
+                              );
+                            }
+                          })}
+                        </Bar>
                         
                         {/* Year boundary reference lines */}
                         {charts.data.quarters.map((quarter, index) => {
@@ -303,17 +463,190 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                           }
                           return null;
                         })}
+                        
+                        {/* Historical/Future data separator for Revenue */}
+                        {chartHasFutureData(charts.data) && (() => {
+                          const mostRecentActualIndex = getMostRecentActualQuarterIndex(charts.data);
+                          if (mostRecentActualIndex >= 0 && mostRecentActualIndex < charts.data.quarters.length - 1) {
+                            return (
+                              <ReferenceLine
+                                key="revenue-historical-future-separator"
+                                x={mostRecentActualIndex + 0.5}
+                                stroke="#94A3B8"
+                                strokeWidth={2}
+                                strokeDasharray="5,5"
+                                label={{ 
+                                  value: "Projections", 
+                                  position: "topRight",
+                                  style: { fill: "#64748B", fontSize: "12px", fontWeight: "500" }
+                                }}
+                              />
+                            );
+                          }
+                          return null;
+                        })()}
                       </BarChart>
                     </ChartContainer>
-                  </CardContent>
-                </Card>
+                </div>
+
+                {/* Gross Margin & Net Margin Chart */}
+                <div id="margin-chart-container">
+                    <ChartContainer config={chartConfig} className="min-h-[225px]">
+                      <LineChart data={formatMarginData(charts.data)} margin={{ left: 20, right: 20, top: 60, bottom: 20 }}>
+                        <XAxis 
+                          dataKey="quarter" 
+                          tick={{ fontSize: 12 }}
+                          axisLine={true}
+                          tickLine={true}
+                          height={60}
+                          padding={{ left: 20, right: 20 }}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: 12 }}
+                          tickFormatter={(value) => `${value}%`}
+                          label={{ value: 'Margin %', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
+                        />
+                        <ChartTooltip 
+                          content={<ChartTooltipContent />}
+                          labelFormatter={(label, payload) => {
+                            const fullQuarter = payload?.[0]?.payload?.fullQuarter || label;
+                            return `Quarter: ${fullQuarter}`;
+                          }}
+                          formatter={(value: number, name: string) => {
+                            if (name === 'grossMargin') return [`${value}%`, 'Gross Margin'];
+                            if (name === 'netMargin') return [`${value}%`, 'Net Margin'];
+                            return [`${value}%`];
+                          }}
+                        />
+                        <Legend verticalAlign="top" height={36} />
+                        <Line 
+                          type="monotone"
+                          dataKey="grossMargin" 
+                          stroke="#E879F9"
+                          strokeWidth={3}
+                          dot={(props: any) => {
+                            const { cx, cy, payload } = props;
+                            // Only render dot if the value is not null
+                            if (payload.grossMargin === null || payload.grossMargin === undefined) {
+                              return null;
+                            }
+                            return (
+                              <circle 
+                                cx={cx} 
+                                cy={cy} 
+                                r={4} 
+                                fill="#E879F9" 
+                                stroke={payload.isLastActual ? "#FFFFFF" : "#E879F9"} 
+                                strokeWidth={payload.isLastActual ? 3 : 2} 
+                              />
+                            );
+                          }}
+                          name="Gross Margin"
+                        />
+                        <Line 
+                          type="monotone"
+                          dataKey="netMargin" 
+                          stroke="#22D3EE"
+                          strokeWidth={3}
+                          dot={(props: any) => {
+                            const { cx, cy, payload } = props;
+                            // Only render dot if the value is not null
+                            if (payload.netMargin === null || payload.netMargin === undefined) {
+                              return null;
+                            }
+                            return (
+                              <circle 
+                                cx={cx} 
+                                cy={cy} 
+                                r={4} 
+                                fill="#22D3EE" 
+                                stroke={payload.isLastActual ? "#FFFFFF" : "#22D3EE"} 
+                                strokeWidth={payload.isLastActual ? 3 : 2} 
+                              />
+                            );
+                          }}
+                          name="Net Margin"
+                        />
+                      </LineChart>
+                    </ChartContainer>
+                </div>
+
+                {/* Operating Income Chart */}
+                <div id="operating-income-chart-container">
+                  <div className="flex justify-center mb-4">
+                    <ToggleGroup 
+                      type="single" 
+                      value={operatingIncomeViewMode} 
+                      onValueChange={(value) => value && setOperatingIncomeViewMode(value as "quarterly" | "ttm")}
+                      className="bg-gray-100"
+                    >
+                      <ToggleGroupItem value="quarterly" className="px-4 py-2">
+                        Quarterly
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="ttm" className="px-4 py-2">
+                        TTM
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                  </div>
+                    <ChartContainer config={chartConfig} className="min-h-[225px]">
+                      <BarChart data={formatOperatingIncomeData(charts.data)} margin={{ left: 20, right: 20, top: 40, bottom: 20 }} maxBarSize={40}>
+                        <XAxis 
+                          dataKey="quarter" 
+                          tick={{ fontSize: 12 }}
+                          axisLine={true}
+                          tickLine={true}
+                          height={60}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: 12 }}
+                          tickFormatter={(value) => formatNumberInteger(value)}
+                          label={{ value: 'Operating Income', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
+                        />
+                        <ChartTooltip 
+                          content={<ChartTooltipContent />}
+                          labelFormatter={(label, payload) => {
+                            const fullQuarter = payload?.[0]?.payload?.fullQuarter || label;
+                            return `Quarter: ${fullQuarter}`;
+                          }}
+                          formatter={(value: number) => [formatNumber(value)]}
+                        />
+                        <Bar 
+                          dataKey="operatingIncome" 
+                          fill="#F59E0B"
+                          radius={[4, 4, 0, 0]}
+                        >
+                          {formatOperatingIncomeData(charts.data).map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill="#F59E0B" 
+                              stroke={entry.isLastActual ? "#FFFFFF" : "none"}
+                              strokeWidth={entry.isLastActual ? 3 : 0}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                </div>
 
                 {/* EPS Chart */}
-                <Card id="net-income-chart-container">
-                  <CardContent className="p-6">
-                    <h2 className="text-xl font-semibold mb-4">Quarterly Earnings Per Share ({charts.data.ticker})</h2>
-                    <ChartContainer config={chartConfig} className="min-h-[300px]">
-                      <BarChart data={formatChartData(charts.data)} margin={{ left: 20, right: 20, top: 20, bottom: 60 }}>
+                <div id="net-income-chart-container">
+                  <div className="flex justify-center mb-4">
+                    <ToggleGroup 
+                      type="single" 
+                      value={epsViewMode} 
+                      onValueChange={(value) => value && setEpsViewMode(value as "quarterly" | "ttm")}
+                      className="bg-gray-100"
+                    >
+                      <ToggleGroupItem value="quarterly" className="px-4 py-2">
+                        Quarterly
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="ttm" className="px-4 py-2">
+                        TTM
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                  </div>
+                    <ChartContainer config={chartConfig} className="min-h-[225px]">
+                      <BarChart data={formatChartData(charts.data)} margin={{ left: 20, right: 20, top: 40, bottom: 20 }} maxBarSize={40}>
                         <XAxis 
                           dataKey="quarter"
                           tick={{ fontSize: 12 }}
@@ -324,6 +657,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                         <YAxis 
                           tick={{ fontSize: 12 }}
                           tickFormatter={(value) => `$${value.toFixed(2)}`}
+                          label={{ value: 'EPS', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
                         />
                         <ChartTooltip 
                           content={<ChartTooltipContent />}
@@ -331,13 +665,40 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                             const fullQuarter = payload?.[0]?.payload?.fullQuarter || label;
                             return `Quarter: ${fullQuarter}`;
                           }}
-                          formatter={(value: number) => [`$${value.toFixed(2)}`, "EPS"]}
+                          formatter={(value: number) => [`$${value.toFixed(2)}`]}
                         />
                         <Bar 
                           dataKey="eps" 
-                          fill="var(--color-eps)"
+                          fill="#F59E0B"
                           radius={[4, 4, 0, 0]}
-                        />
+                        >
+                          {formatChartData(charts.data).map((entry, index) => {
+                            // Apply visual distinction only if chart has future data
+                            if (entry.hasFutureData) {
+                              const fillColor = entry.isFuture ? "url(#diagonal-stripes-pattern)" : "#F59E0B"; // Pattern for future, solid for historical
+                              const fillOpacity = entry.isFuture ? 0.8 : 1; // 0.8 opacity for projected bars
+                              
+                              return (
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill={fillColor}
+                                  fillOpacity={fillOpacity}
+                                  style={{
+                                    filter: !entry.isFuture ? "drop-shadow(1px 1px 1px rgba(0,0,0,0.1))" : "none"
+                                  }}
+                                />
+                              );
+                            } else {
+                              // Fallback to current styling if no future data
+                              return (
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill="#F59E0B" 
+                                />
+                              );
+                            }
+                          })}
+                        </Bar>
                         
                         {/* Year boundary reference lines */}
                         {charts.data.quarters.map((quarter, index) => {
@@ -361,10 +722,31 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                           }
                           return null;
                         })}
+                        
+                        {/* Historical/Future data separator for EPS */}
+                        {chartHasFutureData(charts.data) && (() => {
+                          const mostRecentActualIndex = getMostRecentActualQuarterIndex(charts.data);
+                          if (mostRecentActualIndex >= 0 && mostRecentActualIndex < charts.data.quarters.length - 1) {
+                            return (
+                              <ReferenceLine
+                                key="eps-historical-future-separator"
+                                x={mostRecentActualIndex + 0.5}
+                                stroke="#94A3B8"
+                                strokeWidth={2}
+                                strokeDasharray="5,5"
+                                label={{ 
+                                  value: "Projections", 
+                                  position: "topRight",
+                                  style: { fill: "#64748B", fontSize: "12px", fontWeight: "500" }
+                                }}
+                              />
+                            );
+                          }
+                          return null;
+                        })()}
                       </BarChart>
                     </ChartContainer>
-                  </CardContent>
-                </Card>
+                </div>
               </div>
             )}
 

@@ -250,6 +250,66 @@ def fetch_chart_data(ticker: str, api_key: str = None) -> Optional[Dict[str, Any
     service = FMPService(api_key or FMP_API_KEY)
     return service.fetch_chart_data(ticker)
 
+def fetch_enhanced_chart_data(ticker: str, api_key: str = None) -> Optional[Dict[str, Any]]:
+    """
+    Fetch enhanced chart data including revenue, EPS estimates and historical financial metrics.
+    Combines projected data with historical financial metrics and pads with nulls for consistency.
+    
+    Args:
+        ticker: Stock ticker symbol
+        api_key: Optional FMP API key (uses default if not provided)
+        
+    Returns:
+        Dictionary with ticker, quarters, revenue, eps, gross_margin, net_margin, operating_income arrays or None if failed
+    """
+    from .services.fmp_service import FMPService
+    from .constants import FMP_API_KEY
+    
+    service = FMPService(api_key or FMP_API_KEY)
+    
+    # Fetch projected data (revenue and EPS)
+    projected_data = service.fetch_chart_data(ticker)
+    if not projected_data:
+        return None
+        
+    # Fetch historical financial metrics
+    historical_data = service.fetch_historical_financials(ticker)
+    if not historical_data:
+        return None
+    
+    # Get the projected quarters as the master list
+    projected_quarters = projected_data.get('quarters', [])
+    historical_quarters = historical_data.get('quarters', [])
+    
+    # Create dictionaries for quick lookup of historical data
+    historical_gross_margin = {q: v for q, v in zip(historical_quarters, historical_data.get('gross_margin', []))}
+    historical_net_margin = {q: v for q, v in zip(historical_quarters, historical_data.get('net_margin', []))}
+    historical_operating_income = {q: v for q, v in zip(historical_quarters, historical_data.get('operating_income', []))}
+    
+    # The alignment should now work correctly with fiscal-to-calendar quarter mapping
+    
+    # Build aligned arrays with nulls for missing historical data
+    gross_margin_aligned = []
+    net_margin_aligned = []
+    operating_income_aligned = []
+    
+    for quarter in projected_quarters:
+        gross_margin_aligned.append(historical_gross_margin.get(quarter))
+        net_margin_aligned.append(historical_net_margin.get(quarter))  
+        operating_income_aligned.append(historical_operating_income.get(quarter))
+    
+    return {
+        'ticker': projected_data['ticker'],
+        'quarters': projected_quarters,
+        'revenue': projected_data.get('revenue', []),
+        'eps': projected_data.get('eps', []),
+        'gross_margin': gross_margin_aligned,
+        'net_margin': net_margin_aligned,
+        'operating_income': operating_income_aligned,
+        'price': projected_data.get('price'),
+        'market_cap': projected_data.get('market_cap')
+    }
+
 
 # =============================================================================
 # INPUT VALIDATION

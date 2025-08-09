@@ -86,6 +86,9 @@ interface ChartData {
   quarters: string[];
   revenue: number[];
   eps: number[];
+  gross_margin: (number | null)[];
+  net_margin: (number | null)[];
+  operating_income: (number | null)[];
   price: number | null;
   market_cap: number | null;
 }
