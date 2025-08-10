@@ -1,9 +1,16 @@
 import requests
 import json
 from datetime import datetime
+import os
+from dotenv import load_dotenv
 
-# Your FMP API key
-FMP_API_KEY = "kFoyQBTilV6J4OIfCd9RdhTeTb8CeK5B"
+# Load environment variables from .env
+load_dotenv('.env')
+
+# Get FMP API key from environment
+FMP_API_KEY = os.getenv("FMP_API_KEY")
+if not FMP_API_KEY:
+    raise ValueError("FMP_API_KEY environment variable is required. Please set it in .env file.")
 
 def get_current_year_and_quarter():
     """

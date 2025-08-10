@@ -55,7 +55,7 @@ class MetricsService:
             
             try:
                 stock_info = self._fetch_stock_info(ticker)
-                logger.info(f"📊 Stock info fetched: {bool(stock_info)} - Keys: {list(stock_info.keys()) if stock_info else 'None'}")
+                logger.info(f"📊 Stock info fetched: {bool(stock_info)}")
             except Exception as e:
                 logger.error(f"❌ Error fetching stock info: {e}")
                 stock_info = None
@@ -313,7 +313,7 @@ class MetricsService:
             eps_by_year = util.extract_metric_by_year(fmp_list, 'epsAvg')
             revenue_by_year = util.extract_metric_by_year(fmp_list, 'revenueAvg')
             
-            logger.info(f"Extracted data - EPS years: {list(eps_by_year.keys())}, Revenue years: {list(revenue_by_year.keys())}")
+            logger.info(f"Extracted data - EPS years: {len(eps_by_year)}, Revenue years: {len(revenue_by_year)}")
             
             current_year = datetime.now().year
             current_year_str = str(current_year)
@@ -322,7 +322,7 @@ class MetricsService:
             
             # Calculate EPS growth rates
             logger.info(f"📊 EPS calculation - Current year: {current_year_str}, Prev: {prev_year_str}, Next: {next_year_str}")
-            logger.info(f"📊 Available EPS years: {list(eps_by_year.keys())}")
+            logger.info(f"📊 Available EPS years: {len(eps_by_year)}")
             
             if current_year_str in eps_by_year and prev_year_str in eps_by_year:
                 prev_eps = eps_by_year[prev_year_str]
