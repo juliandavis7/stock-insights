@@ -993,3 +993,25 @@ if (quarterNum === 'Q4' && nextQuarter) {
 
 ### Implementation Status
 Enhanced year transition separators now provide clear, prominent visual boundaries between Q4 and Q1 of consecutive years, with appropriate visual hierarchy distinguishing year transitions from regular quarter boundaries.
+
+## Environment Variable Fix - 2025-08-09
+
+### User Issue Identified
+User reported ValueError: "FMP_API_KEY environment variable is required. Please set it in .env file" when running the API. The issue was that the constants.py file was looking for .env in the wrong location.
+
+### Actions Completed
+1. ✅ Identified that .env file exists in /api/.env with proper FMP_API_KEY value
+2. ✅ Fixed constants.py to load .env file from the correct relative path
+3. ✅ Updated load_dotenv() to use os.path.join(os.path.dirname(__file__), '.env')
+4. ✅ Updated activity log with fix details
+
+### Implementation Details
+- **Problem**: load_dotenv('.env') was looking for .env in the current working directory instead of the api directory
+- **Solution**: Changed to load_dotenv(os.path.join(os.path.dirname(__file__), '.env')) to load .env relative to constants.py location
+- **Result**: API should now properly load FMP_API_KEY from api/.env file
+
+### Files Modified
+- `/api/constants.py` - Fixed .env file loading path ✅
+
+### Fix Status
+FMP_API_KEY environment variable loading issue resolved. API should now start without errors.
