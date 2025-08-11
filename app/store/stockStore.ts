@@ -89,6 +89,8 @@ interface ChartData {
   gross_margin: (number | null)[];
   net_margin: (number | null)[];
   operating_income: (number | null)[];
+  operating_cash_flow: (number | null)[];
+  free_cash_flow: (number | null)[];
   price: number | null;
   market_cap: number | null;
 }
@@ -139,6 +141,7 @@ interface StockStore {
     data: ChartData | null;
     loading: boolean;
     error: string | null;
+    viewMode: "quarterly" | "ttm";
   };
   
   // Global cache for all fetched data
@@ -183,6 +186,7 @@ interface StockStore {
     setChartsData: (data: ChartData) => void;
     setChartsLoading: (loading: boolean) => void;
     setChartsError: (error: string | null) => void;
+    setChartsViewMode: (viewMode: "quarterly" | "ttm") => void;
     
     // Cache actions
     getCachedMetrics: (ticker: string) => FinancialMetrics | null;
@@ -194,7 +198,7 @@ interface StockStore {
     fetchMetrics: (ticker: string) => Promise<FinancialMetrics>;
     fetchProjections: (ticker: string) => Promise<ProjectionBaseData>;
     fetchFinancials: (ticker: string) => Promise<FinancialsData>;
-    fetchCharts: (ticker: string) => Promise<ChartData>;
+    fetchCharts: (ticker: string, mode?: string) => Promise<ChartData>;
   };
 }
 
@@ -277,6 +281,7 @@ export const useStockStore = create<StockStore>()(
         data: null,
         loading: false,
         error: null,
+        viewMode: "quarterly",
       },
       
       cache: {
@@ -435,6 +440,10 @@ export const useStockStore = create<StockStore>()(
         setChartsError: (error: string | null) => set((state) => ({
           charts: { ...state.charts, error }
         }), false, 'setChartsError'),
+        
+        setChartsViewMode: (viewMode: "quarterly" | "ttm") => set((state) => ({
+          charts: { ...state.charts, viewMode }
+        }), false, 'setChartsViewMode'),
 
         // Cache actions
         getCachedMetrics: (ticker: string) => {
@@ -551,18 +560,21 @@ export const useStockStore = create<StockStore>()(
           return data;
         },
         
-        fetchCharts: async (ticker: string): Promise<ChartData> => {
+        fetchCharts: async (ticker: string, mode: string = 'quarterly'): Promise<ChartData> => {
           const { cache } = get();
           
+          // Create cache key that includes both ticker and mode
+          const cacheKey = `${ticker}_${mode}`;
+          
           // Check cache first
-          const cached = cache.charts[ticker];
+          const cached = cache.charts[cacheKey];
           if (cached) {
-            console.log(`Using cached charts for ${ticker}`);
+            console.log(`Using cached charts for ${ticker} (${mode})`);
             return cached;
           }
           
-          console.log(`Fetching charts for ${ticker}`);
-          const response = await fetch(`http://localhost:8000/charts?ticker=${ticker.toUpperCase()}`);
+          console.log(`Fetching charts for ${ticker} (${mode})`);
+          const response = await fetch(`http://localhost:8000/charts?ticker=${ticker.toUpperCase()}&mode=${mode}`);
           
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
@@ -571,11 +583,11 @@ export const useStockStore = create<StockStore>()(
           
           const data: ChartData = await response.json();
           
-          // Cache the data
+          // Cache the data with mode-specific key
           set((state) => ({
             cache: { 
               ...state.cache, 
-              charts: { ...state.cache.charts, [ticker]: data }
+              charts: { ...state.cache.charts, [cacheKey]: data }
             }
           }), false, 'cacheCharts');
           

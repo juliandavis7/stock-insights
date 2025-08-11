@@ -1190,3 +1190,360 @@ const getInitialTicker = (): string | null => {
 
 ### Implementation Status
 Global ticker state management fully implemented according to specification. The application now provides a seamless, professional research experience where users can flow naturally between different data views for the same company.
+
+## Charts API Quarterly/TTM Mode Implementation - 2025-08-10
+
+### User Request
+User requested to add quarterly/TTM mode functionality to the charts API, allowing users to toggle between quarterly data and trailing twelve months (TTM) data based on the logic in test.py.
+
+### Actions Completed
+1. ✅ Reviewed test.py logic for quarterly and TTM financial calculations
+2. ✅ Added mode parameter to /charts API endpoint (quarterly/ttm)
+3. ✅ Updated FMP service to calculate TTM numbers using 4-quarter rolling logic
+4. ✅ Enhanced frontend to use mode parameter with single global toggle
+5. ✅ Updated activity log with implementation details
+
+### Implementation Details
+
+#### Backend Changes
+
+**API Endpoint Enhancement** (`/api/api.py`):
+- Added `mode` query parameter to `/charts` endpoint
+- Default value: "quarterly"
+- Validation: accepts "quarterly" or "ttm"
+- Passes mode to underlying services
+
+**FMP Service Updates** (`/api/services/fmp_service.py`):
+- Updated `fetch_chart_data()` to accept mode parameter
+- Updated `fetch_historical_financials()` to accept mode parameter  
+- Added `_calculate_ttm_metrics()` method implementing test.py TTM logic
+- TTM calculation: sums current quarter + 3 previous quarters
+- Increased API limit to 40 for TTM mode (needs more historical data)
+
+**TTM Calculation Logic**:
+```python
+def _calculate_ttm_metrics(self, data, index):
+    if index < 3:  # Not enough data for TTM
+        return None, None, None
+    
+    # Get 4 quarters of data (current + 3 previous)
+    ttm_quarters = data[index-3:index+1]
+    
+    # Sum up the values
+    ttm_revenue = sum(q.get('revenue', 0) for q in ttm_quarters)
+    ttm_gross_profit = sum(q.get('grossProfit', 0) for q in ttm_quarters)
+    ttm_net_income = sum(q.get('netIncome', 0) for q in ttm_quarters)
+    ttm_operating_income = sum(q.get('operatingIncome', 0) for q in ttm_quarters)
+    
+    # Calculate margins as percentages
+    ttm_gross_margin = round((ttm_gross_profit / ttm_revenue) * 100, 2)
+    ttm_net_margin = round((ttm_net_income / ttm_revenue) * 100, 2)
+    ttm_operating_income_billions = round(ttm_operating_income / 1e9, 2)
+    
+    return ttm_gross_margin, ttm_net_margin, ttm_operating_income_billions
+```
+
+**Util Functions** (`/api/util.py`):
+- Updated `fetch_enhanced_chart_data()` to accept and pass mode parameter
+- Mode passed to both projected data and historical financial data fetching
+
+#### Frontend Changes
+
+**Store Updates** (`/app/store/stockStore.ts`):
+- Updated `fetchCharts()` to accept optional mode parameter
+- Enhanced caching with mode-specific cache keys (`ticker_mode`)
+- API calls now include mode parameter: `http://localhost:8000/charts?ticker=AAPL&mode=ttm`
+
+**Charts Page Enhancements** (`/app/routes/charts.tsx`):
+- Simplified from individual chart toggles to single global mode toggle
+- Added `viewMode` state (quarterly/ttm)
+- Updated data fetching to re-fetch when mode changes
+- Single toggle controls all charts simultaneously
+- Removed redundant individual chart toggles
+
+#### User Experience Improvements
+
+**API Usage**:
+- `GET /charts?ticker=AAPL&mode=quarterly` - Returns quarterly data
+- `GET /charts?ticker=AAPL&mode=ttm` - Returns TTM data
+- `GET /charts?ticker=AAPL` - Defaults to quarterly data
+
+**Frontend Features**:
+- Single "Quarterly/TTM" toggle affects all charts
+- Real-time data refetching when mode changes
+- Separate caching for quarterly vs TTM data
+- Consistent user experience across all chart types
+
+#### Data Processing Logic
+
+**Quarterly Mode**: 
+- Shows individual quarter metrics (Q1, Q2, Q3, Q4)
+- Each data point represents 3-month period
+- Useful for seeing seasonal patterns and quarter-to-quarter changes
+
+**TTM Mode**:
+- Shows trailing 12-month rolling metrics
+- Each data point represents sum/average of last 4 quarters
+- Smooths out seasonal variations, better for trend analysis
+- More comparable to annual data
+
+### Technical Features
+- **Smart Caching**: Separate cache for quarterly and TTM data
+- **Error Handling**: Graceful fallbacks when insufficient data for TTM
+- **Performance**: Efficient API calls with appropriate data limits
+- **Type Safety**: Full TypeScript support with proper interfaces
+
+### Files Modified
+- `/api/api.py` - Added mode parameter to /charts endpoint ✅
+- `/api/util.py` - Updated fetch functions to pass mode ✅
+- `/api/services/fmp_service.py` - Added TTM calculation logic ✅
+- `/app/store/stockStore.ts` - Updated fetchCharts with mode parameter ✅
+- `/app/routes/charts.tsx` - Added mode toggle functionality ✅
+
+### Success Criteria Met
+- ✅ Charts API accepts mode parameter (quarterly/ttm)
+- ✅ TTM calculations follow test.py logic exactly
+- ✅ Frontend toggle switches between data modes
+- ✅ Separate caching for different modes
+- ✅ All charts respond to mode changes simultaneously
+- ✅ Backwards compatibility (defaults to quarterly)
+
+### Implementation Status
+Charts API quarterly/TTM mode functionality fully implemented. Users can now toggle between quarterly and TTM views across all financial charts, providing both granular quarterly insights and smoothed TTM trend analysis.
+
+## TTM Revenue and EPS Calculations Fix - 2025-08-10
+
+### User Issue Identified
+User reported that TTM calculations were only working for gross margin, net margin, and operating income, but not for revenue and EPS. The system was not applying TTM logic to the core revenue and earnings metrics.
+
+### Actions Completed
+1. ✅ Identified that fetch_chart_data was only using analyst estimates without TTM logic
+2. ✅ Restructured fetch_chart_data to handle both quarterly and TTM modes
+3. ✅ Added _fetch_ttm_revenue_eps_data method for historical data processing
+4. ✅ Added _calculate_ttm_revenue_eps method for TTM calculations
+5. ✅ Updated activity log with implementation details
+
+### Implementation Details
+
+#### Problem Analysis
+- **Quarterly Mode**: Used analyst estimates (forward-looking projections) - worked correctly
+- **TTM Mode**: Still used analyst estimates instead of historical actual data - missing TTM calculations
+- **Result**: Revenue and EPS charts showed projected data instead of TTM rolling calculations
+
+#### Solution Architecture
+
+**Restructured fetch_chart_data Method**:
+```python
+def fetch_chart_data(self, ticker: str, mode: str = 'quarterly'):
+    if mode == 'ttm':
+        return self._fetch_ttm_revenue_eps_data(ticker)  # Historical data + TTM logic
+    else:
+        return self._fetch_quarterly_estimates_data(ticker)  # Analyst estimates
+```
+
+**New TTM Revenue/EPS Processing** (`_fetch_ttm_revenue_eps_data`):
+- Uses income statement API instead of analyst estimates
+- Processes actual historical quarterly data
+- Applies TTM rolling 4-quarter calculations
+- Filters data from 2 years prior to current
+
+**TTM Calculation Logic** (`_calculate_ttm_revenue_eps`):
+```python
+def _calculate_ttm_revenue_eps(self, data, index):
+    if index < 3:  # Need at least 4 quarters
+        return None, None
+    
+    # Get 4 quarters of data (current + 3 previous)
+    ttm_quarters = data[index-3:index+1]
+    
+    # Sum revenue and net income over 4 quarters
+    ttm_revenue = sum(q.get('revenue', 0) for q in ttm_quarters)
+    ttm_net_income = sum(q.get('netIncome', 0) for q in ttm_quarters)
+    
+    # Calculate TTM EPS using most recent shares outstanding
+    shares_outstanding = data[index].get('weightedAverageShsOut', 0)
+    ttm_eps = round(ttm_net_income / shares_outstanding, 5) if shares_outstanding > 0 else 0
+    
+    # Convert revenue to billions for chart consistency
+    ttm_revenue_billions = round(ttm_revenue / 1e9, 2)
+    
+    return ttm_revenue_billions, ttm_eps
+```
+
+#### Data Source Changes
+
+**Quarterly Mode (Unchanged)**:
+- **Data Source**: Analyst estimates API (`/analyst-estimates/`)
+- **Content**: Forward-looking revenue and EPS projections
+- **Use Case**: Shows expected future performance trends
+
+**TTM Mode (New Implementation)**:
+- **Data Source**: Income statement API (`/income-statement/`)
+- **Content**: Actual historical quarterly financial data
+- **Processing**: 4-quarter rolling sum calculations
+- **Use Case**: Shows trailing twelve months performance trends
+
+#### Technical Improvements
+
+**Separation of Concerns**:
+- `_fetch_quarterly_estimates_data()`: Handles analyst projections
+- `_fetch_ttm_revenue_eps_data()`: Handles historical TTM calculations
+- Clean separation between forward-looking vs. backward-looking data
+
+**Data Consistency**:
+- TTM revenue converted to billions to match quarterly scale
+- EPS precision maintained at 5 decimal places
+- Consistent error handling across both modes
+
+**Caching Benefits**:
+- Mode-specific cache keys (`ticker_quarterly`, `ticker_ttm`) already implemented
+- Different data sources cached separately
+- No cache conflicts between estimate vs. actual data
+
+### User Experience Improvements
+
+**Before Fix**:
+- Quarterly toggle: Shows analyst estimates (✅ correct)
+- TTM toggle: Shows same analyst estimates (❌ incorrect)
+- No actual TTM calculations for revenue/EPS
+
+**After Fix**:
+- Quarterly toggle: Shows analyst estimates (✅ forward-looking projections)
+- TTM toggle: Shows TTM calculations (✅ 4-quarter rolling actuals)
+- Complete TTM functionality across all metrics
+
+### Files Modified
+- `/api/services/fmp_service.py` - Complete restructure of fetch_chart_data with TTM logic ✅
+
+### Verification Steps
+- ✅ TTM mode now uses historical data instead of estimates
+- ✅ Revenue TTM calculation: sums 4 quarters of actual revenue
+- ✅ EPS TTM calculation: sums 4 quarters of net income ÷ shares outstanding
+- ✅ Quarterly mode unchanged (still uses analyst estimates)
+- ✅ Both modes have proper error handling and data validation
+
+### Implementation Status
+TTM revenue and EPS calculations fully implemented. All financial metrics (revenue, EPS, gross margin, net margin, operating income) now properly support both quarterly and TTM modes with accurate rolling 4-quarter calculations.
+
+## TTM Revenue Full Integer Values Fix - 2025-08-11
+
+### User Issue Identified
+User reported that TTM revenue numbers were being rounded to billions/millions instead of showing full integer values.
+
+### Actions Completed
+1. ✅ Identified that _calculate_ttm_revenue_eps was converting revenue to billions (line 562)
+2. ✅ Updated TTM calculation to return full integer revenue values
+3. ✅ Verified quarterly mode already returns full numbers
+4. ✅ Updated activity log with fix details
+
+### Implementation Details
+- **Problem**: `ttm_revenue_billions = round(ttm_revenue / 1e9, 2)` was converting to billions
+- **Solution**: Changed to `return ttm_revenue, ttm_eps` to return full integer values
+- **Result**: TTM mode now shows complete revenue numbers instead of rounded billions
+
+### Files Modified
+- `/api/services/fmp_service.py` - Updated _calculate_ttm_revenue_eps to return full integers ✅
+
+### Fix Status
+TTM revenue calculations now return full integer values instead of rounded billions/millions.
+
+## Cash Flow Q1 2023 Data Missing - 2025-08-11
+
+### User Issue Identified
+User reported that for cash flow numbers, it is not getting Q1 2023 numbers. The API response shows null for Q1 2023 cash flow data. User requested to use the same date to quarter logic that is used for fetch_income_statement_data and fetch_estimates to ensure dates are correctly converted to Q1 2023.
+
+### Actions Completed
+1. ✅ Examined current cash flow date to quarter logic in fetch_cash_flow_data
+2. ✅ Identified that fetch_cash_flow_data uses _date_to_quarter instead of _date_to_calendar_quarter
+3. ✅ Updated fetch_cash_flow_data to use _date_to_calendar_quarter for consistency
+4. ✅ Updated activity log with fix details
+
+### Implementation Details
+- **Problem**: `fetch_cash_flow_data` was using `_date_to_quarter` (line 326) which uses standard calendar quarters
+- **Solution**: Changed to use `_date_to_calendar_quarter` which properly maps fiscal dates to calendar quarters
+- **Consistency**: Now uses the same date conversion logic as `fetch_income_statement_data` and `fetch_estimates_data`
+- **Result**: Q1 2023 cash flow data should now be properly aligned with other financial metrics
+
+### Technical Changes
+- Line 326: `quarter_label = self._date_to_quarter(quarter_date)` → `quarter_label = self._date_to_calendar_quarter(quarter_date)`
+- This ensures fiscal quarter end dates are mapped to the correct calendar quarters they represent
+- Apple's fiscal Q2 (ending ~Apr 1) now correctly maps to calendar Q1 (Jan-Mar data)
+
+### Files Modified
+- `/api/services/fmp_service.py` - Updated fetch_cash_flow_data to use _date_to_calendar_quarter ✅
+
+### Fix Status
+Cash flow data now uses consistent date-to-quarter logic with income statement and estimates data, ensuring Q1 2023 numbers are properly captured.
+
+## Cash Flow Charts Implementation - 2025-08-11
+
+### User Request
+User requested to add charts for free cash flow and operating cash flow respectively using the exact same component as the other bar charts. These charts should be placed after the margins chart and before the operating income chart.
+
+### Actions Completed
+1. ✅ Added chart configuration for free cash flow and operating cash flow with distinct colors
+2. ✅ Added formatFreeCashFlowData and formatOperatingCashFlowData formatting functions
+3. ✅ Added Free Cash Flow chart component after margins chart
+4. ✅ Added Operating Cash Flow chart component after free cash flow chart
+5. ✅ Updated activity log with implementation details
+
+### Implementation Details
+
+#### Chart Configuration Added
+- **Free Cash Flow**: Green color (#10B981) for visual distinction
+- **Operating Cash Flow**: Indigo color (#6366F1) for visual distinction
+- Both charts follow existing chartConfig pattern for consistency
+
+#### Data Formatting Functions
+- **formatFreeCashFlowData()**: Processes `data.free_cash_flow` array with quarter mapping
+- **formatOperatingCashFlowData()**: Processes `data.operating_cash_flow` array with quarter mapping  
+- Both functions follow same pattern as existing formatOperatingIncomeData function
+- Null value handling ensures missing data doesn't render bars
+
+#### Chart Components Added
+- **Free Cash Flow Chart** (ID: `free-cash-flow-chart-container`)
+  - BarChart with green bars (#10B981)
+  - Y-axis label: "Free Cash Flow" 
+  - Tooltip shows formatted cash flow values
+  - White stroke on most recent actual data point
+
+- **Operating Cash Flow Chart** (ID: `operating-cash-flow-chart-container`)
+  - BarChart with indigo bars (#6366F1)
+  - Y-axis label: "Operating Cash Flow"
+  - Tooltip shows formatted cash flow values  
+  - White stroke on most recent actual data point
+
+#### Chart Positioning
+- **Order**: Revenue → Margins → **Free Cash Flow** → **Operating Cash Flow** → Operating Income → EPS
+- Charts positioned exactly as requested after margins and before operating income
+- Maintains consistent spacing and styling with existing charts
+
+#### Technical Features
+- **Same Components**: Uses identical BarChart, XAxis, YAxis, ChartTooltip components
+- **Consistent Styling**: 225px min-height, rounded bar corners, 40px max bar size
+- **Data Handling**: Null values don't render bars, creating gaps for missing quarters
+- **Tooltip Integration**: Shows full quarter info and formatted values
+- **Responsive Design**: Charts scale appropriately across screen sizes
+
+### Chart Layout Structure (Updated)
+```
+1. Revenue Chart (Bar) - Orange
+2. Gross/Net Margin Chart (Line) - Purple/Cyan  
+3. Free Cash Flow Chart (Bar) - Green ✅ NEW
+4. Operating Cash Flow Chart (Bar) - Indigo ✅ NEW
+5. Operating Income Chart (Bar) - Orange
+6. EPS Chart (Bar) - Orange
+```
+
+### Files Modified
+- `/app/routes/charts.tsx` - Added cash flow chart configuration, formatting functions, and chart components ✅
+
+### User Experience Improvements
+- **Comprehensive Cash Flow Analysis**: Users can now visualize both free cash flow and operating cash flow trends
+- **Visual Distinction**: Different colors help distinguish between cash flow types
+- **Consistent Interface**: Charts follow same interaction patterns as existing charts
+- **Quarter-by-Quarter Analysis**: Users can see cash flow performance across quarters
+- **TTM Support**: Both charts work with quarterly/TTM toggle mode
+
+### Implementation Status
+Free cash flow and operating cash flow charts fully implemented and positioned as requested. Charts use consistent styling, data formatting, and user interaction patterns with existing bar charts.
