@@ -25,13 +25,12 @@ export async function loader() {
 
 export default function ChartsPage({ loaderData }: Route.ComponentProps) {
   const [ticker, setTicker] = useState("");
-  const [revenueViewMode, setRevenueViewMode] = useState<"quarterly" | "ttm">("quarterly");
-  const [marginViewMode, setMarginViewMode] = useState<"quarterly" | "ttm">("quarterly");
-  const [operatingIncomeViewMode, setOperatingIncomeViewMode] = useState<"quarterly" | "ttm">("quarterly");
-  const [epsViewMode, setEpsViewMode] = useState<"quarterly" | "ttm">("quarterly");
   const charts = useChartsState();
   const globalTicker = useGlobalTicker();
   const actions = useStockActions();
+  
+  // Use viewMode from global state instead of local state
+  const viewMode = charts.viewMode;
 
   // Initialize ticker from global state
   useEffect(() => {
@@ -46,15 +45,15 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
     }
   }, [globalTicker.currentTicker]);
 
-  // Load data when global ticker changes
+  // Load data when global ticker or view mode changes
   useEffect(() => {
     const tickerToLoad = globalTicker.currentTicker || "AAPL";
-    if (tickerToLoad && (!charts.data || charts.data.ticker !== tickerToLoad)) {
+    if (tickerToLoad) {
       const upperTicker = tickerToLoad.toUpperCase();
       actions.setChartsLoading(true);
       actions.setChartsError(null);
 
-      actions.fetchCharts(upperTicker).then(data => {
+      actions.fetchCharts(upperTicker, viewMode).then(data => {
         actions.setChartsData(data);
       }).catch(err => {
         actions.setChartsError(err instanceof Error ? err.message : "An error occurred");
@@ -62,7 +61,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
         actions.setChartsLoading(false);
       });
     }
-  }, [globalTicker.currentTicker]); // Depend on global ticker changes
+  }, [globalTicker.currentTicker, viewMode]); // Depend on both global ticker and view mode changes
 
   // Get year range for the sticky header
   const getYearRange = () => {
@@ -188,6 +187,40 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
     });
   };
 
+  // Format free cash flow data for bar chart (keep all quarters, null values won't render bars)
+  const formatFreeCashFlowData = (data: any) => {
+    const mostRecentActualIndex = getMostRecentActualQuarterIndex(data);
+    
+    return data.quarters.map((quarter: string, index: number) => {
+      const quarterOnly = quarter.split(' ')[1] || quarter;
+      const freeCashFlow = data.free_cash_flow[index];
+      
+      return {
+        quarter: quarterOnly,
+        fullQuarter: quarter,
+        freeCashFlow: freeCashFlow, // Keep null values - they won't render as bars
+        isLastActual: index === mostRecentActualIndex,
+      };
+    });
+  };
+
+  // Format operating cash flow data for bar chart (keep all quarters, null values won't render bars)
+  const formatOperatingCashFlowData = (data: any) => {
+    const mostRecentActualIndex = getMostRecentActualQuarterIndex(data);
+    
+    return data.quarters.map((quarter: string, index: number) => {
+      const quarterOnly = quarter.split(' ')[1] || quarter;
+      const operatingCashFlow = data.operating_cash_flow[index];
+      
+      return {
+        quarter: quarterOnly,
+        fullQuarter: quarter,
+        operatingCashFlow: operatingCashFlow, // Keep null values - they won't render as bars
+        isLastActual: index === mostRecentActualIndex,
+      };
+    });
+  };
+
   // Get years for the quarter data to calculate positions
   const getQuartersPerYear = () => {
     if (!charts.data || !charts.data.quarters.length) return {};
@@ -213,7 +246,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
     actions.setChartsError(null);
 
     try {
-      const data = await actions.fetchCharts(upperTicker);
+      const data = await actions.fetchCharts(upperTicker, viewMode);
       actions.setChartsData(data);
     } catch (err) {
       actions.setChartsError(err instanceof Error ? err.message : "An error occurred");
@@ -284,6 +317,14 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
       label: "Net Margin", 
       color: "#22D3EE",
     },
+    freeCashFlow: {
+      label: "Free Cash Flow",
+      color: "#F59E0B",
+    },
+    operatingCashFlow: {
+      label: "Operating Cash Flow",
+      color: "#F59E0B",
+    },
     operatingIncome: {
       label: "Operating Income",
       color: "#F59E0B",
@@ -318,6 +359,23 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                   {charts.error}
                 </div>
               )}
+
+              {/* View Mode Toggle */}
+              <div className="flex justify-center mt-6">
+                <ToggleGroup 
+                  type="single" 
+                  value={viewMode} 
+                  onValueChange={(value) => value && actions.setChartsViewMode(value as "quarterly" | "ttm")}
+                  className="bg-gray-100"
+                >
+                  <ToggleGroupItem value="quarterly" className="px-4 py-2">
+                    Quarterly
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="ttm" className="px-4 py-2">
+                    TTM
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
 
               {/* Year Headers */}
               {charts.data && !charts.loading && (
@@ -364,6 +422,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
               </div>
             )}
 
+
             {/* Charts Section */}
             {charts.data && !charts.loading && (
               <div className="space-y-6">
@@ -385,21 +444,6 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
 
                 {/* Revenue Chart */}
                 <div id="revenue-chart-container">
-                  <div className="flex justify-center mb-4">
-                    <ToggleGroup 
-                      type="single" 
-                      value={revenueViewMode} 
-                      onValueChange={(value) => value && setRevenueViewMode(value as "quarterly" | "ttm")}
-                      className="bg-gray-100"
-                    >
-                      <ToggleGroupItem value="quarterly" className="px-4 py-2">
-                        Quarterly
-                      </ToggleGroupItem>
-                      <ToggleGroupItem value="ttm" className="px-4 py-2">
-                        TTM
-                      </ToggleGroupItem>
-                    </ToggleGroup>
-                  </div>
                     <ChartContainer config={chartConfig} className="min-h-[225px]">
                       <BarChart data={formatChartData(charts.data)} margin={{ left: 20, right: 20, top: 40, bottom: 20 }} maxBarSize={40}>
                         <XAxis 
@@ -585,80 +629,8 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                     </ChartContainer>
                 </div>
 
-                {/* Operating Income Chart */}
-                <div id="operating-income-chart-container">
-                  <div className="flex justify-center mb-4">
-                    <ToggleGroup 
-                      type="single" 
-                      value={operatingIncomeViewMode} 
-                      onValueChange={(value) => value && setOperatingIncomeViewMode(value as "quarterly" | "ttm")}
-                      className="bg-gray-100"
-                    >
-                      <ToggleGroupItem value="quarterly" className="px-4 py-2">
-                        Quarterly
-                      </ToggleGroupItem>
-                      <ToggleGroupItem value="ttm" className="px-4 py-2">
-                        TTM
-                      </ToggleGroupItem>
-                    </ToggleGroup>
-                  </div>
-                    <ChartContainer config={chartConfig} className="min-h-[225px]">
-                      <BarChart data={formatOperatingIncomeData(charts.data)} margin={{ left: 20, right: 20, top: 40, bottom: 20 }} maxBarSize={40}>
-                        <XAxis 
-                          dataKey="quarter" 
-                          tick={{ fontSize: 12 }}
-                          axisLine={true}
-                          tickLine={true}
-                          height={60}
-                        />
-                        <YAxis 
-                          tick={{ fontSize: 12 }}
-                          tickFormatter={(value) => formatNumberInteger(value)}
-                          label={{ value: 'Operating Income', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
-                        />
-                        <ChartTooltip 
-                          content={<ChartTooltipContent />}
-                          labelFormatter={(label, payload) => {
-                            const fullQuarter = payload?.[0]?.payload?.fullQuarter || label;
-                            return `Quarter: ${fullQuarter}`;
-                          }}
-                          formatter={(value: number) => [formatNumber(value)]}
-                        />
-                        <Bar 
-                          dataKey="operatingIncome" 
-                          fill="#F59E0B"
-                          radius={[4, 4, 0, 0]}
-                        >
-                          {formatOperatingIncomeData(charts.data).map((entry, index) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill="#F59E0B" 
-                              stroke={entry.isLastActual ? "#FFFFFF" : "none"}
-                              strokeWidth={entry.isLastActual ? 3 : 0}
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ChartContainer>
-                </div>
-
                 {/* EPS Chart */}
                 <div id="net-income-chart-container">
-                  <div className="flex justify-center mb-4">
-                    <ToggleGroup 
-                      type="single" 
-                      value={epsViewMode} 
-                      onValueChange={(value) => value && setEpsViewMode(value as "quarterly" | "ttm")}
-                      className="bg-gray-100"
-                    >
-                      <ToggleGroupItem value="quarterly" className="px-4 py-2">
-                        Quarterly
-                      </ToggleGroupItem>
-                      <ToggleGroupItem value="ttm" className="px-4 py-2">
-                        TTM
-                      </ToggleGroupItem>
-                    </ToggleGroup>
-                  </div>
                     <ChartContainer config={chartConfig} className="min-h-[225px]">
                       <BarChart data={formatChartData(charts.data)} margin={{ left: 20, right: 20, top: 40, bottom: 20 }} maxBarSize={40}>
                         <XAxis 
@@ -758,6 +730,132 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                           }
                           return null;
                         })()}
+                      </BarChart>
+                    </ChartContainer>
+                </div>
+
+                {/* Free Cash Flow Chart */}
+                <div id="free-cash-flow-chart-container">
+                    <ChartContainer config={chartConfig} className="min-h-[225px]">
+                      <BarChart data={formatFreeCashFlowData(charts.data)} margin={{ left: 20, right: 20, top: 40, bottom: 20 }} maxBarSize={40}>
+                        <XAxis 
+                          dataKey="quarter" 
+                          tick={{ fontSize: 12 }}
+                          axisLine={true}
+                          tickLine={true}
+                          height={60}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: 12 }}
+                          tickFormatter={(value) => formatNumberInteger(value)}
+                          label={{ value: 'Free Cash Flow', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
+                        />
+                        <ChartTooltip 
+                          content={<ChartTooltipContent />}
+                          labelFormatter={(label, payload) => {
+                            const fullQuarter = payload?.[0]?.payload?.fullQuarter || label;
+                            return `Quarter: ${fullQuarter}`;
+                          }}
+                          formatter={(value: number) => [formatNumber(value)]}
+                        />
+                        <Bar 
+                          dataKey="freeCashFlow" 
+                          fill="#F59E0B"
+                          radius={[4, 4, 0, 0]}
+                        >
+                          {formatFreeCashFlowData(charts.data).map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill="#F59E0B" 
+                              stroke={entry.isLastActual ? "#FFFFFF" : "none"}
+                              strokeWidth={entry.isLastActual ? 3 : 0}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                </div>
+
+                {/* Operating Cash Flow Chart */}
+                <div id="operating-cash-flow-chart-container">
+                    <ChartContainer config={chartConfig} className="min-h-[225px]">
+                      <BarChart data={formatOperatingCashFlowData(charts.data)} margin={{ left: 20, right: 20, top: 40, bottom: 20 }} maxBarSize={40}>
+                        <XAxis 
+                          dataKey="quarter" 
+                          tick={{ fontSize: 12 }}
+                          axisLine={true}
+                          tickLine={true}
+                          height={60}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: 12 }}
+                          tickFormatter={(value) => formatNumberInteger(value)}
+                          label={{ value: 'Operating Cash Flow', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
+                        />
+                        <ChartTooltip 
+                          content={<ChartTooltipContent />}
+                          labelFormatter={(label, payload) => {
+                            const fullQuarter = payload?.[0]?.payload?.fullQuarter || label;
+                            return `Quarter: ${fullQuarter}`;
+                          }}
+                          formatter={(value: number) => [formatNumber(value)]}
+                        />
+                        <Bar 
+                          dataKey="operatingCashFlow" 
+                          fill="#F59E0B"
+                          radius={[4, 4, 0, 0]}
+                        >
+                          {formatOperatingCashFlowData(charts.data).map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill="#F59E0B" 
+                              stroke={entry.isLastActual ? "#FFFFFF" : "none"}
+                              strokeWidth={entry.isLastActual ? 3 : 0}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                </div>
+
+                {/* Operating Income Chart */}
+                <div id="operating-income-chart-container">
+                    <ChartContainer config={chartConfig} className="min-h-[225px]">
+                      <BarChart data={formatOperatingIncomeData(charts.data)} margin={{ left: 20, right: 20, top: 40, bottom: 20 }} maxBarSize={40}>
+                        <XAxis 
+                          dataKey="quarter" 
+                          tick={{ fontSize: 12 }}
+                          axisLine={true}
+                          tickLine={true}
+                          height={60}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: 12 }}
+                          tickFormatter={(value) => formatNumberInteger(value)}
+                          label={{ value: 'Operating Income', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
+                        />
+                        <ChartTooltip 
+                          content={<ChartTooltipContent />}
+                          labelFormatter={(label, payload) => {
+                            const fullQuarter = payload?.[0]?.payload?.fullQuarter || label;
+                            return `Quarter: ${fullQuarter}`;
+                          }}
+                          formatter={(value: number) => [formatNumber(value)]}
+                        />
+                        <Bar 
+                          dataKey="operatingIncome" 
+                          fill="#F59E0B"
+                          radius={[4, 4, 0, 0]}
+                        >
+                          {formatOperatingIncomeData(charts.data).map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill="#F59E0B" 
+                              stroke={entry.isLastActual ? "#FFFFFF" : "none"}
+                              strokeWidth={entry.isLastActual ? 3 : 0}
+                            />
+                          ))}
+                        </Bar>
                       </BarChart>
                     </ChartContainer>
                 </div>

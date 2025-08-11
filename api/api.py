@@ -419,19 +419,23 @@ def get_financials(ticker: str = Query(..., description="Stock ticker symbol")):
 
 
 @app.get("/charts")
-def get_chart_revenue(ticker: str = Query(..., description="Stock ticker symbol")):
+def get_chart_revenue(
+    ticker: str = Query(..., description="Stock ticker symbol"),
+    mode: str = Query("quarterly", description="Mode: 'quarterly' for quarterly data or 'ttm' for trailing twelve months")
+):
     """
     Get quarterly revenue and EPS chart data for a ticker, including current price and market cap.
     Returns chart data with quarterly data plus current stock info.
     
     Args:
         ticker: Stock ticker symbol (e.g., AAPL)
+        mode: Data mode - "quarterly" for quarterly data or "ttm" for trailing twelve months data
         
     Returns:
         Chart data with ticker, quarters, revenue, eps, price, and market_cap
     """
     try:
-        chart_data = fetch_enhanced_chart_data(ticker.upper())
+        chart_data = fetch_enhanced_chart_data(ticker.upper(), mode=mode)
         
         if chart_data is None:
             raise HTTPException(
@@ -456,6 +460,8 @@ def get_chart_revenue(ticker: str = Query(..., description="Stock ticker symbol"
             'gross_margin': chart_data['gross_margin'],
             'net_margin': chart_data['net_margin'],
             'operating_income': chart_data['operating_income'],
+            'operating_cash_flow': chart_data['operating_cash_flow'],
+            'free_cash_flow': chart_data['free_cash_flow'],
             'price': current_price,
             'market_cap': market_cap
         }
