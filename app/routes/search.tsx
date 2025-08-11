@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Navbar } from "~/components/homepage/navbar";
 import { StockSearchHeader } from "~/components/stock-search-header";
-import { useSearchState, useStockActions } from "~/store/stockStore";
+import { useSearchState, useStockActions, useGlobalTicker } from "~/store/stockStore";
 import type { Route } from "./+types/search";
 
 export function meta({}: Route.MetaArgs) {
@@ -95,8 +95,9 @@ const MetricRow = ({ metric, value, benchmark }: MetricRowProps) => (
 
 export default function SearchPage({ loaderData }: Route.ComponentProps) {
   const searchState = useSearchState();
+  const globalTicker = useGlobalTicker();
   const actions = useStockActions();
-  const [stockSymbol, setStockSymbol] = useState(searchState?.currentTicker || 'AAPL');
+  const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
 
   // Hard-coded sample data matching the FastAPI response structure
   const sampleMetrics: FinancialMetrics = {
@@ -122,7 +123,7 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
   const fetchMetrics = async (symbol: string) => {
     actions.setSearchLoading(true);
     actions.setSearchError(null);
-    actions.setSearchTicker(symbol);
+    actions.setGlobalTicker(symbol); // Set global ticker
     
     try {
       // Check cache first, then fetch if needed
@@ -146,11 +147,13 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
     }
   };
 
-  // Auto-load AAPL data on component mount (only run once)
+  // Load data for current ticker on component mount
   useEffect(() => {
-    fetchMetrics('AAPL');
+    const tickerToLoad = globalTicker.currentTicker || 'AAPL';
+    if (tickerToLoad && (!searchState?.data || searchState.data.ticker !== tickerToLoad)) {
+      fetchMetrics(tickerToLoad);
+    }
   }, []); // Empty dependency array - run only once on mount
-
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,12 +162,12 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
     }
   };
 
-  // Sync input field when returning to tab with different ticker
+  // Sync input field when global ticker changes from other pages
   useEffect(() => {
-    if (searchState?.currentTicker && searchState.currentTicker !== stockSymbol) {
-      setStockSymbol(searchState.currentTicker);
+    if (globalTicker.currentTicker && globalTicker.currentTicker !== stockSymbol) {
+      setStockSymbol(globalTicker.currentTicker);
     }
-  }, [searchState?.currentTicker]);
+  }, [globalTicker.currentTicker]);
 
   return (
     <>

@@ -4,7 +4,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { Input } from "~/components/ui/input";
 import { Navbar } from "~/components/homepage/navbar";
 import { StockSearchHeader } from "~/components/stock-search-header";
-import { useProjectionsState, useStockActions } from "~/store/stockStore";
+import { useProjectionsState, useStockActions, useGlobalTicker } from "~/store/stockStore";
 import type { Route } from "./+types/projections";
 
 export function meta({}: Route.MetaArgs) {
@@ -204,8 +204,9 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     return Math.round(growthRate * 100) / 100; // Round to 2 decimal places
   };
   const projectionsState = useProjectionsState();
+  const globalTicker = useGlobalTicker();
   const actions = useStockActions();
-  const [stockSymbol, setStockSymbol] = useState(projectionsState?.currentTicker || 'AAPL');
+  const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
 
   // Sample data for initial display
   const sampleStockInfo: StockInfo = {
@@ -255,7 +256,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     
     actions.setProjectionsLoading(true);
     actions.setProjectionsError(null);
-    actions.setProjectionsTicker(stockSymbol);
+    actions.setGlobalTicker(stockSymbol); // Set global ticker
     
     try {
       // Check cache first, then fetch if needed
@@ -404,41 +405,44 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     }
   }, [projectionsState?.baseData, projectionsState?.projectionInputs]);
 
-  // Auto-load AAPL data on component mount (only run once)
+  // Load data for global ticker on component mount and when it changes
   useEffect(() => {
-    const loadDefaultData = async () => {
-      actions.setProjectionsLoading(true);
-      actions.setProjectionsError(null);
-      
-      try {
-        // Check cache first
-        const cachedData = actions.getCachedProjections('AAPL');
-        if (cachedData) {
-          actions.setProjectionsBaseData(cachedData);
+    const tickerToLoad = globalTicker.currentTicker || 'AAPL';
+    if (tickerToLoad && (!projectionsState?.baseData || projectionsState.baseData.ticker !== tickerToLoad)) {
+      const loadData = async () => {
+        actions.setProjectionsLoading(true);
+        actions.setProjectionsError(null);
+        
+        try {
+          // Check cache first
+          const cachedData = actions.getCachedProjections(tickerToLoad);
+          if (cachedData) {
+            actions.setProjectionsBaseData(cachedData);
+            actions.setProjectionsLoading(false);
+            return;
+          }
+          
+          const data = await actions.fetchProjections(tickerToLoad);
+          actions.setProjectionsBaseData(data);
+          
+        } catch (err) {
+          console.error(`Error loading ${tickerToLoad} data:`, err);
+          actions.setProjectionsError(err instanceof Error ? err.message : `Failed to load ${tickerToLoad} data`);
+        } finally {
           actions.setProjectionsLoading(false);
-          return;
         }
-        
-        const data = await actions.fetchProjections('AAPL');
-        actions.setProjectionsBaseData(data);
-        
-      } catch (err) {
-        console.error('Error loading AAPL data:', err);
-        actions.setProjectionsError(err instanceof Error ? err.message : 'Failed to load AAPL data');
-      } finally {
-        actions.setProjectionsLoading(false);
-      }
-    };
-    
-    loadDefaultData();
-  }, []); // Empty dependency array - run only once on mount
-
-  // Sync input field when returning to tab with different ticker
-  useEffect(() => {
-    if (projectionsState?.currentTicker && projectionsState.currentTicker !== stockSymbol) {
-      setStockSymbol(projectionsState.currentTicker);
+      };
+      
+      loadData();
     }
-  }, [projectionsState?.currentTicker]);
+  }, [globalTicker.currentTicker]); // Depend on global ticker changes
+
+  // Sync input field when global ticker changes from other pages
+  useEffect(() => {
+    if (globalTicker.currentTicker && globalTicker.currentTicker !== stockSymbol) {
+      setStockSymbol(globalTicker.currentTicker);
+    }
+  }, [globalTicker.currentTicker]);
 
   return (
     <>

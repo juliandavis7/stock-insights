@@ -3,7 +3,7 @@ import { Card, CardContent } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Navbar } from "~/components/homepage/navbar";
 import { StockSearchHeader } from "~/components/stock-search-header";
-import { useFinancialsState, useStockActions } from "~/store/stockStore";
+import { useFinancialsState, useStockActions, useGlobalTicker } from "~/store/stockStore";
 import type { Route } from "./+types/financials";
 
 export function meta({}: Route.MetaArgs) {
@@ -140,13 +140,14 @@ const MetricRow = ({ metricName, data, allYears, getHistoricalValue, getEstimate
 
 export default function Financials({ loaderData }: Route.ComponentProps) {
   const financialsState = useFinancialsState();
+  const globalTicker = useGlobalTicker();
   const actions = useStockActions();
-  const [stockSymbol, setStockSymbol] = useState(financialsState?.currentTicker || 'AAPL');
+  const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
 
   const fetchFinancials = async (symbol: string) => {  
     actions.setFinancialsLoading(true);
     actions.setFinancialsError(null);
-    actions.setFinancialsTicker(symbol);
+    actions.setGlobalTicker(symbol); // Set global ticker
     
     try {
       // Check cache first, then fetch if needed
@@ -175,16 +176,20 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
   };
 
   // Auto-load AAPL data on component mount
+  // Load data for global ticker on component mount and when it changes
   useEffect(() => {
-    fetchFinancials('AAPL');
-  }, []);
-
-  // Sync input field when returning to tab with different ticker
-  useEffect(() => {
-    if (financialsState?.currentTicker && financialsState.currentTicker !== stockSymbol) {
-      setStockSymbol(financialsState.currentTicker);
+    const tickerToLoad = globalTicker.currentTicker || 'AAPL';
+    if (tickerToLoad && (!financialsState?.data || financialsState.data.ticker !== tickerToLoad)) {
+      fetchFinancials(tickerToLoad);
     }
-  }, [financialsState?.currentTicker]);
+  }, [globalTicker.currentTicker]); // Depend on global ticker changes
+
+  // Sync input field when global ticker changes from other pages
+  useEffect(() => {
+    if (globalTicker.currentTicker && globalTicker.currentTicker !== stockSymbol) {
+      setStockSymbol(globalTicker.currentTicker);
+    }
+  }, [globalTicker.currentTicker]);
 
   const data = financialsState?.data;
   const loading = financialsState?.loading || false;

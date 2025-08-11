@@ -6,7 +6,7 @@ import { Navbar } from "~/components/homepage/navbar";
 import { StockSearchHeader } from "~/components/stock-search-header";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "~/components/ui/chart";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Legend, Cell } from "recharts";
-import { useChartsState, useStockActions } from "~/store/stockStore";
+import { useChartsState, useStockActions, useGlobalTicker } from "~/store/stockStore";
 import type { Route } from "./+types/charts";
 
 export function meta({}: Route.MetaArgs) {
@@ -24,19 +24,33 @@ export async function loader() {
 }
 
 export default function ChartsPage({ loaderData }: Route.ComponentProps) {
-  const [ticker, setTicker] = useState("AAPL");
+  const [ticker, setTicker] = useState("");
   const [revenueViewMode, setRevenueViewMode] = useState<"quarterly" | "ttm">("quarterly");
   const [marginViewMode, setMarginViewMode] = useState<"quarterly" | "ttm">("quarterly");
   const [operatingIncomeViewMode, setOperatingIncomeViewMode] = useState<"quarterly" | "ttm">("quarterly");
   const [epsViewMode, setEpsViewMode] = useState<"quarterly" | "ttm">("quarterly");
   const charts = useChartsState();
+  const globalTicker = useGlobalTicker();
   const actions = useStockActions();
 
-  // Auto-load AAPL on page mount
+  // Initialize ticker from global state
   useEffect(() => {
-    if (ticker === "AAPL") {
-      const upperTicker = ticker.toUpperCase();
-      actions.setChartsTicker(upperTicker);
+    const initialTicker = globalTicker.currentTicker || "AAPL";
+    setTicker(initialTicker);
+  }, []);
+
+  // Sync ticker input with global ticker changes
+  useEffect(() => {
+    if (globalTicker.currentTicker && globalTicker.currentTicker !== ticker) {
+      setTicker(globalTicker.currentTicker);
+    }
+  }, [globalTicker.currentTicker]);
+
+  // Load data when global ticker changes
+  useEffect(() => {
+    const tickerToLoad = globalTicker.currentTicker || "AAPL";
+    if (tickerToLoad && (!charts.data || charts.data.ticker !== tickerToLoad)) {
+      const upperTicker = tickerToLoad.toUpperCase();
       actions.setChartsLoading(true);
       actions.setChartsError(null);
 
@@ -48,7 +62,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
         actions.setChartsLoading(false);
       });
     }
-  }, []); // Empty dependency array since we only want this to run once on mount
+  }, [globalTicker.currentTicker]); // Depend on global ticker changes
 
   // Get year range for the sticky header
   const getYearRange = () => {
@@ -194,7 +208,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
     }
 
     const upperTicker = ticker.toUpperCase();
-    actions.setChartsTicker(upperTicker);
+    actions.setGlobalTicker(upperTicker); // Set global ticker
     actions.setChartsLoading(true);
     actions.setChartsError(null);
 
