@@ -1015,3 +1015,178 @@ User reported ValueError: "FMP_API_KEY environment variable is required. Please 
 
 ### Fix Status
 FMP_API_KEY environment variable loading issue resolved. API should now start without errors.
+
+## Search Page State Persistence Fix - 2025-08-10
+
+### User Issue Identified
+User reported that when searching for a stock (e.g., PLTR) on the search page, then switching to another page and returning, the page would reset to AAPL instead of maintaining the previously searched ticker (PLTR).
+
+### Actions Completed
+1. ✅ Examined search page useEffect that was always auto-loading AAPL on mount
+2. ✅ Identified that empty dependency array useEffect was overriding persisted state
+3. ✅ Fixed mount logic to check for existing currentTicker in store before loading
+4. ✅ Updated activity log with fix details
+
+### Implementation Details
+- **Problem**: useEffect with fetchMetrics('AAPL') was always loading AAPL on component mount, ignoring any persisted ticker in the store
+- **Root Cause**: Hard-coded 'AAPL' in useEffect was overriding the searchState.currentTicker value
+- **Solution**: Changed to load searchState.currentTicker || 'AAPL' and added condition to prevent unnecessary API calls if data already matches current ticker
+- **Result**: Search page now preserves the last searched ticker when navigating between pages
+
+### Technical Changes
+```typescript
+// Before: Always loaded AAPL
+useEffect(() => {
+  fetchMetrics('AAPL');
+}, []);
+
+// After: Loads persisted ticker or fallback to AAPL
+useEffect(() => {
+  const tickerToLoad = searchState?.currentTicker || 'AAPL';
+  if (tickerToLoad && (!searchState?.data || searchState.data.ticker !== tickerToLoad)) {
+    fetchMetrics(tickerToLoad);
+  }
+}, []);
+```
+
+### Files Modified
+- `/app/routes/search.tsx` - Fixed auto-load logic to respect persisted state ✅
+
+### Fix Status
+Search page state persistence issue resolved. Previously searched ticker now persists when navigating between pages.
+
+## Global State Management Implementation - 2025-08-10
+
+### User Request
+User requested to implement global ticker state management according to the specifications in `docs/ui/global-state-management.md`.
+
+### Actions Completed
+1. ✅ Read and analyzed global-state-management.md specification
+2. ✅ Analyzed current stockStore implementation vs specification requirements
+3. ✅ Implemented global ticker state management in stockStore
+4. ✅ Updated all page components to use global ticker system
+5. ✅ Added URL and localStorage persistence
+6. ✅ Updated activity log with implementation details
+
+### Implementation Details
+
+#### Global State Structure Changes
+**Before**: Each page had separate `currentTicker` state
+```typescript
+search: { currentTicker: string, data: ..., loading: ..., error: ... }
+charts: { currentTicker: string, data: ..., loading: ..., error: ... }
+projections: { currentTicker: string, data: ..., loading: ..., error: ... }
+```
+
+**After**: Single global ticker shared across all pages
+```typescript
+globalTicker: {
+  currentTicker: string | null,
+  isLoading: boolean
+}
+search: { data: ..., loading: ..., error: ... }
+charts: { data: ..., loading: ..., error: ... }
+projections: { data: ..., loading: ..., error: ... }
+```
+
+#### Key Features Implemented
+- **Global Ticker State**: Single source of truth for current ticker across all pages
+- **URL Synchronization**: Ticker automatically synced to URL parameters (`?ticker=AAPL`)
+- **localStorage Persistence**: Last searched ticker persists across browser sessions
+- **Cross-Page Synchronization**: Searching on any page updates all other pages
+- **Consistent Loading States**: Global loading state available to all components
+
+#### Pages Updated
+1. **Search Page** (`/app/routes/search.tsx`):
+   - Uses `useGlobalTicker()` instead of local currentTicker
+   - Sets global ticker on search with `actions.setGlobalTicker()`
+   - Syncs input field with global ticker changes
+
+2. **Charts Page** (`/app/routes/charts.tsx`):
+   - Loads data when global ticker changes
+   - Updates global ticker on local search
+   - Syncs chart data with ticker changes
+
+3. **Projections Page** (`/app/routes/projections.tsx`):
+   - Automatically loads projections data for global ticker
+   - Updates global ticker on search
+   - Syncs input with global state
+
+4. **Financials Page** (`/app/routes/financials.tsx`):
+   - Loads financial data based on global ticker
+   - Updates global ticker on search
+   - Automatically refreshes when ticker changes
+
+5. **Earnings Page** (`/app/routes/earnings.tsx`):
+   - Shows ticker-specific UI when global ticker is set
+   - Displays fallback message when no ticker selected
+
+6. **Filings Page** (`/app/routes/filings.tsx`):
+   - Shows ticker-specific UI when global ticker is set
+   - Displays fallback message when no ticker selected
+
+#### Technical Implementation Details
+
+**New Store Actions**:
+- `setGlobalTicker(ticker)` - Sets global ticker with URL/localStorage sync
+- `setGlobalLoading(loading)` - Sets global loading state
+- `clearGlobalTicker()` - Clears ticker and persistence
+
+**Persistence Logic**:
+```typescript
+// Auto-saves to localStorage and URL on ticker change
+setGlobalTicker: (ticker: string | null) => {
+  // Update state
+  set((state) => ({ globalTicker: { ...state.globalTicker, currentTicker: ticker } }));
+  
+  // Persist to localStorage and URL
+  if (ticker) {
+    localStorage.setItem('globalTicker', ticker);
+    url.searchParams.set('ticker', ticker);
+  } else {
+    localStorage.removeItem('globalTicker');
+    url.searchParams.delete('ticker');
+  }
+}
+```
+
+**Initialization Logic**:
+```typescript
+const getInitialTicker = (): string | null => {
+  // Try URL first, then localStorage
+  const urlTicker = urlParams.get('ticker');
+  if (urlTicker) return urlTicker.toUpperCase();
+  
+  const storedTicker = localStorage.getItem('globalTicker');
+  if (storedTicker) return storedTicker.toUpperCase();
+  
+  return null;
+};
+```
+
+### User Experience Improvements
+- **Seamless Navigation**: Users can search on any page and continue research on other pages
+- **URL Sharing**: Users can share URLs with specific tickers (`/search?ticker=AAPL`)
+- **Session Persistence**: Last searched ticker persists across browser sessions
+- **Consistent State**: All pages always show data for the same ticker
+- **No State Loss**: Switching between pages maintains the research context
+
+### Files Modified
+- `/app/store/stockStore.ts` - Implemented global ticker state system ✅
+- `/app/routes/search.tsx` - Updated to use global ticker ✅
+- `/app/routes/charts.tsx` - Updated to use global ticker ✅
+- `/app/routes/projections.tsx` - Updated to use global ticker ✅
+- `/app/routes/financials.tsx` - Updated to use global ticker ✅
+- `/app/routes/earnings.tsx` - Added global ticker awareness ✅
+- `/app/routes/filings.tsx` - Added global ticker awareness ✅
+
+### Success Criteria Met
+- ✅ Users can search for a ticker on any page and it appears across all tabs
+- ✅ Switching between tabs maintains the same ticker context
+- ✅ All pages that display ticker-specific data automatically update when ticker changes
+- ✅ URL reflects current ticker for shareable links
+- ✅ Clean error states when no ticker is selected
+- ✅ Consistent loading states across all ticker-dependent pages
+
+### Implementation Status
+Global ticker state management fully implemented according to specification. The application now provides a seamless, professional research experience where users can flow naturally between different data views for the same company.

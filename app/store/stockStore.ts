@@ -95,9 +95,14 @@ interface ChartData {
 
 // Store state interface
 interface StockStore {
+  // Global ticker state - shared across all pages
+  globalTicker: {
+    currentTicker: string | null;
+    isLoading: boolean;
+  };
+  
   // Search state
   search: {
-    currentTicker: string;
     data: FinancialMetrics | null;
     loading: boolean;
     error: string | null;
@@ -115,7 +120,6 @@ interface StockStore {
   
   // Projections state
   projections: {
-    currentTicker: string;
     baseData: ProjectionBaseData | null;
     projectionInputs: ProjectionInputs;
     calculatedProjections: CalculatedProjections;
@@ -125,7 +129,6 @@ interface StockStore {
   
   // Financials state
   financials: {
-    currentTicker: string;
     data: FinancialsData | null;
     loading: boolean;
     error: string | null;
@@ -133,7 +136,6 @@ interface StockStore {
   
   // Charts state
   charts: {
-    currentTicker: string;
     data: ChartData | null;
     loading: boolean;
     error: string | null;
@@ -149,8 +151,12 @@ interface StockStore {
 
   // Actions
   actions: {
+    // Global ticker actions
+    setGlobalTicker: (ticker: string | null) => void;
+    setGlobalLoading: (loading: boolean) => void;
+    clearGlobalTicker: () => void;
+    
     // Search actions
-    setSearchTicker: (ticker: string) => void;
     setSearchData: (data: FinancialMetrics) => void;
     setSearchLoading: (loading: boolean) => void;
     setSearchError: (error: string | null) => void;
@@ -162,7 +168,6 @@ interface StockStore {
     setCompareError: (index: number, error: string | null) => void;
     
     // Projections actions
-    setProjectionsTicker: (ticker: string) => void;
     setProjectionsBaseData: (data: ProjectionBaseData) => void;
     setProjectionsInputs: (inputs: ProjectionInputs) => void;
     setCalculatedProjections: (projections: CalculatedProjections) => void;
@@ -170,13 +175,11 @@ interface StockStore {
     setProjectionsError: (error: string | null) => void;
     
     // Financials actions
-    setFinancialsTicker: (ticker: string) => void;
     setFinancialsData: (data: FinancialsData) => void;
     setFinancialsLoading: (loading: boolean) => void;
     setFinancialsError: (error: string | null) => void;
     
     // Charts actions
-    setChartsTicker: (ticker: string) => void;
     setChartsData: (data: ChartData) => void;
     setChartsLoading: (loading: boolean) => void;
     setChartsError: (error: string | null) => void;
@@ -203,12 +206,33 @@ const projectionYears = [
   (currentYear + 4).toString()
 ];
 
+// Helper function to get initial ticker from localStorage or URL
+const getInitialTicker = (): string | null => {
+  // Check if we're in browser environment
+  if (typeof window === 'undefined') return null;
+  
+  // Try URL first
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlTicker = urlParams.get('ticker');
+  if (urlTicker) return urlTicker.toUpperCase();
+  
+  // Try localStorage
+  const storedTicker = localStorage.getItem('globalTicker');
+  if (storedTicker) return storedTicker.toUpperCase();
+  
+  return null;
+};
+
 export const useStockStore = create<StockStore>()(
   devtools(
     (set, get) => ({
       // Initial state
+      globalTicker: {
+        currentTicker: getInitialTicker(),
+        isLoading: false,
+      },
+      
       search: {
-        currentTicker: 'AAPL',
         data: null,
         loading: false,
         error: null,
@@ -222,7 +246,6 @@ export const useStockStore = create<StockStore>()(
       },
       
       projections: {
-        currentTicker: 'AAPL',
         baseData: null,
         projectionInputs: {
           revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
@@ -245,14 +268,12 @@ export const useStockStore = create<StockStore>()(
       },
       
       financials: {
-        currentTicker: 'AAPL',
         data: null,
         loading: false,
         error: null,
       },
       
       charts: {
-        currentTicker: '',
         data: null,
         loading: false,
         error: null,
@@ -266,11 +287,46 @@ export const useStockStore = create<StockStore>()(
       },
 
       actions: {
-        // Search actions
-        setSearchTicker: (ticker: string) => set((state) => ({
-          search: { ...state.search, currentTicker: ticker }
-        }), false, 'setSearchTicker'),
+        // Global ticker actions
+        setGlobalTicker: (ticker: string | null) => {
+          set((state) => ({
+            globalTicker: { ...state.globalTicker, currentTicker: ticker }
+          }), false, 'setGlobalTicker');
+          
+          // Persist to localStorage and URL
+          if (typeof window !== 'undefined') {
+            if (ticker) {
+              localStorage.setItem('globalTicker', ticker);
+              const url = new URL(window.location);
+              url.searchParams.set('ticker', ticker);
+              window.history.replaceState({}, '', url);
+            } else {
+              localStorage.removeItem('globalTicker');
+              const url = new URL(window.location);
+              url.searchParams.delete('ticker');
+              window.history.replaceState({}, '', url);
+            }
+          }
+        },
         
+        setGlobalLoading: (loading: boolean) => set((state) => ({
+          globalTicker: { ...state.globalTicker, isLoading: loading }
+        }), false, 'setGlobalLoading'),
+        
+        clearGlobalTicker: () => {
+          set((state) => ({
+            globalTicker: { currentTicker: null, isLoading: false }
+          }), false, 'clearGlobalTicker');
+          
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('globalTicker');
+            const url = new URL(window.location);
+            url.searchParams.delete('ticker');
+            window.history.replaceState({}, '', url);
+          }
+        },
+        
+        // Search actions
         setSearchData: (data: FinancialMetrics) => set((state) => ({
           search: { ...state.search, data },
           cache: { 
@@ -322,10 +378,6 @@ export const useStockStore = create<StockStore>()(
         }), false, 'setCompareError'),
 
         // Projections actions
-        setProjectionsTicker: (ticker: string) => set((state) => ({
-          projections: { ...state.projections, currentTicker: ticker }
-        }), false, 'setProjectionsTicker'),
-        
         setProjectionsBaseData: (data: ProjectionBaseData) => set((state) => ({
           projections: { ...state.projections, baseData: data },
           cache: { 
@@ -351,10 +403,6 @@ export const useStockStore = create<StockStore>()(
         }), false, 'setProjectionsError'),
 
         // Financials actions
-        setFinancialsTicker: (ticker: string) => set((state) => ({
-          financials: { ...state.financials, currentTicker: ticker }
-        }), false, 'setFinancialsTicker'),
-        
         setFinancialsData: (data: FinancialsData) => set((state) => ({
           financials: { ...state.financials, data },
           cache: { 
@@ -372,10 +420,6 @@ export const useStockStore = create<StockStore>()(
         }), false, 'setFinancialsError'),
 
         // Charts actions
-        setChartsTicker: (ticker: string) => set((state) => ({
-          charts: { ...state.charts, currentTicker: ticker }
-        }), false, 'setChartsTicker'),
-        
         setChartsData: (data: ChartData) => set((state) => ({
           charts: { ...state.charts, data },
           cache: { 
@@ -544,6 +588,7 @@ export const useStockStore = create<StockStore>()(
 );
 
 // Export individual selectors for better performance
+export const useGlobalTicker = () => useStockStore((state) => state.globalTicker);
 export const useSearchState = () => useStockStore((state) => state.search);
 export const useCompareState = () => useStockStore((state) => state.compare);
 export const useProjectionsState = () => useStockStore((state) => state.projections);
