@@ -154,9 +154,7 @@ def get_projection_base_data(ticker: str = Query(..., description="Stock ticker 
         
         return ProjectionBaseDataResponse(
             ticker=data['ticker'],
-            price=data['price'],  
-            market_cap=data['market_cap'],
-            shares_outstanding=data['shares_outstanding'],
+            # Stock info fields removed - use /info endpoint instead
             revenue=data.get('revenue'),
             net_income=data.get('net_income'),
             eps=data.get('current_year_eps'),
@@ -352,9 +350,7 @@ def get_financials(ticker: str = Query(..., description="Stock ticker symbol")):
                 detail=f"No financial data available for ticker {ticker}"
             )
         
-        # Get current price and market cap
-        current_price = yfinance_service.get_current_price(ticker.upper())
-        market_cap = yfinance_service.get_market_cap(ticker.upper())
+        # Stock info removed - use /info endpoint instead
         
         # Convert historical data to FinancialDataResponse objects
         historical_data = []
@@ -403,8 +399,7 @@ def get_financials(ticker: str = Query(..., description="Stock ticker symbol")):
         
         return ComprehensiveFinancialResponse(
             ticker=ticker.upper(),
-            price=current_price,
-            market_cap=market_cap,
+            # Stock info fields removed - use /info endpoint instead
             historical=historical_data,
             estimates=estimates_data
         )
@@ -415,6 +410,53 @@ def get_financials(ticker: str = Query(..., description="Stock ticker symbol")):
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error: {str(e)}"
+        )
+
+
+@app.get("/info")
+def get_info(ticker: str = Query(..., description="Stock ticker symbol")):
+    """
+    Get basic stock information including price, market cap, and shares outstanding.
+    
+    Args:
+        ticker: Stock ticker symbol (e.g., AAPL)
+        
+    Returns:
+        JSON with ticker, price, market_cap, and shares_outstanding
+    """
+    try:
+        yfinance_service = YFinanceService()
+        
+        # Get current price
+        current_price = yfinance_service.get_current_price(ticker.upper())
+        if current_price is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Unable to fetch price data for ticker {ticker}"
+            )
+        
+        # Get market cap
+        market_cap = yfinance_service.get_market_cap(ticker.upper())
+        
+        # Get shares outstanding
+        shares_outstanding = yfinance_service.get_shares_outstanding(ticker.upper())
+        
+        return {
+            "ticker": ticker.upper(),
+            "price": current_price,
+            "market_cap": market_cap,
+            "shares_outstanding": shares_outstanding
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": f"Internal server error: {str(e)}",
+                "ticker": ticker.upper()
+            }
         )
 
 
@@ -446,12 +488,9 @@ def get_chart_revenue(
                 }
             )
         
-        # Get current price and market cap using yfinance service
-        yfinance_service = YFinanceService()
-        current_price = yfinance_service.get_current_price(ticker.upper())
-        market_cap = yfinance_service.get_market_cap(ticker.upper())
+        # Stock info removed - use /info endpoint instead
         
-        # Return the enhanced format with price, market cap, and additional financial metrics
+        # Return the chart data without redundant stock info
         return {
             'ticker': chart_data['ticker'],
             'quarters': chart_data['quarters'],
@@ -461,9 +500,8 @@ def get_chart_revenue(
             'net_margin': chart_data['net_margin'],
             'operating_income': chart_data['operating_income'],
             'operating_cash_flow': chart_data['operating_cash_flow'],
-            'free_cash_flow': chart_data['free_cash_flow'],
-            'price': current_price,
-            'market_cap': market_cap
+            'free_cash_flow': chart_data['free_cash_flow']
+            # Stock info fields removed - use /info endpoint instead
         }
         
     except HTTPException:

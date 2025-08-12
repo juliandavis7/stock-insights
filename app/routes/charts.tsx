@@ -6,7 +6,7 @@ import { Navbar } from "~/components/homepage/navbar";
 import { StockSearchHeader } from "~/components/stock-search-header";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "~/components/ui/chart";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Legend, Cell } from "recharts";
-import { useChartsState, useStockActions, useGlobalTicker } from "~/store/stockStore";
+import { useChartsState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
 import type { Route } from "./+types/charts";
 
 export function meta({}: Route.MetaArgs) {
@@ -27,6 +27,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
   const [ticker, setTicker] = useState("");
   const charts = useChartsState();
   const globalTicker = useGlobalTicker();
+  const stockInfo = useStockInfo();
   const actions = useStockActions();
   
   // Use viewMode from global state instead of local state
@@ -52,13 +53,29 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
       const upperTicker = tickerToLoad.toUpperCase();
       actions.setChartsLoading(true);
       actions.setChartsError(null);
+      actions.setStockInfoLoading(true);
 
-      actions.fetchCharts(upperTicker, viewMode).then(data => {
-        actions.setChartsData(data);
-      }).catch(err => {
-        actions.setChartsError(err instanceof Error ? err.message : "An error occurred");
+      // Fetch both charts data and stock info concurrently
+      Promise.allSettled([
+        actions.fetchCharts(upperTicker, viewMode),
+        actions.fetchStockInfo(upperTicker)
+      ]).then(([chartsPromise, stockInfoPromise]) => {
+        // Handle charts result
+        if (chartsPromise.status === 'fulfilled') {
+          actions.setChartsData(chartsPromise.value);
+        } else {
+          console.error("Error fetching charts:", chartsPromise.reason);
+          actions.setChartsError(chartsPromise.reason instanceof Error ? chartsPromise.reason.message : "An error occurred");
+        }
+        
+        // Stock info is automatically handled by the fetchStockInfo action
+        if (stockInfoPromise.status === 'rejected') {
+          console.error("Error fetching stock info:", stockInfoPromise.reason);
+          actions.setStockInfoError(stockInfoPromise.reason instanceof Error ? stockInfoPromise.reason.message : "Error fetching stock info");
+        }
       }).finally(() => {
         actions.setChartsLoading(false);
+        actions.setStockInfoLoading(false);
       });
     }
   }, [globalTicker.currentTicker, viewMode]); // Depend on both global ticker and view mode changes
@@ -244,14 +261,36 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
     actions.setGlobalTicker(upperTicker); // Set global ticker
     actions.setChartsLoading(true);
     actions.setChartsError(null);
+    actions.setStockInfoLoading(true);
 
     try {
-      const data = await actions.fetchCharts(upperTicker, viewMode);
-      actions.setChartsData(data);
+      // Fetch both charts data and stock info concurrently
+      const [chartsPromise, stockInfoPromise] = await Promise.allSettled([
+        actions.fetchCharts(upperTicker, viewMode),
+        actions.fetchStockInfo(upperTicker)
+      ]);
+      
+      // Handle charts result
+      if (chartsPromise.status === 'fulfilled') {
+        actions.setChartsData(chartsPromise.value);
+      } else {
+        console.error("Error fetching charts:", chartsPromise.reason);
+        actions.setChartsError(chartsPromise.reason instanceof Error ? chartsPromise.reason.message : "An error occurred");
+      }
+      
+      // Stock info is automatically handled by the fetchStockInfo action
+      if (stockInfoPromise.status === 'rejected') {
+        console.error("Error fetching stock info:", stockInfoPromise.reason);
+        actions.setStockInfoError(stockInfoPromise.reason instanceof Error ? stockInfoPromise.reason.message : "Error fetching stock info");
+      }
+      
     } catch (err) {
-      actions.setChartsError(err instanceof Error ? err.message : "An error occurred");
+      console.error("Unexpected error:", err);
+      actions.setChartsError(err instanceof Error ? err.message : "Unexpected error occurred");
+      actions.setStockInfoError(err instanceof Error ? err.message : "Unexpected error occurred");
     } finally {
       actions.setChartsLoading(false);
+      actions.setStockInfoLoading(false);
     }
   };
 
@@ -346,17 +385,18 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                 stockSymbol={ticker}
                 onStockSymbolChange={setTicker}
                 onSearch={handleSearch}
-                loading={charts.loading}
-                ticker={charts.data?.ticker}
-                stockPrice={charts.data?.price}
-                marketCap={charts.data?.market_cap}
+                loading={charts.loading || stockInfo.loading}
+                ticker={stockInfo.data?.ticker}
+                stockPrice={stockInfo.data?.price}
+                marketCap={stockInfo.data?.market_cap}
                 formatCurrency={formatCurrency}
                 formatNumber={formatNumber}
               />
               
-              {charts.error && (
+              {(charts.error || stockInfo.error) && (
                 <div className="text-red-500 text-center mt-4 p-4 bg-red-50 rounded-lg max-w-md mx-auto">
-                  {charts.error}
+                  {charts.error && <div>{charts.error}</div>}
+                  {stockInfo.error && <div>{stockInfo.error}</div>}
                 </div>
               )}
 

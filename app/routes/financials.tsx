@@ -3,7 +3,7 @@ import { Card, CardContent } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Navbar } from "~/components/homepage/navbar";
 import { StockSearchHeader } from "~/components/stock-search-header";
-import { useFinancialsState, useStockActions, useGlobalTicker } from "~/store/stockStore";
+import { useFinancialsState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
 import type { Route } from "./+types/financials";
 
 export function meta({}: Route.MetaArgs) {
@@ -141,30 +141,50 @@ const MetricRow = ({ metricName, data, allYears, getHistoricalValue, getEstimate
 export default function Financials({ loaderData }: Route.ComponentProps) {
   const financialsState = useFinancialsState();
   const globalTicker = useGlobalTicker();
+  const stockInfo = useStockInfo();
   const actions = useStockActions();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
 
   const fetchFinancials = async (symbol: string) => {  
     actions.setFinancialsLoading(true);
     actions.setFinancialsError(null);
+    actions.setStockInfoLoading(true);
     actions.setGlobalTicker(symbol); // Set global ticker
     
     try {
-      // Check cache first, then fetch if needed
-      const cachedData = actions.getCachedFinancials(symbol);
-      if (cachedData) {
-        actions.setFinancialsData(cachedData);
-        actions.setFinancialsLoading(false);
-        return;
+      // Fetch both financials and stock info concurrently
+      const [financialsPromise, stockInfoPromise] = await Promise.allSettled([
+        // Check cache first for financials, then fetch if needed
+        (async () => {
+          const cachedData = actions.getCachedFinancials(symbol);
+          if (cachedData) return cachedData;
+          return await actions.fetchFinancials(symbol);
+        })(),
+        // Fetch stock info (handles its own caching)
+        actions.fetchStockInfo(symbol)
+      ]);
+      
+      // Handle financials result
+      if (financialsPromise.status === 'fulfilled') {
+        actions.setFinancialsData(financialsPromise.value);
+      } else {
+        console.error("Error fetching financials:", financialsPromise.reason);
+        actions.setFinancialsError(financialsPromise.reason instanceof Error ? financialsPromise.reason.message : "Error fetching financial data");
       }
       
-      const data = await actions.fetchFinancials(symbol);
-      actions.setFinancialsData(data);
+      // Stock info is automatically handled by the fetchStockInfo action
+      if (stockInfoPromise.status === 'rejected') {
+        console.error("Error fetching stock info:", stockInfoPromise.reason);
+        actions.setStockInfoError(stockInfoPromise.reason instanceof Error ? stockInfoPromise.reason.message : "Error fetching stock info");
+      }
+      
     } catch (err) {
-      console.error("Error fetching financials:", err);
-      actions.setFinancialsError(err instanceof Error ? err.message : "Error fetching financial data");
+      console.error("Unexpected error:", err);
+      actions.setFinancialsError(err instanceof Error ? err.message : "Unexpected error occurred");
+      actions.setStockInfoError(err instanceof Error ? err.message : "Unexpected error occurred");
     } finally {
       actions.setFinancialsLoading(false);
+      actions.setStockInfoLoading(false);
     }
   };
 
@@ -192,7 +212,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
   }, [globalTicker.currentTicker]);
 
   const data = financialsState?.data;
-  const loading = financialsState?.loading || false;
+  const loading = financialsState?.loading || stockInfo.loading || false;
   const error = financialsState?.error;
 
   // Get years for table headers (2022-2027) - sorted chronologically
@@ -212,18 +232,21 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
               onStockSymbolChange={(value) => setStockSymbol(value.toUpperCase())}
               onSearch={handleSearch}
               loading={loading}
-              ticker={data?.ticker}
-              stockPrice={data?.price}
-              marketCap={data?.market_cap}
+              ticker={stockInfo.data?.ticker || data?.ticker}
+              stockPrice={stockInfo.data?.price || data?.price}
+              marketCap={stockInfo.data?.market_cap || data?.market_cap}
               formatCurrency={formatLargeNumber}
               formatNumber={formatNumber}
             />
 
             {/* Error State */}
-            {error && (
+            {(error || stockInfo.error) && (
               <Card className="mb-4">
                 <CardContent className="pt-6">
-                  <div className="text-red-600 text-center">{error}</div>
+                  <div className="text-red-600 text-center">
+                    {error && <div>{error}</div>}
+                    {stockInfo.error && <div>{stockInfo.error}</div>}
+                  </div>
                 </CardContent>
               </Card>
             )}

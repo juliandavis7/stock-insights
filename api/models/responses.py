@@ -19,10 +19,8 @@ class MetricsResponse(BaseModel):
     net_margin: float | None
     ttm_ps_ratio: float | None
     forward_ps_ratio: float | None
-    # Stock info fields
+    # Stock info fields removed - use /info endpoint instead
     ticker: str | None
-    price: float | None
-    market_cap: float | None
 
 
 class ProjectionResponse(BaseModel):
@@ -39,9 +37,7 @@ class ProjectionResponse(BaseModel):
 class ProjectionBaseDataResponse(BaseModel):
     """Model for projection base data response"""
     ticker: str
-    price: float
-    market_cap: float
-    shares_outstanding: float
+    # Stock info fields removed - use /info endpoint instead
     revenue: Optional[float] = None
     net_income: Optional[float] = None
     eps: Optional[float] = None
@@ -117,8 +113,7 @@ class FinancialDataResponse(BaseModel):
 class ComprehensiveFinancialResponse(BaseModel):
     """Model for comprehensive financial data including historical and analyst estimates"""
     ticker: str
-    price: float | None
-    market_cap: float | None
+    # Stock info fields removed - use /info endpoint instead
     historical: List[FinancialDataResponse]
     estimates: List[AnalystEstimateResponse]
 

@@ -17,15 +17,12 @@ interface FinancialMetrics {
   ttm_ps_ratio: number | null;
   forward_ps_ratio: number | null;
   ticker: string | null;
-  price: number | null;
-  market_cap: number | null;
+  // Stock info fields removed - use centralized stockInfo state instead
 }
 
 interface ProjectionBaseData {
   ticker: string;
-  price: number;
-  market_cap: number;
-  shares_outstanding: number;
+  // Stock info fields removed - use centralized stockInfo state instead
   revenue: number | null;
   net_income: number | null;
   eps: number | null;
@@ -75,8 +72,7 @@ interface EstimateData {
 
 interface FinancialsData {
   ticker: string;
-  price: number;
-  market_cap: number;
+  // Stock info fields removed - use centralized stockInfo state instead
   historical: HistoricalData[];
   estimates: EstimateData[];
 }
@@ -91,8 +87,14 @@ interface ChartData {
   operating_income: (number | null)[];
   operating_cash_flow: (number | null)[];
   free_cash_flow: (number | null)[];
-  price: number | null;
-  market_cap: number | null;
+  // Stock info fields removed - use centralized stockInfo state instead
+}
+
+interface StockInfo {
+  ticker: string;
+  price: number;
+  market_cap: number;
+  shares_outstanding: number;
 }
 
 // Store state interface
@@ -101,6 +103,15 @@ interface StockStore {
   globalTicker: {
     currentTicker: string | null;
     isLoading: boolean;
+  };
+  
+  // Global stock info - centralized stock data shared across pages
+  stockInfo: {
+    data: StockInfo | null;
+    loading: boolean;
+    error: string | null;
+    lastFetchTicker: string | null; // Track which ticker was last fetched
+    cacheExpiry: number | null; // Timestamp for cache expiration
   };
   
   // Search state
@@ -146,6 +157,7 @@ interface StockStore {
   
   // Global cache for all fetched data
   cache: {
+    stockInfo: { [ticker: string]: { data: StockInfo; timestamp: number } };
     metrics: { [ticker: string]: FinancialMetrics };
     projections: { [ticker: string]: ProjectionBaseData };
     financials: { [ticker: string]: FinancialsData };
@@ -158,6 +170,12 @@ interface StockStore {
     setGlobalTicker: (ticker: string | null) => void;
     setGlobalLoading: (loading: boolean) => void;
     clearGlobalTicker: () => void;
+    
+    // Stock info actions
+    setStockInfoData: (data: StockInfo) => void;
+    setStockInfoLoading: (loading: boolean) => void;
+    setStockInfoError: (error: string | null) => void;
+    clearStockInfo: () => void;
     
     // Search actions
     setSearchData: (data: FinancialMetrics) => void;
@@ -189,12 +207,14 @@ interface StockStore {
     setChartsViewMode: (viewMode: "quarterly" | "ttm") => void;
     
     // Cache actions
+    getCachedStockInfo: (ticker: string) => StockInfo | null;
     getCachedMetrics: (ticker: string) => FinancialMetrics | null;
     getCachedProjections: (ticker: string) => ProjectionBaseData | null;
     getCachedFinancials: (ticker: string) => FinancialsData | null;
     getCachedCharts: (ticker: string) => ChartData | null;
     
     // API actions
+    fetchStockInfo: (ticker: string) => Promise<StockInfo>;
     fetchMetrics: (ticker: string) => Promise<FinancialMetrics>;
     fetchProjections: (ticker: string) => Promise<ProjectionBaseData>;
     fetchFinancials: (ticker: string) => Promise<FinancialsData>;
@@ -234,6 +254,14 @@ export const useStockStore = create<StockStore>()(
       globalTicker: {
         currentTicker: getInitialTicker(),
         isLoading: false,
+      },
+      
+      stockInfo: {
+        data: null,
+        loading: false,
+        error: null,
+        lastFetchTicker: null,
+        cacheExpiry: null,
       },
       
       search: {
@@ -285,6 +313,7 @@ export const useStockStore = create<StockStore>()(
       },
       
       cache: {
+        stockInfo: {},
         metrics: {},
         projections: {},
         financials: {},
@@ -330,6 +359,42 @@ export const useStockStore = create<StockStore>()(
             window.history.replaceState({}, '', url);
           }
         },
+        
+        // Stock info actions
+        setStockInfoData: (data: StockInfo) => set((state) => ({
+          stockInfo: { 
+            ...state.stockInfo, 
+            data,
+            lastFetchTicker: data.ticker,
+            cacheExpiry: Date.now() + (5 * 60 * 1000), // 5 minutes cache
+            error: null
+          },
+          cache: {
+            ...state.cache,
+            stockInfo: {
+              ...state.cache.stockInfo,
+              [data.ticker]: { data, timestamp: Date.now() }
+            }
+          }
+        }), false, 'setStockInfoData'),
+        
+        setStockInfoLoading: (loading: boolean) => set((state) => ({
+          stockInfo: { ...state.stockInfo, loading }
+        }), false, 'setStockInfoLoading'),
+        
+        setStockInfoError: (error: string | null) => set((state) => ({
+          stockInfo: { ...state.stockInfo, error, loading: false }
+        }), false, 'setStockInfoError'),
+        
+        clearStockInfo: () => set((state) => ({
+          stockInfo: {
+            data: null,
+            loading: false,
+            error: null,
+            lastFetchTicker: null,
+            cacheExpiry: null,
+          }
+        }), false, 'clearStockInfo'),
         
         // Search actions
         setSearchData: (data: FinancialMetrics) => set((state) => ({
@@ -446,6 +511,32 @@ export const useStockStore = create<StockStore>()(
         }), false, 'setChartsViewMode'),
 
         // Cache actions
+        getCachedStockInfo: (ticker: string) => {
+          const state = get();
+          const cached = state.cache.stockInfo[ticker];
+          
+          if (!cached) return null;
+          
+          // Check if cache is expired (5 minutes)
+          const isExpired = Date.now() - cached.timestamp > (5 * 60 * 1000);
+          if (isExpired) {
+            // Remove expired cache
+            set((state) => {
+              const newStockInfoCache = { ...state.cache.stockInfo };
+              delete newStockInfoCache[ticker];
+              return {
+                cache: {
+                  ...state.cache,
+                  stockInfo: newStockInfoCache
+                }
+              };
+            }, false, 'removeExpiredStockInfoCache');
+            return null;
+          }
+          
+          return cached.data;
+        },
+        
         getCachedMetrics: (ticker: string) => {
           const state = get();
           return state.cache.metrics[ticker] || null;
@@ -467,6 +558,33 @@ export const useStockStore = create<StockStore>()(
         },
 
         // API actions
+        fetchStockInfo: async (ticker: string): Promise<StockInfo> => {
+          const { actions, cache } = get();
+          
+          // Check cache first
+          const cached = actions.getCachedStockInfo(ticker);
+          if (cached) {
+            console.log(`Using cached stock info for ${ticker}`);
+            return cached;
+          }
+          
+          console.log(`Fetching stock info for ${ticker}`);
+          const fastApiUrl = import.meta.env.VITE_FASTAPI_URL || "http://127.0.0.1:8000";
+          const response = await fetch(`${fastApiUrl}/info?ticker=${ticker.toUpperCase()}`);
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `API request failed: ${response.status} ${response.statusText}`);
+          }
+          
+          const data: StockInfo = await response.json();
+          
+          // Cache the data and update state
+          actions.setStockInfoData(data);
+          
+          return data;
+        },
+        
         fetchMetrics: async (ticker: string): Promise<FinancialMetrics> => {
           const { actions, cache } = get();
           
@@ -601,6 +719,7 @@ export const useStockStore = create<StockStore>()(
 
 // Export individual selectors for better performance
 export const useGlobalTicker = () => useStockStore((state) => state.globalTicker);
+export const useStockInfo = () => useStockStore((state) => state.stockInfo);
 export const useSearchState = () => useStockStore((state) => state.search);
 export const useCompareState = () => useStockStore((state) => state.compare);
 export const useProjectionsState = () => useStockStore((state) => state.projections);

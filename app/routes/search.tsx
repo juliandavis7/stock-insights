@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Navbar } from "~/components/homepage/navbar";
 import { StockSearchHeader } from "~/components/stock-search-header";
-import { useSearchState, useStockActions, useGlobalTicker } from "~/store/stockStore";
+import { useSearchState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
 import type { Route } from "./+types/search";
 
 export function meta({}: Route.MetaArgs) {
@@ -34,10 +34,8 @@ interface FinancialMetrics {
   net_margin: number | null;
   ttm_ps_ratio: number | null;
   forward_ps_ratio: number | null;
-  // Stock info fields from expanded metrics endpoint
+  // Stock info fields removed - use centralized stockInfo state instead
   ticker: string | null;
-  price: number | null;
-  market_cap: number | null;
 }
 
 const formatCurrency = (value: number | null | undefined): string => {
@@ -96,6 +94,7 @@ const MetricRow = ({ metric, value, benchmark }: MetricRowProps) => (
 export default function SearchPage({ loaderData }: Route.ComponentProps) {
   const searchState = useSearchState();
   const globalTicker = useGlobalTicker();
+  const stockInfo = useStockInfo();
   const actions = useStockActions();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
 
@@ -114,36 +113,52 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
     net_margin: 14.31,
     ttm_ps_ratio: 2.55,
     forward_ps_ratio: 2.54,
-    // Sample stock info
-    ticker: "AAPL",
-    price: 150.25,
-    market_cap: 2500000000000
+    // Stock info fields removed - use centralized stockInfo state instead
+    ticker: "AAPL"
   };
 
   const fetchMetrics = async (symbol: string) => {
     actions.setSearchLoading(true);
     actions.setSearchError(null);
+    actions.setStockInfoLoading(true);
     actions.setGlobalTicker(symbol); // Set global ticker
     
     try {
-      // Check cache first, then fetch if needed
-      const cachedData = actions.getCachedMetrics(symbol);
-      if (cachedData) {
-        actions.setSearchData(cachedData);
-        actions.setSearchLoading(false);
-        return;
+      // Fetch both metrics and stock info concurrently
+      const [metricsPromise, stockInfoPromise] = await Promise.allSettled([
+        // Check cache first for metrics, then fetch if needed
+        (async () => {
+          const cachedData = actions.getCachedMetrics(symbol);
+          if (cachedData) return cachedData;
+          return await actions.fetchMetrics(symbol);
+        })(),
+        // Fetch stock info (handles its own caching)
+        actions.fetchStockInfo(symbol)
+      ]);
+      
+      // Handle metrics result
+      if (metricsPromise.status === 'fulfilled') {
+        actions.setSearchData(metricsPromise.value);
+      } else {
+        console.error("Error fetching stock metrics:", metricsPromise.reason);
+        actions.setSearchError(metricsPromise.reason instanceof Error ? metricsPromise.reason.message : "Error fetching stock metrics");
+        // Fallback to sample data if API fails
+        actions.setSearchData(sampleMetrics);
       }
       
-      const data = await actions.fetchMetrics(symbol);
-      actions.setSearchData(data);
-    } catch (err) {
-      console.error("Error fetching stock metrics:", err);
-      actions.setSearchError(err instanceof Error ? err.message : "Error fetching stock metrics");
+      // Stock info is automatically handled by the fetchStockInfo action
+      if (stockInfoPromise.status === 'rejected') {
+        console.error("Error fetching stock info:", stockInfoPromise.reason);
+        actions.setStockInfoError(stockInfoPromise.reason instanceof Error ? stockInfoPromise.reason.message : "Error fetching stock info");
+      }
       
-      // Fallback to sample data if API fails
-      actions.setSearchData(sampleMetrics);
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      actions.setSearchError(err instanceof Error ? err.message : "Unexpected error occurred");
+      actions.setStockInfoError(err instanceof Error ? err.message : "Unexpected error occurred");
     } finally {
       actions.setSearchLoading(false);
+      actions.setStockInfoLoading(false);
     }
   };
 
@@ -179,19 +194,22 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
             stockSymbol={stockSymbol}
             onStockSymbolChange={setStockSymbol}
             onSearch={handleSearch}
-            loading={searchState.loading}
-            ticker={searchState.data?.ticker}
-            stockPrice={searchState.data?.price}
-            marketCap={searchState.data?.market_cap}
+            loading={searchState.loading || stockInfo.loading}
+            ticker={stockInfo.data?.ticker}
+            stockPrice={stockInfo.data?.price}
+            marketCap={stockInfo.data?.market_cap}
             formatCurrency={formatCurrency}
             formatNumber={formatNumber}
           />
 
           {/* Error State */}
-          {searchState.error && (
+          {(searchState.error || stockInfo.error) && (
             <Card className="mb-4">
               <CardContent className="pt-6">
-                <div className="text-red-600 text-center">{searchState.error}</div>
+                <div className="text-red-600 text-center">
+                  {searchState.error && <div>{searchState.error}</div>}
+                  {stockInfo.error && <div>{stockInfo.error}</div>}
+                </div>
               </CardContent>
             </Card>
           )}
