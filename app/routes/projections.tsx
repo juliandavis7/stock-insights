@@ -4,7 +4,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { Input } from "~/components/ui/input";
 import { Navbar } from "~/components/homepage/navbar";
 import { StockSearchHeader } from "~/components/stock-search-header";
-import { useProjectionsState, useStockActions, useGlobalTicker } from "~/store/stockStore";
+import { useProjectionsState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
 import type { Route } from "./+types/projections";
 
 export function meta({}: Route.MetaArgs) {
@@ -205,6 +205,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   };
   const projectionsState = useProjectionsState();
   const globalTicker = useGlobalTicker();
+  const stockInfo = useStockInfo();
   const actions = useStockActions();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
 
@@ -256,40 +257,35 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     
     actions.setProjectionsLoading(true);
     actions.setProjectionsError(null);
+    actions.setStockInfoLoading(true);
     actions.setGlobalTicker(stockSymbol); // Set global ticker
     
     try {
-      // Check cache first, then fetch if needed
-      const cachedData = actions.getCachedProjections(stockSymbol);
-      if (cachedData) {
-        actions.setProjectionsBaseData(cachedData);
-        actions.setProjectionsLoading(false);
-        
-        // Clear user inputs when switching to cached ticker
-        const clearedInputs = {
-          revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
-          netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
-          peLow: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
-          peHigh: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 }
-        };
-        actions.setProjectionsInputs(clearedInputs);
-        
-        // Clear calculated projections
-        actions.setCalculatedProjections({
-          revenue: {},
-          netIncome: {},
-          netIncomeMargin: {},
-          eps: {},
-          sharePriceLow: {},
-          sharePriceHigh: {},
-          cagrLow: {},
-          cagrHigh: {}
-        });
-        return;
+      // Fetch both projections and stock info concurrently
+      const [projectionsPromise, stockInfoPromise] = await Promise.allSettled([
+        // Check cache first for projections, then fetch if needed
+        (async () => {
+          const cachedData = actions.getCachedProjections(stockSymbol);
+          if (cachedData) return cachedData;
+          return await actions.fetchProjections(stockSymbol);
+        })(),
+        // Fetch stock info (handles its own caching)
+        actions.fetchStockInfo(stockSymbol)
+      ]);
+      
+      // Handle projections result
+      if (projectionsPromise.status === 'fulfilled') {
+        actions.setProjectionsBaseData(projectionsPromise.value);
+      } else {
+        console.error("Error fetching projections:", projectionsPromise.reason);
+        actions.setProjectionsError(projectionsPromise.reason instanceof Error ? projectionsPromise.reason.message : "Error fetching projections");
       }
       
-      const data = await actions.fetchProjections(stockSymbol);
-      actions.setProjectionsBaseData(data);
+      // Stock info is automatically handled by the fetchStockInfo action
+      if (stockInfoPromise.status === 'rejected') {
+        console.error("Error fetching stock info:", stockInfoPromise.reason);
+        actions.setStockInfoError(stockInfoPromise.reason instanceof Error ? stockInfoPromise.reason.message : "Error fetching stock info");
+      }
       
       // Clear all user inputs when searching for a new ticker
       const clearedInputs = {
@@ -313,10 +309,12 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       });
       
     } catch (err) {
-      console.error('Error fetching stock data:', err);
-      actions.setProjectionsError(err instanceof Error ? err.message : 'Failed to fetch stock data');
+      console.error('Unexpected error:', err);
+      actions.setProjectionsError(err instanceof Error ? err.message : 'Unexpected error occurred');
+      actions.setStockInfoError(err instanceof Error ? err.message : 'Unexpected error occurred');
     } finally {
       actions.setProjectionsLoading(false);
+      actions.setStockInfoLoading(false);
     }
   };
 
@@ -455,21 +453,24 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
               stockSymbol={stockSymbol}
               onStockSymbolChange={handleTickerChange}
               onSearch={handleSearch}
-              loading={projectionsState?.loading || false}
-              ticker={stockSymbol}
-              stockPrice={projectionsState?.baseData?.price}
-              marketCap={projectionsState?.baseData?.market_cap}
-              sharesOutstanding={projectionsState?.baseData?.shares_outstanding}
+              loading={projectionsState?.loading || stockInfo.loading || false}
+              ticker={stockInfo.data?.ticker || stockSymbol}
+              stockPrice={stockInfo.data?.price}
+              marketCap={stockInfo.data?.market_cap}
+              sharesOutstanding={stockInfo.data?.shares_outstanding}
               showSharesOutstanding={true}
               formatCurrency={formatCurrency}
               formatNumber={formatNumber}
             />
 
             {/* Error State */}
-            {projectionsState?.error && (
+            {(projectionsState?.error || stockInfo.error) && (
               <Card>
                 <CardContent>
-                  <div className="text-red-600 text-center bg-red-50 p-3 rounded-md border border-red-200">{projectionsState.error}</div>
+                  <div className="text-red-600 text-center bg-red-50 p-3 rounded-md border border-red-200">
+                    {projectionsState?.error && <div>{projectionsState.error}</div>}
+                    {stockInfo.error && <div>{stockInfo.error}</div>}
+                  </div>
                 </CardContent>
               </Card>
             )}
