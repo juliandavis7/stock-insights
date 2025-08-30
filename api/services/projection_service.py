@@ -331,9 +331,9 @@ class ProjectionService:
                             # Extract year from date (format: YYYY-MM-DD)
                             record_year = int(record['date'][:4])
                             if record_year == current_year:
-                                revenue = record.get('revenueAvg')
-                                net_income = record.get('netIncomeAvg')
-                                current_year_eps = record.get('epsAvg')
+                                revenue = record.get('estimatedRevenueAvg')
+                                net_income = record.get('estimatedNetIncomeAvg')
+                                current_year_eps = record.get('estimatedEpsAvg')
                                 break
                     
                     if revenue is None:

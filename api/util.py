@@ -176,7 +176,7 @@ def get_two_year_forward_pe(ticker: str, current_price: float, fmp_data: List[Di
         current_year = datetime.now().year
         target_year = str(current_year + 2)
         
-        eps_by_year = extract_metric_by_year(fmp_data, 'epsAvg')
+        eps_by_year = extract_metric_by_year(fmp_data, 'estimatedEpsAvg')
         
         if target_year not in eps_by_year:
             return None

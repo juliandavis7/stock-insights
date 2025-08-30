@@ -9,4 +9,7 @@ FMP_API_KEY = os.getenv("FMP_API_KEY")
 if not FMP_API_KEY:
     raise ValueError("FMP_API_KEY environment variable is required. Please set it in .env file.")
 
+# FMP Server toggle - True for live API, False for mock data
+FMP_SERVER = os.getenv("FMP_SERVER", "True").lower() == "true"
+
 FMP_ANALYST_ESTIMATES_URL = "https://financialmodelingprep.com/stable/analyst-estimates"

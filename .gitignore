@@ -130,3 +130,6 @@ temp/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Mock data files (large JSON files)
+api/mocks/

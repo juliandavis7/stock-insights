@@ -140,26 +140,38 @@ class MetricsService:
     def _is_valid_data(self, data: Any) -> bool:
         """Check if data is valid and not empty, handling both lists and DataFrames."""
         try:
+            logger.info(f"🔍 Validating data: {type(data)}, value: {data}")
+            
             if data is None:
+                logger.info(f"❌ Data is None")
                 return False
             
             # Handle pandas DataFrame first (before bool check)
             if hasattr(data, 'empty'):
-                return not data.empty
+                result = not data.empty
+                logger.info(f"📊 DataFrame validation: {result}")
+                return result
             
             # Handle list
             if isinstance(data, list):
-                return len(data) > 0
+                result = len(data) > 0
+                logger.info(f"📋 List validation: {result}, length: {len(data)}")
+                return result
             
             # Handle dict
             if isinstance(data, dict):
-                return len(data) > 0
+                result = len(data) > 0
+                logger.info(f"📖 Dict validation: {result}, length: {len(data)}")
+                return result
             
             # Handle other types safely
             try:
-                return bool(data)
+                result = bool(data)
+                logger.info(f"🔧 Other type validation: {result}")
+                return result
             except ValueError:
                 # Some objects (like DataFrames) can't be converted to bool
+                logger.info(f"✅ Assuming valid for non-bool type")
                 return True  # If it exists and isn't None, assume it's valid
                 
         except Exception as e:
@@ -177,7 +189,10 @@ class MetricsService:
     def _fetch_fmp_data(self, ticker: str) -> Optional[list]:
         """Fetch FMP analyst estimates with error handling."""
         try:
-            return self.fmp_service.fetch_analyst_estimates(ticker)
+            logger.info(f"🔍 Fetching FMP data for {ticker}")
+            result = self.fmp_service.fetch_analyst_estimates(ticker)
+            logger.info(f"📊 FMP data result for {ticker}: {type(result)}, length: {len(result) if result else 'None'}")
+            return result
         except Exception as e:
             logger.error(f"Failed to fetch FMP data for {ticker}: {e}")
             return None
@@ -310,10 +325,12 @@ class MetricsService:
                 fmp_list = fmp_data
             
             # Extract EPS and revenue by year
-            eps_by_year = util.extract_metric_by_year(fmp_list, 'epsAvg')
-            revenue_by_year = util.extract_metric_by_year(fmp_list, 'revenueAvg')
+            eps_by_year = util.extract_metric_by_year(fmp_list, 'estimatedEpsAvg')
+            revenue_by_year = util.extract_metric_by_year(fmp_list, 'estimatedRevenueAvg')
             
             logger.info(f"Extracted data - EPS years: {len(eps_by_year)}, Revenue years: {len(revenue_by_year)}")
+            logger.info(f"📊 Available EPS years: {list(eps_by_year.keys())}")
+            logger.info(f"📊 Available Revenue years: {list(revenue_by_year.keys())}")
             
             current_year = datetime.now().year
             current_year_str = str(current_year)
