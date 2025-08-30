@@ -328,15 +328,23 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
 
   const formatNumberInteger = (value: number | null | undefined): string => {
     if (value === null || value === undefined || isNaN(value)) return "0";
-    if (value >= 1e9) {
-      return `${Math.round(value / 1e9)}B`;
-    } else if (value >= 1e6) {
-      return `${Math.round(value / 1e6)}M`;
-    } else if (value >= 1e3) {
-      return `${Math.round(value / 1e3)}K`;
+    
+    // Handle negative values
+    const isNegative = value < 0;
+    const absValue = Math.abs(value);
+    
+    let formattedValue: string;
+    if (absValue >= 1e9) {
+      formattedValue = `${Math.round(absValue / 1e9)}B`;
+    } else if (absValue >= 1e6) {
+      formattedValue = `${Math.round(absValue / 1e6)}M`;
+    } else if (absValue >= 1e3) {
+      formattedValue = `${Math.round(absValue / 1e3)}K`;
     } else {
-      return Math.round(value).toString();
+      formattedValue = Math.round(absValue).toString();
     }
+    
+    return isNegative ? `-${formattedValue}` : formattedValue;
   };
 
   const chartConfig = {

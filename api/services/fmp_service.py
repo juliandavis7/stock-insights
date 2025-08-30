@@ -183,7 +183,9 @@ class FMPService:
         """
         try:
             current_year = datetime.now().year
-            cutoff_year = current_year - 2  # Show data from 2 years ago onwards
+            # For TTM mode, we need data starting from 2022 to calculate TTM for Q1 2023
+            # For quarterly mode, we can use 2 years back
+            cutoff_year = 2022 if mode == 'ttm' else current_year - 2
             
             # API call to analyst estimates endpoint
             url = f"{self.base_url_v3}/analyst-estimates/{ticker}"
@@ -248,9 +250,11 @@ class FMPService:
                     )
                     
                     if ttm_revenue is not None and ttm_eps is not None:
-                        quarters.append(quarter_label)
-                        revenue.append(ttm_revenue)
-                        eps.append(ttm_eps)
+                        # Filter out Q4 2022 from TTM mode output
+                        if quarter_label != "2022 Q4":
+                            quarters.append(quarter_label)
+                            revenue.append(ttm_revenue)
+                            eps.append(ttm_eps)
             
             logger.info(f"Successfully fetched estimates data for {ticker}: {len(quarters)} data points")
             return {
@@ -281,7 +285,9 @@ class FMPService:
         """
         try:
             current_year = datetime.now().year
-            cutoff_year = current_year - 2  # Show data from 2 years ago onwards
+            # For TTM mode, we need data starting from 2022 to calculate TTM for Q1 2023
+            # For quarterly mode, we can use 2 years back
+            cutoff_year = 2022 if mode == 'ttm' else current_year - 2
             
             # API call to cash flow statement endpoint
             url = f"{self.base_url_v3}/cash-flow-statement/{ticker}"
@@ -351,9 +357,11 @@ class FMPService:
                     )
                     
                     if ttm_operating_cash_flow is not None:
-                        quarters.append(quarter_label)
-                        operating_cash_flow.append(ttm_operating_cash_flow)
-                        free_cash_flow.append(ttm_free_cash_flow if ttm_free_cash_flow is not None else 0)
+                        # Filter out Q4 2022 from TTM mode output
+                        if quarter_label != "2022 Q4":
+                            quarters.append(quarter_label)
+                            operating_cash_flow.append(ttm_operating_cash_flow)
+                            free_cash_flow.append(ttm_free_cash_flow if ttm_free_cash_flow is not None else 0)
             
             logger.info(f"Successfully fetched cash flow data for {ticker}: {len(quarters)} data points")
             return {
@@ -384,7 +392,9 @@ class FMPService:
         """
         try:
             current_year = datetime.now().year
-            cutoff_year = current_year - 2  # Show data from 2 years ago onwards
+            # For TTM mode, we need data starting from 2022 to calculate TTM for Q1 2023
+            # For quarterly mode, we can use 2 years back
+            cutoff_year = 2022 if mode == 'ttm' else current_year - 2
             
             # API call to income statement endpoint
             url = f"{self.base_url_stable}/income-statement"
@@ -476,10 +486,12 @@ class FMPService:
                     ttm_gross_margin_pct = round((ttm_gross_profit / ttm_revenue) * 100, 2) if ttm_revenue > 0 else 0
                     ttm_net_margin_pct = round((ttm_net_income / ttm_revenue) * 100, 2) if ttm_revenue > 0 else 0
                     
-                    quarters.append(quarter_label)
-                    gross_margin.append(ttm_gross_margin_pct)
-                    net_margin.append(ttm_net_margin_pct)
-                    operating_income.append(ttm_operating_income)  # Full integer
+                    # Filter out Q4 2022 from TTM mode output
+                    if quarter_label != "2022 Q4":
+                        quarters.append(quarter_label)
+                        gross_margin.append(ttm_gross_margin_pct)
+                        net_margin.append(ttm_net_margin_pct)
+                        operating_income.append(ttm_operating_income)  # Full integer
             
             logger.info(f"Successfully fetched income statement data for {ticker}: {len(quarters)} data points")
             return {
