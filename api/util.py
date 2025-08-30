@@ -176,8 +176,8 @@ def get_two_year_forward_pe(ticker: str, current_price: float, fmp_data: List[Di
         current_year = datetime.now().year
         target_year = current_year + 2
         
-        # Filter data for the target year and collect all quarterly EPS estimates
-        quarterly_eps = []
+        # Find the annual EPS estimate for the target year
+        target_eps = None
         
         for estimate in fmp_data:
             if estimate.get('date'):
@@ -186,21 +186,19 @@ def get_two_year_forward_pe(ticker: str, current_price: float, fmp_data: List[Di
                     if year == target_year:
                         eps = estimate.get('estimatedEpsAvg')
                         if eps is not None and eps > 0:
-                            quarterly_eps.append(eps)
+                            target_eps = eps
+                            break
                 except (ValueError, TypeError):
                     continue
         
-        # Require exactly 4 quarters for the calculation
-        if len(quarterly_eps) != 4:
+        # Check if we found the target year estimate
+        if target_eps is None:
             return None
         
-        # Sum all 4 quarters to get annual EPS
-        annual_eps = sum(quarterly_eps)
-        
-        if annual_eps <= 0:
+        if target_eps <= 0:
             return None
         
-        return round(current_price / annual_eps, 2)
+        return round(current_price / target_eps, 2)
         
     except (KeyError, ValueError, ZeroDivisionError):
         return None

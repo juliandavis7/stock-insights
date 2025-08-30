@@ -42,22 +42,37 @@ class FMPService:
     def _load_mock_data(self, endpoint: str, ticker: str) -> Optional[Dict[str, Any]]:
         """Load mock data from JSON file"""
         try:
+            # Handle special case for analyst-estimates to use annual data
+            if endpoint == "analyst-estimates":
+                endpoint_path = os.path.join("analyst-estimates", "annual")
+            else:
+                endpoint_path = endpoint
+            
+            return self._load_mock_data_from_path(endpoint_path, ticker)
+            
+        except Exception as e:
+            logger.error(f"Failed to load mock data for {ticker} {endpoint}: {e}")
+            return None
+    
+    def _load_mock_data_from_path(self, endpoint_path: str, ticker: str) -> Optional[Dict[str, Any]]:
+        """Load mock data from a specific path"""
+        try:
             # Construct absolute file path - try multiple approaches
             # First, try relative to current working directory
-            file_path = os.path.join("mocks", endpoint, f"{ticker.upper()}.json")
+            file_path = os.path.join("mocks", endpoint_path, f"{ticker.upper()}.json")
             logger.info(f"🔍 Trying path 1: {file_path}")
             
             if not os.path.exists(file_path):
                 # Try relative to the services directory
                 current_dir = os.path.dirname(os.path.abspath(__file__))
                 api_dir = os.path.dirname(current_dir)  # Go up one level from services/ to api/
-                file_path = os.path.join(api_dir, "mocks", endpoint, f"{ticker.upper()}.json")
+                file_path = os.path.join(api_dir, "mocks", endpoint_path, f"{ticker.upper()}.json")
                 logger.info(f"🔍 Trying path 2: {file_path}")
                 
                 if not os.path.exists(file_path):
                     # Try relative to the project root (assuming we're in api/ subdirectory)
                     project_root = os.path.join(os.getcwd(), "api")
-                    file_path = os.path.join(project_root, "mocks", endpoint, f"{ticker.upper()}.json")
+                    file_path = os.path.join(project_root, "mocks", endpoint_path, f"{ticker.upper()}.json")
                     logger.info(f"🔍 Trying path 3: {file_path}")
             
             logger.info(f"🔍 Final path: {file_path}")
@@ -73,16 +88,20 @@ class FMPService:
             
             # Check if there was an error when the data was originally fetched
             if mock_data.get("error"):
-                logger.error(f"Mock data contains error for {ticker} {endpoint}: {mock_data['error']}")
+                logger.error(f"Mock data contains error for {ticker} {endpoint_path}: {mock_data['error']}")
                 return None
             
             data = mock_data.get("data")
-            logger.info(f"📁 Loaded mock data for {ticker} {endpoint}: {type(data)}, length: {len(data) if data else 'None'}")
+            logger.info(f"📁 Loaded mock data for {ticker} {endpoint_path}: {type(data)}, length: {len(data) if data else 'None'}")
             return data
             
         except Exception as e:
-            logger.error(f"Failed to load mock data for {ticker} {endpoint}: {e}")
+            logger.error(f"Failed to load mock data for {ticker} {endpoint_path}: {e}")
             return None
+    
+    def _load_quarterly_mock_data(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """Load quarterly mock data for analyst estimates"""
+        return self._load_mock_data_from_path("analyst-estimates/quarterly", ticker)
     
     def _handle_missing_stock(self, ticker: str, endpoint: str) -> None:
         """Handle case where stock is not in cached list"""
@@ -177,7 +196,7 @@ class FMPService:
     def fetch_analyst_estimates(
         self, 
         ticker: str, 
-        period: str = "quarter", 
+        period: str = "annual", 
         page: int = 0, 
         limit: int = 10
     ) -> List[Dict[str, Any]]:
@@ -209,7 +228,7 @@ class FMPService:
         # Use v3 endpoint for analyst estimates with path parameter
         url = f"{self.base_url_v3}/analyst-estimates/{ticker}"
         params = {
-            'period': 'quarter',  # Use 'quarter' for quarterly data
+            'period': 'annual',  # Use 'annual' for annual data
             'apikey': self.api_key
         }
         
