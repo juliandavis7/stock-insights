@@ -174,18 +174,33 @@ def get_two_year_forward_pe(ticker: str, current_price: float, fmp_data: List[Di
     """Calculate two-year forward P/E ratio using FMP estimates."""
     try:
         current_year = datetime.now().year
-        target_year = str(current_year + 2)
+        target_year = current_year + 2
         
-        eps_by_year = extract_metric_by_year(fmp_data, 'estimatedEpsAvg')
+        # Filter data for the target year and collect all quarterly EPS estimates
+        quarterly_eps = []
         
-        if target_year not in eps_by_year:
+        for estimate in fmp_data:
+            if estimate.get('date'):
+                try:
+                    year = int(estimate['date'][:4])
+                    if year == target_year:
+                        eps = estimate.get('estimatedEpsAvg')
+                        if eps is not None and eps > 0:
+                            quarterly_eps.append(eps)
+                except (ValueError, TypeError):
+                    continue
+        
+        # Require exactly 4 quarters for the calculation
+        if len(quarterly_eps) != 4:
             return None
         
-        target_eps = eps_by_year[target_year]
-        if target_eps <= 0:
+        # Sum all 4 quarters to get annual EPS
+        annual_eps = sum(quarterly_eps)
+        
+        if annual_eps <= 0:
             return None
         
-        return round(current_price / target_eps, 2)
+        return round(current_price / annual_eps, 2)
         
     except (KeyError, ValueError, ZeroDivisionError):
         return None

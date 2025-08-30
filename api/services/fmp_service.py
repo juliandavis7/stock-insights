@@ -177,7 +177,7 @@ class FMPService:
     def fetch_analyst_estimates(
         self, 
         ticker: str, 
-        period: str = "annual", 
+        period: str = "quarter", 
         page: int = 0, 
         limit: int = 10
     ) -> List[Dict[str, Any]]:
@@ -206,10 +206,15 @@ class FMPService:
             return []
         
         # Use live API
-        url = f"{self.analyst_estimates_url}?symbol={ticker}&period={period}&page={page}&limit={limit}&apikey={self.api_key}"
+        # Use v3 endpoint for analyst estimates with path parameter
+        url = f"{self.base_url_v3}/analyst-estimates/{ticker}"
+        params = {
+            'period': 'quarter',  # Use 'quarter' for quarterly data
+            'apikey': self.api_key
+        }
         
         try:
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
             
