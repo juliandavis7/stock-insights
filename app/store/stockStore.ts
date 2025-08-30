@@ -323,6 +323,13 @@ export const useStockStore = create<StockStore>()(
       actions: {
         // Global ticker actions
         setGlobalTicker: (ticker: string | null) => {
+          const { actions } = get();
+          
+          // Clear stock info when switching to a new ticker
+          if (ticker && ticker !== get().globalTicker.currentTicker) {
+            actions.clearStockInfo();
+          }
+          
           set((state) => ({
             globalTicker: { ...state.globalTicker, currentTicker: ticker }
           }), false, 'setGlobalTicker');
@@ -561,10 +568,18 @@ export const useStockStore = create<StockStore>()(
         fetchStockInfo: async (ticker: string): Promise<StockInfo> => {
           const { actions, cache } = get();
           
+          // Clear stock info if we're fetching for a different ticker
+          const currentTicker = get().stockInfo.lastFetchTicker;
+          if (currentTicker && currentTicker !== ticker) {
+            actions.clearStockInfo();
+          }
+          
           // Check cache first
           const cached = actions.getCachedStockInfo(ticker);
           if (cached) {
             console.log(`Using cached stock info for ${ticker}`);
+            // Update stock info state even when using cached data
+            actions.setStockInfoData(cached);
             return cached;
           }
           
