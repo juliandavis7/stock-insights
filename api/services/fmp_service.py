@@ -2,6 +2,8 @@
 
 import requests
 import logging
+import json
+import os
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from ..constants import FMP_API_KEY, FMP_ANALYST_ESTIMATES_URL
@@ -12,11 +14,165 @@ logger = logging.getLogger(__name__)
 class FMPService:
     """Service for interacting with Financial Modeling Prep API."""
     
+    # List of stocks with cached JSON responses
+    CACHED_STOCKS = [
+        "AAPL", "META", "GOOG", "GOOGL", "AMZN", "CELH", "ELF", "FUBO", "NVDA", 
+        "SOFI", "ADBE", "PLTR", "TSLA", "PYPL", "AMD", "NKE", "SHOP", 
+        "CAKE", "WYNN", "MSFT"
+    ]
+    
     def __init__(self, api_key: str = FMP_API_KEY):
         self.api_key = api_key
         self.base_url_v3 = "https://financialmodelingprep.com/api/v3"
         self.base_url_stable = "https://financialmodelingprep.com/stable"
         self.analyst_estimates_url = FMP_ANALYST_ESTIMATES_URL
+        
+        # Check if we should use mock data
+        self.use_mock_data = os.getenv("FMP_SERVER", "True").lower() == "false"
+        
+        if self.use_mock_data:
+            logger.info("🔧 FMP Service configured to use mock data (FMP_SERVER=False)")
+        else:
+            logger.info("🌐 FMP Service configured to use live API (FMP_SERVER=True)")
+    
+    def _is_stock_cached(self, ticker: str) -> bool:
+        """Check if a stock has cached data available"""
+        return ticker.upper() in self.CACHED_STOCKS
+    
+    def _load_mock_data(self, endpoint: str, ticker: str) -> Optional[Dict[str, Any]]:
+        """Load mock data from JSON file"""
+        try:
+            # Construct absolute file path - try multiple approaches
+            # First, try relative to current working directory
+            file_path = os.path.join("mocks", endpoint, f"{ticker.upper()}.json")
+            logger.info(f"🔍 Trying path 1: {file_path}")
+            
+            if not os.path.exists(file_path):
+                # Try relative to the services directory
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                api_dir = os.path.dirname(current_dir)  # Go up one level from services/ to api/
+                file_path = os.path.join(api_dir, "mocks", endpoint, f"{ticker.upper()}.json")
+                logger.info(f"🔍 Trying path 2: {file_path}")
+                
+                if not os.path.exists(file_path):
+                    # Try relative to the project root (assuming we're in api/ subdirectory)
+                    project_root = os.path.join(os.getcwd(), "api")
+                    file_path = os.path.join(project_root, "mocks", endpoint, f"{ticker.upper()}.json")
+                    logger.info(f"🔍 Trying path 3: {file_path}")
+            
+            logger.info(f"🔍 Final path: {file_path}")
+            
+            if not os.path.exists(file_path):
+                logger.warning(f"Mock data file not found: {file_path}")
+                return None
+            
+            with open(file_path, 'r') as f:
+                mock_data = json.load(f)
+            
+            logger.info(f"📄 Raw mock data keys: {list(mock_data.keys()) if isinstance(mock_data, dict) else 'Not a dict'}")
+            
+            # Check if there was an error when the data was originally fetched
+            if mock_data.get("error"):
+                logger.error(f"Mock data contains error for {ticker} {endpoint}: {mock_data['error']}")
+                return None
+            
+            data = mock_data.get("data")
+            logger.info(f"📁 Loaded mock data for {ticker} {endpoint}: {type(data)}, length: {len(data) if data else 'None'}")
+            return data
+            
+        except Exception as e:
+            logger.error(f"Failed to load mock data for {ticker} {endpoint}: {e}")
+            return None
+    
+    def _handle_missing_stock(self, ticker: str, endpoint: str) -> None:
+        """Handle case where stock is not in cached list"""
+        if not self._is_stock_cached(ticker):
+            error_msg = f"Stock {ticker} not available in mock data. Available stocks: {', '.join(self.CACHED_STOCKS)}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+    
+    def _process_estimates_data(self, data: List[Dict], ticker: str, mode: str) -> Dict[str, Any]:
+        """Process estimates data (used for both live API and mock data)"""
+        try:
+            current_year = datetime.now().year
+            # For TTM mode, we need data starting from 2022 to calculate TTM for Q1 2023
+            # For quarterly mode, we can use 2 years back
+            cutoff_year = 2022 if mode == 'ttm' else current_year - 2
+            
+            if not data:
+                logger.warning(f"No estimates data for {ticker}")
+                return {
+                    'ticker': ticker,
+                    'quarters': [],
+                    'revenue': [],
+                    'eps': []
+                }
+            
+            quarters = []
+            revenue = []
+            eps = []
+            
+            # Process data and filter by year (reverse to get chronological order - oldest to newest)
+            filtered_data = []
+            for estimate in reversed(data):
+                if estimate.get('date'):
+                    try:
+                        year_value = int(estimate['date'][:4])
+                    except:
+                        continue
+                    
+                    # Only include data from cutoff_year onwards
+                    if year_value >= cutoff_year:
+                        quarter_label = self._date_to_quarter(estimate['date'])
+                        
+                        if quarter_label:
+                            quarter_year = int(quarter_label.split()[0])
+                            if quarter_year >= cutoff_year:
+                                estimate['quarter_label'] = quarter_label
+                                filtered_data.append(estimate)
+            
+            # Process based on mode
+            for i, estimate in enumerate(filtered_data):
+                quarter_label = estimate['quarter_label']
+                
+                if mode == 'quarterly':
+                    # Get quarterly estimates
+                    revenue_avg = estimate.get('estimatedRevenueAvg', 0)
+                    eps_avg = estimate.get('estimatedEpsAvg', 0)
+                    
+                    quarters.append(quarter_label)
+                    revenue.append(revenue_avg)  # Keep full integers
+                    eps.append(round(eps_avg, 2) if eps_avg > 0 else 0)
+                    
+                elif mode == 'ttm':
+                    # Calculate TTM estimates
+                    ttm_revenue, ttm_eps = self._convert_quarterly_to_ttm(
+                        filtered_data, i, 'estimatedRevenueAvg', 'estimatedEpsAvg'
+                    )
+                    
+                    if ttm_revenue is not None and ttm_eps is not None:
+                        # Filter out Q4 2022 from TTM mode output
+                        if quarter_label != "2022 Q4":
+                            quarters.append(quarter_label)
+                            revenue.append(ttm_revenue)
+                            eps.append(ttm_eps)
+            
+            logger.info(f"Successfully processed estimates data for {ticker}: {len(quarters)} data points")
+            return {
+                'ticker': ticker,
+                'quarters': quarters,
+                'revenue': revenue,
+                'eps': eps
+            }
+            
+        except Exception as e:
+            logger.error(f"Error processing estimates data for {ticker}: {e}")
+            return {
+                'ticker': ticker,
+                'quarters': [],
+                'revenue': [],
+                'eps': []
+            }
     
     def fetch_analyst_estimates(
         self, 
@@ -37,6 +193,19 @@ class FMPService:
         Returns:
             List of analyst estimate dictionaries
         """
+        # Use mock data if configured
+        if self.use_mock_data:
+            logger.info(f"🔧 Using mock data for {ticker} analyst estimates")
+            self._handle_missing_stock(ticker, "analyst-estimates")
+            mock_data = self._load_mock_data("analyst-estimates", ticker)
+            logger.info(f"📁 Mock data loaded for {ticker}: {type(mock_data)}, length: {len(mock_data) if mock_data else 'None'}")
+            if mock_data is not None:
+                logger.info(f"✅ Returning mock data for {ticker} analyst estimates")
+                return mock_data
+            logger.warning(f"❌ No mock data available for {ticker} analyst estimates")
+            return []
+        
+        # Use live API
         url = f"{self.analyst_estimates_url}?symbol={ticker}&period={period}&page={page}&limit={limit}&apikey={self.api_key}"
         
         try:
@@ -72,6 +241,26 @@ class FMPService:
         Returns:
             Dictionary containing current year financial metrics or None if failed
         """
+        # Use mock data if configured
+        if self.use_mock_data:
+            self._handle_missing_stock(ticker, "income-statement")
+            mock_data = self._load_mock_data("income-statement", ticker)
+            if mock_data is not None and isinstance(mock_data, list) and len(mock_data) > 0:
+                latest_income = mock_data[0]
+                
+                # Extract key metrics
+                current_data = {
+                    'revenue': float(latest_income.get('revenue', 0)),
+                    'net_income': float(latest_income.get('netIncome', 0)),
+                    'eps': float(latest_income.get('eps', 0)),
+                    'shares_outstanding': float(latest_income.get('weightedAverageShsOut', 0))
+                }
+                
+                logger.info(f"Successfully loaded current year data for {ticker} from mock")
+                return current_data
+            return None
+        
+        # Use live API
         try:
             # Get income statement data
             income_url = f"{self.base_url_stable}/income-statement?symbol={ticker}&limit=1&apikey={self.api_key}"
@@ -116,6 +305,16 @@ class FMPService:
         Returns:
             Company profile data or None if failed
         """
+        # Use mock data if configured
+        if self.use_mock_data:
+            self._handle_missing_stock(ticker, "profile")
+            mock_data = self._load_mock_data("profile", ticker)
+            if mock_data is not None and isinstance(mock_data, list) and len(mock_data) > 0:
+                logger.info(f"Successfully loaded company profile for {ticker} from mock")
+                return mock_data[0]
+            return None
+        
+        # Use live API
         try:
             url = f"{self.base_url_v3}/profile/{ticker}?apikey={self.api_key}"
             response = requests.get(url, timeout=10)
@@ -181,6 +380,21 @@ class FMPService:
         Returns:
             Dictionary with ticker, quarters, revenue, and eps arrays or None if failed
         """
+        # Use mock data if configured
+        if self.use_mock_data:
+            self._handle_missing_stock(ticker, "analyst-estimates")
+            mock_data = self._load_mock_data("analyst-estimates", ticker)
+            if mock_data is not None:
+                # Process mock data the same way as live data
+                return self._process_estimates_data(mock_data, ticker, mode)
+            return {
+                'ticker': ticker,
+                'quarters': [],
+                'revenue': [],
+                'eps': []
+            }
+        
+        # Use live API
         try:
             current_year = datetime.now().year
             # For TTM mode, we need data starting from 2022 to calculate TTM for Q1 2023
@@ -198,71 +412,8 @@ class FMPService:
             response.raise_for_status()
             data = response.json()
             
-            if not data:
-                logger.warning(f"No estimates data returned from API for {ticker}")
-                return {
-                    'ticker': ticker,
-                    'quarters': [],
-                    'revenue': [],
-                    'eps': []
-                }
-            
-            quarters = []
-            revenue = []
-            eps = []
-            
-            # Process data and filter by year (reverse to get chronological order - oldest to newest)
-            filtered_data = []
-            for estimate in reversed(data):
-                if estimate.get('date'):
-                    try:
-                        year_value = int(estimate['date'][:4])
-                    except:
-                        continue
-                    
-                    # Only include data from cutoff_year onwards
-                    if year_value >= cutoff_year:
-                        quarter_label = self._date_to_quarter(estimate['date'])
-                        
-                        if quarter_label:
-                            quarter_year = int(quarter_label.split()[0])
-                            if quarter_year >= cutoff_year:
-                                estimate['quarter_label'] = quarter_label
-                                filtered_data.append(estimate)
-            
-            # Process based on mode
-            for i, estimate in enumerate(filtered_data):
-                quarter_label = estimate['quarter_label']
-                
-                if mode == 'quarterly':
-                    # Get quarterly estimates
-                    revenue_avg = estimate.get('estimatedRevenueAvg', 0)
-                    eps_avg = estimate.get('estimatedEpsAvg', 0)
-                    
-                    quarters.append(quarter_label)
-                    revenue.append(revenue_avg)  # Keep full integers
-                    eps.append(round(eps_avg, 2) if eps_avg > 0 else 0)
-                    
-                elif mode == 'ttm':
-                    # Calculate TTM estimates
-                    ttm_revenue, ttm_eps = self._convert_quarterly_to_ttm(
-                        filtered_data, i, 'estimatedRevenueAvg', 'estimatedEpsAvg'
-                    )
-                    
-                    if ttm_revenue is not None and ttm_eps is not None:
-                        # Filter out Q4 2022 from TTM mode output
-                        if quarter_label != "2022 Q4":
-                            quarters.append(quarter_label)
-                            revenue.append(ttm_revenue)
-                            eps.append(ttm_eps)
-            
-            logger.info(f"Successfully fetched estimates data for {ticker}: {len(quarters)} data points")
-            return {
-                'ticker': ticker,
-                'quarters': quarters,
-                'revenue': revenue,
-                'eps': eps
-            }
+            # Use the same processing logic for live API data
+            return self._process_estimates_data(data, ticker, mode)
             
         except requests.exceptions.RequestException as e:
             logger.error(f"FMP API request failed for estimates data {ticker}: {e}")
