@@ -2078,3 +2078,200 @@ AFTER (Clean):
 
 ### Implementation Status
 API response cleanup completed successfully. All redundant stock info fields removed from metrics, projections, financials, and charts endpoints. TypeScript interfaces updated accordingly. Frontend continues to work seamlessly using centralized stockInfo state.
+
+## MetricsService Refactoring - 2025-01-XX
+
+### User Request
+User requested comprehensive refactoring of MetricsService for better maintainability, addressing single responsibility violations, long methods, tight coupling, difficult testing, code duplication, and magic numbers.
+
+### Actions Completed
+1. ✅ Analyzed existing MetricsService structure (~400 lines with multiple responsibilities)
+2. ✅ Created new directory structure: calculators/, validators/, models/
+3. ✅ Extracted constants into dedicated metrics_constants.py file
+4. ✅ Created BaseCalculator abstract class with common utilities
+5. ✅ Implemented specialized calculator classes (PECalculator, GrowthCalculator, MarginCalculator, TTMCalculator)
+6. ✅ Created DataValidator class for centralized data validation
+7. ✅ Created data models using dataclasses (StockInfo, MetricResult, etc.)
+8. ✅ Refactored main MetricsService to use new architecture
+9. ✅ Enhanced GrowthCalculator to use income statement API for current year growth calculations
+10. ✅ Updated activity log with comprehensive refactoring details
+
+### Implementation Details
+
+#### Architecture Improvements
+
+**Before (Monolithic):**
+```
+metrics_service.py (~400 lines)
+├── Data fetching
+├── Data validation  
+├── All calculations (PE, Growth, Margins, TTM)
+├── Error handling
+└── Result formatting
+```
+
+**After (Modular):**
+```
+services/
+├── metrics_service.py          # Main orchestrator (slimmed down)
+├── metrics_constants.py        # All constants and magic numbers
+├── calculators/
+│   ├── __init__.py
+│   ├── base_calculator.py      # Abstract base class
+│   ├── pe_calculator.py        # P/E ratio calculations
+│   ├── growth_calculator.py    # EPS/Revenue growth calculations
+│   ├── margin_calculator.py    # Margin calculations
+│   └── ttm_calculator.py       # TTM-specific calculations
+├── validators/
+│   ├── __init__.py
+│   └── data_validator.py       # Data validation logic
+└── models/
+    ├── __init__.py
+    └── metric_models.py        # Data classes for metrics
+```
+
+#### Key Refactoring Benefits
+
+**Separation of Concerns:**
+- MetricsService now acts as orchestrator only
+- Each calculator handles specific metric types
+- DataValidator centralizes all validation logic
+- Clear separation between data fetching and processing
+
+**Single Responsibility:**
+- PECalculator: Only P/E ratios (TTM, Forward, 2-Year Forward)
+- GrowthCalculator: Only growth calculations (EPS, Revenue)
+- MarginCalculator: Only margin calculations (Gross, Net)
+- TTMCalculator: Only TTM-based aggregations
+
+**Magic Numbers Eliminated:**
+- All constants moved to metrics_constants.py
+- Clear naming: QUARTERS_FOR_TTM = 4, MIN_QUARTERS_FOR_GROWTH = 8
+- Consistent precision: GROWTH_PRECISION = 2, RATIO_PRECISION = 4
+
+**Type Safety & Error Handling:**
+- MetricResult dataclass with success/failure states
+- Comprehensive error messages for debugging
+- Safe division and validation utilities in BaseCalculator
+
+**Testability Improvements:**
+- Each calculator can be unit tested independently
+- Dependency injection for FMPService
+- Mock-friendly architecture with clear interfaces
+
+#### Enhanced Growth Calculations
+
+**Income Statement API Integration:**
+- Current year growth now uses actual historical data from income statement API
+- Previous year: Uses actual reported financials
+- Current year: Uses analyst estimates
+- More accurate than estimates-vs-estimates comparison
+
+**API Integration:**
+```python
+# Previous approach: estimates vs estimates (less accurate)
+eps_by_year = extract_metric_by_year(fmp_estimates, 'estimatedEpsAvg')
+current_eps = eps_by_year[current_year_str]  # Estimate
+prev_eps = eps_by_year[prev_year_str]        # Estimate (often wrong)
+
+# New approach: estimates vs actuals (more accurate)
+historical_eps = extract_metric_by_year_from_income_statement(income_data, 'eps')
+current_eps_estimates = extract_metric_by_year(fmp_estimates, 'estimatedEpsAvg')
+current_eps = current_eps_estimates[current_year_str]  # Estimate
+prev_eps = historical_eps[prev_year_str]               # Actual reported
+```
+
+#### Calculator Implementations
+
+**PECalculator Features:**
+- TTM P/E from quarterly aggregated EPS
+- Forward P/E from next year estimates
+- Two-year forward P/E from estimates
+- Proper validation and error handling
+
+**GrowthCalculator Enhancements:**
+- Separate methods for estimates-based vs. income-statement-based calculations
+- Current year growth: Actual historical vs. current estimates
+- Next year growth: Current estimates vs. next year estimates
+- Comprehensive logging with actual vs. estimated data sources
+
+**TTMCalculator Features:**
+- 4-quarter rolling calculations
+- TTM growth rates (8-quarter comparison)
+- TTM margins and ratios
+- Minimum data requirements validation
+
+**MarginCalculator Features:**
+- Gross margin from revenue and cost data
+- Net margin calculations
+- TTM margin aggregations
+- Flexible input handling (gross profit or cost of revenue)
+
+#### Data Models & Validation
+
+**StockInfo Dataclass:**
+```python
+@dataclass
+class StockInfo:
+    ticker: str
+    current_price: Optional[float] = None
+    market_cap: Optional[float] = None
+    shares_outstanding: Optional[float] = None
+    # ... other fields
+```
+
+**MetricResult Pattern:**
+```python
+@dataclass
+class MetricResult:
+    value: Optional[float]
+    calculation_successful: bool
+    error_message: Optional[str] = None
+    
+    @classmethod
+    def success(cls, value: Optional[float]) -> 'MetricResult':
+    @classmethod  
+    def failure(cls, error_message: str) -> 'MetricResult':
+```
+
+**Enhanced Validation:**
+- Stock info validation with required fields
+- Quarterly data structure validation
+- FMP estimates format validation
+- Safe type conversion utilities
+
+### Technical Improvements
+
+**Performance Benefits:**
+- Reduced redundant calculations through focused calculators
+- Better caching opportunities with modular design
+- Faster testing with isolated components
+
+**Code Quality:**
+- Consistent error handling patterns
+- Comprehensive logging at calculation level
+- Clear method signatures with type hints
+- Self-documenting code structure
+
+**Maintainability:**
+- Easy to add new calculation types
+- Simple to modify existing calculators
+- Clear debugging with calculator-specific logs
+- Straightforward testing strategy
+
+### Files Modified
+- `/api/services/metrics_service.py` - Completely refactored as orchestrator ✅
+- `/api/services/metrics_constants.py` - New constants file ✅
+- `/api/services/calculators/` - New calculator modules ✅
+- `/api/services/validators/` - New validation modules ✅
+- `/api/services/models/` - New data model modules ✅
+- `/api/util.py` - Added extract_metric_by_year_from_income_statement helper ✅
+
+### Backward Compatibility
+- Public API unchanged (get_metrics still works the same)
+- All existing functionality preserved
+- Enhanced accuracy for current year growth calculations
+- Improved error handling and logging
+
+### Implementation Status
+MetricsService refactoring completed successfully. The service now follows SOLID principles with clear separation of concerns, improved testability, and enhanced data accuracy through income statement API integration.

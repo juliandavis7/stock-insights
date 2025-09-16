@@ -26,6 +26,13 @@ def get_forward_pe(stock_info: Dict[str, Any]) -> Optional[float]:
     return round(val, 2) if val is not None else None
 
 
+def calculate_pe_from_eps(current_price: float, eps: float) -> Optional[float]:
+    """Calculate P/E ratio from current price and EPS."""
+    if eps is None or eps <= 0:
+        return None
+    return round(current_price / eps, 2)
+
+
 def get_ttm_ps(stock_info: Dict[str, Any]) -> Optional[float]:
     """Get trailing twelve months price-to-sales ratio."""
     val = stock_info.get('priceToSalesTrailing12Months') or stock_info.get('price_to_sales_ttm')
@@ -35,13 +42,17 @@ def get_ttm_ps(stock_info: Dict[str, Any]) -> Optional[float]:
 def get_gross_margin(stock_info: Dict[str, Any]) -> Optional[float]:
     """Get gross margin percentage."""
     val = stock_info.get('grossMargins') or stock_info.get('gross_margins')
-    return round(val, 2) if val is not None else None
+    if val is not None:
+        return round(val, 2)  # yfinance already returns as percentage
+    return None
 
 
 def get_net_margin(stock_info: Dict[str, Any]) -> Optional[float]:
     """Get net margin percentage."""
     val = stock_info.get('profitMargins') or stock_info.get('profit_margins')
-    return round(val, 2) if val is not None else None
+    if val is not None:
+        return round(val, 2)  # yfinance already returns as percentage
+    return None
 
 
 def get_earnings_growth(stock_info: Dict[str, Any]) -> Optional[float]:
@@ -354,3 +365,4 @@ def validate_ticker_symbol(ticker: str) -> List[str]:
         errors.append("Ticker must contain only letters")
     
     return errors
+

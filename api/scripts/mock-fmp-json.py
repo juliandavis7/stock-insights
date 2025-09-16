@@ -16,7 +16,7 @@ if not FMP_API_KEY:
 STOCKS = [
     "AAPL", "META", "GOOG", "AMZN", "CELH", "ELF", "FUBO", "NVDA", 
     "SOFI", "ADBE", "PLTR", "TSLA", "PYPL", "AMD", "NKE", "SHOP", 
-    "CAKE", "WYNN", "GOOGL", "MSFT"
+    "CAKE", "WYNN", "GOOGL", "MSFT", "CRM"
 ]
 
 # FMP API endpoints

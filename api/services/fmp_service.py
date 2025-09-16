@@ -319,6 +319,64 @@ class FMPService:
             logger.error(f"Unexpected error fetching current year data for {ticker}: {e}")
             return None
     
+    def fetch_ttm_eps(self, ticker: str) -> Optional[float]:
+        """
+        Fetch TTM (Trailing Twelve Months) EPS by summing the last 4 quarters.
+        
+        Args:
+            ticker: Stock ticker symbol
+            
+        Returns:
+            TTM EPS value or None if failed
+        """
+        # Use mock data if configured
+        if self.use_mock_data:
+            self._handle_missing_stock(ticker, "income-statement")
+            mock_data = self._load_mock_data("income-statement", ticker)
+            if mock_data is not None and isinstance(mock_data, list) and len(mock_data) >= 4:
+                # Sum the last 4 quarters of EPS
+                ttm_eps = 0
+                for i in range(4):
+                    quarter_eps = mock_data[i].get('eps', 0)
+                    if quarter_eps is not None:
+                        ttm_eps += float(quarter_eps)
+                
+                logger.info(f"Successfully calculated TTM EPS for {ticker} from mock: {ttm_eps}")
+                return ttm_eps
+            return None
+        
+        # Use live API
+        try:
+            # Get income statement data for last 4 quarters
+            income_url = f"{self.base_url_stable}/income-statement?symbol={ticker}&period=quarter&limit=4&apikey={self.api_key}"
+            income_response = requests.get(income_url, timeout=10)
+            income_response.raise_for_status()
+            income_data = income_response.json()
+            
+            if not income_data or not isinstance(income_data, list) or len(income_data) < 4:
+                logger.warning(f"Insufficient income statement data for TTM calculation for {ticker}")
+                return None
+            
+            # Sum the last 4 quarters of EPS
+            ttm_eps = 0
+            for i in range(4):
+                quarter_eps = income_data[i].get('eps', 0)
+                if quarter_eps is not None:
+                    ttm_eps += float(quarter_eps)
+            
+            logger.info(f"Successfully calculated TTM EPS for {ticker}: {ttm_eps}")
+            return ttm_eps
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"FMP API request failed for TTM EPS calculation {ticker}: {e}")
+            return None
+        except (ValueError, KeyError) as e:
+            logger.error(f"Error parsing TTM EPS data for {ticker}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error calculating TTM EPS for {ticker}: {e}")
+            return None
+    
     def fetch_company_profile(self, ticker: str) -> Optional[Dict[str, Any]]:
         """
         Fetch company profile data.
@@ -684,6 +742,44 @@ class FMPService:
             logger.error(f"Unexpected error fetching income statement data for {ticker}: {e}")
             return None
 
+    def fetch_quarterly_income_statement(self, ticker: str) -> Optional[List[Dict[str, Any]]]:
+        """
+        Fetch quarterly income statement data from FMP API.
+        
+        Args:
+            ticker: Stock ticker symbol
+            
+        Returns:
+            List of quarterly income statement data or None if failed
+        """
+        try:
+            # Use live API
+            url = f"{self.base_url_stable}/income-statement"
+            params = {
+                'symbol': ticker,
+                'period': 'quarter',
+                'limit': 8,  # Get last 8 quarters for TTM calculations
+                'apikey': self.api_key
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data:
+                logger.warning(f"No quarterly income statement data returned from API for {ticker}")
+                return None
+            
+            logger.info(f"Successfully fetched {len(data)} quarters of income statement data for {ticker}")
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"FMP API request failed for quarterly income statement {ticker}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error fetching quarterly income statement data for {ticker}: {e}")
+            return None
+
     def fetch_chart_data(self, ticker: str, mode: str = 'quarterly') -> Optional[Dict[str, Any]]:
         """
         Fetch comprehensive chart data combining revenue/EPS from estimates API,
@@ -828,4 +924,92 @@ class FMPService:
                 return self._date_to_quarter(date_str)
                 
         except (ValueError, TypeError):
+            return None
+    
+    def fetch_quarterly_analyst_estimates(self, ticker: str, limit: int = 20) -> Optional[List[Dict[str, Any]]]:
+        """
+        Fetch quarterly analyst estimates data from FMP API for hybrid calculations.
+        
+        Args:
+            ticker: Stock ticker symbol
+            limit: Number of quarters to fetch (default 20)
+            
+        Returns:
+            List of quarterly analyst estimate dictionaries or None if failed
+        """
+        # Use mock data if configured
+        if self.use_mock_data:
+            logger.info(f"🔧 Using mock data for {ticker} quarterly analyst estimates")
+            self._handle_missing_stock(ticker, "analyst-estimates")
+            mock_data = self._load_quarterly_mock_data(ticker)
+            if mock_data is not None:
+                logger.info(f"✅ Returning mock quarterly estimates data for {ticker}")
+                return mock_data
+            logger.warning(f"❌ No mock quarterly estimates data available for {ticker}")
+            return []
+        
+        # Use live API
+        try:
+            url = f"{self.base_url_v3}/analyst-estimates/{ticker}"
+            params = {
+                'period': 'quarter',  # Use 'quarter' for quarterly data
+                'apikey': self.api_key
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if isinstance(data, list):
+                logger.info(f"Successfully fetched {len(data)} quarterly analyst estimates for {ticker}")
+                if len(data) > 0:
+                    logger.info(f"📊 Sample quarterly FMP estimate: {data[0]}")
+                return data
+            else:
+                logger.warning(f"Unexpected response format for {ticker} quarterly estimates: {type(data)}")
+                return []
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"FMP API request failed for {ticker} quarterly estimates: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error fetching quarterly analyst estimates for {ticker}: {e}")
+            return []
+
+    def fetch_annual_income_statement(self, ticker: str, limit: int = 20) -> Optional[List[Dict[str, Any]]]:
+        """
+        Fetch annual income statement data from FMP API.
+        
+        Args:
+            ticker: Stock ticker symbol
+            limit: Number of years to fetch (default 20)
+            
+        Returns:
+            List of annual income statement dictionaries or None if failed
+        """
+        try:
+            url = f"{self.base_url_stable}/income-statement"
+            params = {
+                'symbol': ticker,
+                'period': 'year',
+                'limit': limit,
+                'apikey': self.api_key
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data:
+                logger.warning(f"No annual income statement data returned from API for {ticker}")
+                return None
+            
+            logger.info(f"Successfully fetched {len(data)} years of income statement data for {ticker}")
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"FMP API request failed for annual income statement {ticker}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error fetching annual income statement data for {ticker}: {e}")
             return None

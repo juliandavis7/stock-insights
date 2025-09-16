@@ -3,11 +3,22 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import httpx
+import logging
 from .models import MetricsResponse, ProjectionRequest, ProjectionResponse, ProjectionBaseDataResponse, ErrorResponse, FinancialStatementResponse, FinancialDataResponse, AnalystEstimateResponse, ComprehensiveFinancialResponse
 from .util import get_metrics, fetch_fmp_analyst_estimates, extract_metric_by_year, calculate_financial_projections, validate_projection_inputs, fetch_chart_data, fetch_enhanced_chart_data
 from .services.projection_service import ProjectionService
 from .services.yfinance_service import YFinanceService
 from .constants import FMP_API_KEY
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('api.log')
+    ]
+)
 
 app = FastAPI()
 
@@ -19,6 +30,11 @@ app.add_middleware(
     allow_methods=["GET", "POST"],  # Only allow necessary methods
     allow_headers=["Content-Type", "Authorization"],  # Restrict headers
 )
+
+@app.on_event("startup")
+async def startup_event():
+    logging.info("🚀 Stock Insights API started with enhanced logging")
+    logging.info("📊 Debug logs will be visible for current year growth calculations")
 
 
 @app.get("/health")
