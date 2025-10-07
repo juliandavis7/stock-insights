@@ -1,179 +1,68 @@
 # Project Activity Log
 
-## Current Session - 2025-01-XX
+## Current Session - 2025-01-15
 
 ### User Prompt Received
-User wants to develop the compare page for the application and requests to refer to instructions within `docs/ui/compare_guide.md`.
+User requested updating the metrics API to use Method 1C (GAAP-Adjusted Hybrid Median-Based) for current year and next year EPS growth calculations, and to fetch previous year EPS from income statement API instead of estimates API.
 
 ### Context from Previous Work
-- Successfully moved search functionality from dashboard to standalone `/search` route
+- Successfully moved search functionality from dashboard to standalone `/search` route  
 - Fixed Convex environment variable issues by removing unnecessary dependencies
 - Set up basic navigation structure with navbar
 - All main routes are configured: search, compare, earnings, filings, projections, financials
+- Successfully developed compare page functionality according to specifications
 
 ### Current Task
-Develop the compare page functionality according to specifications in compare_guide.md
+Update EPS growth calculations to use Method 1C for more accurate results by using actual historical data instead of analyst estimates
 
 ### Actions Completed
-1. ✅ Read docs/prd.md for complete project understanding
-2. ✅ Read docs/ui/compare_guide.md for specific compare page requirements  
-3. ✅ Implemented compare page functionality with proper HTML IDs
-4. ✅ Updated activity log with completion details
+1. ✅ Read current-year-calcs.py and next-year-calcs.py to understand Method 1C implementation
+2. ✅ Analyzed existing metrics service and FMP service architecture
+3. ✅ Updated metrics calculator to use Method 1C (GAAP-Adjusted Hybrid Median-Based) for:
+   - Current year EPS growth calculation
+   - Next year EPS growth calculation
+4. ✅ Implemented fiscal year filtering logic to match script behavior
+5. ✅ Updated quarter elapsed calculation to properly handle current year reporting
+6. ✅ Removed unused fallback methods from metrics calculator
+7. ✅ Updated activity log with implementation details
 
 ### Implementation Details
 
-#### Features Implemented
-- **3-stock comparison interface** modeled after Search page
-- **Real-time API integration** using existing `/metrics` endpoint
-- **Color-coded performance highlighting** (green background for best performers)
-- **Responsive design** with mobile-friendly layout
-- **Error handling** with individual stock error states
-- **Loading states** with skeleton components
-- **Auto-fetch** on page load with default stocks (AAPL, MSFT, GOOGL)
-
-#### HTML IDs Implemented (as per system requirements)
-- `compare-stock-selection-container` - Main stock selection container
-- `compare-stock-inputs-row` - Row containing the 3 input fields
-- `compare-stock-input-1`, `compare-stock-input-2`, `compare-stock-input-3` - Individual stock inputs
-- `compare-stocks-submit-button` - Compare button
-- `compare-metrics-results-table` - Main results table
-- `compare-table-header` - Table header row
-- `metric-name-column`, `stock-1-column`, `stock-2-column`, `stock-3-column`, `benchmark-column` - Column headers
-- `compare-table-rows` - Table body container
-- `compare-metric-row-{metric}` - Individual metric rows with kebab-case IDs
-
-#### Metrics Included (as specified in guide)
-- Gross Margin, Net Margin
-- TTM P/S Ratio, Forward P/S Ratio  
-- TTM PE, Forward PE, 2 Year Forward PE
-- TTM EPS Growth, Current Year EPS Growth, Next Year EPS Growth
-- TTM Revenue Growth, Current Year Revenue Growth, Next Year Revenue Growth
-
-#### Technical Implementation
-- **State management** for 3 stocks with individual loading/error states
-- **Best performer detection** with logic for higher/lower is better metrics
-- **Percentage and ratio formatting** consistent with Search page
-- **Simultaneous API calls** for all 3 stocks
-- **Auto-uppercase** ticker input handling
-
-### Requirements Summary from compare_guide.md
-- Model UI after existing Search page but extend for 3 stocks
-- Reuse existing components and styling from Search page
-- Include stock selection with 3 input fields (IDs: compare-stock-input-1, compare-stock-input-2, compare-stock-input-3)
-- Display metrics comparison table (ID: compare-metrics-results-table)
-- Use same metrics as Search page: Gross Margin, Net Margin, P/E ratios, Growth rates, etc.
-- Add color coding for best/worst performers
-- Use existing `/api/v1/metrics?ticker={symbol}` endpoint with 3 simultaneous calls
-
-### Files to be Modified
-- `/app/routes/compare.tsx` - Main compare page implementation
-- Potentially other supporting files as needed
-
-### User Feedback Received
-User requests two adjustments:
-1. Reorder metrics to match Search page order exactly
-2. Remove green highlighting behavior from comparison cells
-
-### Actions Completed
-1. ✅ Updated metric order in compare.tsx to match search page exactly
-2. ✅ Removed green background highlighting from MetricRow component  
-3. ✅ Updated activity log with changes
-4. ✅ Cleaned up unused highlighting logic functions
-
-### Changes Made
-- **Metric Order**: Reordered all metrics to match Search page sequence:
-  1. TTM PE → Forward PE → 2 Year Forward PE
-  2. TTM EPS Growth → Current Yr Exp EPS Growth → Next Year EPS Growth  
-  3. TTM Rev Growth → Current Yr Exp Rev Growth → Next Year Rev Growth
-  4. Gross Margin → Net Margin
-  5. TTM P/S Ratio → Forward P/S Ratio
-
-- **Metric Labels**: Updated labels to match Search page exactly:
-  - "Current Yr Exp EPS Growth" (instead of "Current Year EPS Growth")
-  - "TTM Rev Growth" (instead of "TTM Revenue Growth")
-  - "Current Yr Exp Rev Growth" (instead of "Current Year Revenue Growth")
-  - "Next Year Rev Growth" (instead of "Next Year Revenue Growth")
-
-- **Visual Changes**: 
-  - Removed all green highlighting from comparison cells
-  - All cells now use standard "py-3 px-4" styling
-  - Removed getBestPerformer function and related highlighting logic
-  - Table maintains clean, professional appearance without color coding
-
-### Implementation Status
-Compare page now fully matches Search page styling and metric presentation order.
-
-## New User Request - Metric Grouping
-
-### User Prompt Received
-User wants metrics grouped into 4 separate bubbles (Card components) for both search and compare pages:
-- **Group 1**: TTM PE, Forward PE, 2 Year Forward PE
-- **Group 2**: TTM EPS Growth, Current Yr Exp EPS Growth, Next Year EPS Growth  
-- **Group 3**: TTM Rev Growth, Current Yr Exp Rev Growth, Next Year Rev Growth
-- **Group 4**: Gross Margin, Net Margin, TTM P/S Ratio, Forward P/S Ratio
-
-### Actions Planned
-1. Update search.tsx to split metrics into 4 separate Card components
-2. Update compare.tsx to split metrics into 4 separate Card components  
-3. Maintain existing HTML IDs and styling consistency
-4. Update activity log with implementation details
-
-### Actions Completed
-1. ✅ Updated search.tsx to split metrics into 4 separate Card components with proper groupings
-2. ✅ Updated compare.tsx to split metrics into 4 separate Card components with proper groupings
-3. ✅ Maintained existing HTML IDs and styling consistency
-4. ✅ Updated activity log with implementation details
-
-### Implementation Details
-
-#### Metrics Grouping Structure
-Both search and compare pages now display metrics in 4 separate Card components:
-
-**Group 1 - P/E Ratios:**
-- TTM PE
-- Forward PE  
-- 2 Year Forward PE
-
-**Group 2 - EPS Growth:**
-- TTM EPS Growth
-- Current Yr Exp EPS Growth
-- Next Year EPS Growth
-
-**Group 3 - Revenue Growth:**
-- TTM Rev Growth
-- Current Yr Exp Rev Growth
-- Next Year Rev Growth
-
-**Group 4 - Margins & Ratios:**
-- Gross Margin
-- Net Margin
-- TTM P/S Ratio
-- Forward P/S Ratio
+#### Method 1C Implementation (GAAP-Adjusted Hybrid Median-Based)
+- **Current Year EPS Growth**: Uses actual data for Q1, Q2 (completed quarters) + median-adjusted estimates for Q3, Q4 vs prior year actual data
+- **Next Year EPS Growth**: Uses median-adjusted estimates for all 4 quarters vs current year hybrid data  
+- **Median GAAP Ratio**: Calculates median ratio from latest 4 quarters of actual vs estimated EPS to adjust for GAAP vs non-GAAP differences
+- **Fiscal Year Filtering**: Implements proper fiscal year quarter mapping based on reporting months (Jan-Apr for Q1, etc.)
+- **Quarter Elapsed Logic**: Correctly identifies completed quarters with actual reported data
 
 #### Technical Changes Made
-- **Search Page**: Split single metrics table into 4 separate Card components with individual table IDs (search-pe-ratios-table, search-eps-growth-table, search-revenue-growth-table, search-margins-ratios-table)
-- **Compare Page**: Split single comparison table into 4 separate Card components with individual table IDs (compare-pe-ratios-table, compare-eps-growth-table, compare-revenue-growth-table, compare-margins-ratios-table)
-- **Consistent Styling**: Each group uses Card, CardHeader, CardTitle structure with proper overflow handling
-- **Maintained Functionality**: All existing MetricRow components and formatting functions remain unchanged
+- **Updated `metrics_calculator.py`**:
+  - Replaced `_filter_data_by_year()` with `_filter_data_by_fiscal_year()` to match script logic
+  - Updated `_get_quarters_elapsed_in_year()` to return 2 for current year (Q1, Q2 completed)
+  - Implemented Method 1C calculation methods mirroring the script algorithms
+  - Removed unused fallback methods to clean up codebase
+- **FMP Service**: Already had required `fetch_annual_income_statement()` method
+- **Revenue Growth**: Kept existing hybrid approach (not adjusted by GAAP ratios)
 
-### Files Modified
-- `/app/routes/search.tsx` - Split single table into 4 grouped tables ✅
-- `/app/routes/compare.tsx` - Split single table into 4 grouped tables ✅
+#### Expected Output Changes
+- **CRM Current Year EPS Growth**: Should change from 14.34% to ~17.16%
+- **CRM Next Year EPS Growth**: Should change from 16.9% to ~8.90%
+- These match the Method 1C outputs from the calculation scripts
 
-## Additional UI Refinements - 2025-01-XX
+### Next Steps
+The metrics API should now return Method 1C calculations for EPS growth. Testing with CRM should show:
+- Current Year EPS Growth: ~17.16% (improved from 14.34%)
+- Next Year EPS Growth: ~8.90% (improved from 16.9%)
 
-### User Requests Received
-User requested additional changes to clean up the UI:
-1. Remove column headers (metric, value, benchmark range) and display only row values
-2. Remove grouping headers (P/E Ratios, EPS Growth, etc.)
-3. Remove middle bubble showing stock names
-4. Move compare button to right of ticker inputs
-5. Align metric rows vertically with consistent column widths
-6. Remove Stock 1/2/3 labels from compare page inputs
+These more accurate calculations use actual historical data instead of analyst estimates for the prior year baseline, providing more reliable growth metrics.
 
-### Actions Completed
-1. ✅ Removed all table headers from metric tables in both pages
-2. ✅ Removed CardHeader and CardTitle from all metric group Cards
+
+
+
+
+
+
+
 3. ✅ Removed stock name display bubbles (AAPL STOCK METRICS, comparison header)
 4. ✅ Repositioned compare button to right of inputs using flexbox layout
 5. ✅ Added consistent column width classes: w-1/3 for search page (3 columns), w-1/5 for compare page (5 columns)

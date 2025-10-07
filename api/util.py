@@ -221,15 +221,29 @@ def get_two_year_forward_pe(ticker: str, current_price: float, fmp_data: List[Di
 
 def get_metrics(ticker: str) -> Dict[str, Any]:
     """Get comprehensive stock metrics for a ticker."""
-    from .services.metrics_service import MetricsService
-    service = MetricsService()
-    return service.get_metrics(ticker)
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🔍 UTIL: Starting get_metrics for ticker: {ticker}")
+    try:
+        from .services.metrics_service import MetricsService
+        logger.info(f"🔍 UTIL: Creating MetricsService instance")
+        service = MetricsService()
+        logger.info(f"🔍 UTIL: Calling service.get_metrics({ticker})")
+        result = service.get_metrics(ticker)
+        logger.info(f"🔍 UTIL: Received result from service: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"❌ UTIL: Error in get_metrics for {ticker}: {e}")
+        import traceback
+        logger.error(f"❌ UTIL: Full traceback: {traceback.format_exc()}")
+        raise
 
 
 def fetch_fmp_analyst_estimates(ticker: str, api_key: str = None) -> List[Dict[str, Any]]:
     """Fetch FMP analyst estimates for a ticker."""
     from .services.fmp_service import FMPService
-    from .constants import FMP_API_KEY
+    from .constants.constants import FMP_API_KEY
     
     service = FMPService(api_key or FMP_API_KEY)
     return service.fetch_analyst_estimates(ticker)
@@ -269,7 +283,7 @@ def fetch_chart_data(ticker: str, api_key: str = None) -> Optional[Dict[str, Any
         Dictionary with ticker, quarters, revenue, and eps arrays or None if failed
     """
     from .services.fmp_service import FMPService
-    from .constants import FMP_API_KEY
+    from .constants.constants import FMP_API_KEY
     
     service = FMPService(api_key or FMP_API_KEY)
     return service.fetch_chart_data(ticker)
@@ -288,7 +302,7 @@ def fetch_enhanced_chart_data(ticker: str, mode: str = 'quarterly', api_key: str
         Dictionary with ticker, quarters, revenue, eps, gross_margin, net_margin, operating_income arrays or None if failed
     """
     from .services.fmp_service import FMPService
-    from .constants import FMP_API_KEY
+    from .constants.constants import FMP_API_KEY
     
     service = FMPService(api_key or FMP_API_KEY)
     

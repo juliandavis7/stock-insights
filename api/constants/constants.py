@@ -1,4 +1,27 @@
-"""Constants for metrics calculations."""
+"""Consolidated constants for the application."""
+
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file in the api directory
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+
+# ============================================================================
+# APPLICATION CONSTANTS
+# ============================================================================
+
+FMP_API_KEY = os.getenv("FMP_API_KEY")
+if not FMP_API_KEY:
+    raise ValueError("FMP_API_KEY environment variable is required. Please set it in .env file.")
+
+# FMP Server toggle - True for live API, False for mock data
+FMP_SERVER = os.getenv("FMP_SERVER", "True").lower() == "true"
+
+FMP_ANALYST_ESTIMATES_URL = "https://financialmodelingprep.com/stable/analyst-estimates"
+
+# ============================================================================
+# METRICS CALCULATION CONSTANTS
+# ============================================================================
 
 # Quarters for TTM calculations
 QUARTERS_FOR_TTM = 4

@@ -6,7 +6,7 @@ import json
 import os
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from ..constants import FMP_API_KEY, FMP_ANALYST_ESTIMATES_URL
+from ..constants.constants import FMP_API_KEY, FMP_ANALYST_ESTIMATES_URL
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ class FMPService:
     
     # List of stocks with cached JSON responses
     CACHED_STOCKS = [
-        "AAPL", "META", "GOOG", "GOOGL", "AMZN", "CELH", "ELF", "FUBO", "NVDA", 
+        "AAPL", "META", "GOOG", "GOOGL", "AMZN", "CELH", "CRM", "ELF", "FUBO", "NVDA", 
         "SOFI", "ADBE", "PLTR", "TSLA", "PYPL", "AMD", "NKE", "SHOP", 
         "CAKE", "WYNN", "MSFT"
     ]
@@ -623,6 +623,24 @@ class FMPService:
         Returns:
             Dictionary with ticker, quarters, gross_margin, net_margin, operating_income arrays or None if failed
         """
+        # Use mock data if configured
+        if self.use_mock_data:
+            logger.info(f"🔧 Using mock data for {ticker} income statement ({mode} mode)")
+            self._handle_missing_stock(ticker, "income-statement")
+            mock_data = self._load_mock_data("income-statement", ticker)
+            if mock_data is not None:
+                logger.info(f"✅ Returning simplified mock income statement data for {ticker}")
+                # Return simplified mock data structure for now
+                return {
+                    'ticker': ticker,
+                    'quarters': ['2024 Q1', '2024 Q2', '2024 Q3', '2024 Q4'],
+                    'gross_margin': [45.0, 46.0, 47.0, 48.0],
+                    'net_margin': [20.0, 21.0, 22.0, 23.0],
+                    'operating_income': [1000000000, 1100000000, 1200000000, 1300000000]
+                }
+            logger.warning(f"❌ No mock income statement data available for {ticker}")
+            return None
+        
         try:
             current_year = datetime.now().year
             # For TTM mode, we need data starting from 2022 to calculate TTM for Q1 2023
@@ -752,6 +770,17 @@ class FMPService:
         Returns:
             List of quarterly income statement data or None if failed
         """
+        # Use mock data if configured
+        if self.use_mock_data:
+            logger.info(f"🔧 Using mock data for {ticker} quarterly income statement")
+            self._handle_missing_stock(ticker, "income-statement")
+            mock_data = self._load_mock_data("income-statement", ticker)
+            if mock_data is not None:
+                logger.info(f"✅ Returning mock quarterly income statement data for {ticker}")
+                return mock_data
+            logger.warning(f"❌ No mock quarterly income statement data available for {ticker}")
+            return None
+        
         try:
             # Use live API
             url = f"{self.base_url_stable}/income-statement"
@@ -987,6 +1016,17 @@ class FMPService:
         Returns:
             List of annual income statement dictionaries or None if failed
         """
+        # Use mock data if configured
+        if self.use_mock_data:
+            logger.info(f"🔧 Using mock data for {ticker} annual income statement")
+            self._handle_missing_stock(ticker, "income-statement")
+            mock_data = self._load_mock_data("income-statement", ticker)
+            if mock_data is not None:
+                logger.info(f"✅ Returning mock annual income statement data for {ticker}")
+                return mock_data
+            logger.warning(f"❌ No mock annual income statement data available for {ticker}")
+            return None
+        
         try:
             url = f"{self.base_url_stable}/income-statement"
             params = {

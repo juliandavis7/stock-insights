@@ -8,7 +8,7 @@ from .models import MetricsResponse, ProjectionRequest, ProjectionResponse, Proj
 from .util import get_metrics, fetch_fmp_analyst_estimates, extract_metric_by_year, calculate_financial_projections, validate_projection_inputs, fetch_chart_data, fetch_enhanced_chart_data
 from .services.projection_service import ProjectionService
 from .services.yfinance_service import YFinanceService
-from .constants import FMP_API_KEY
+from .constants.constants import FMP_API_KEY
 
 # Configure logging
 logging.basicConfig(
@@ -43,9 +43,17 @@ def health_check():
 
 @app.get("/metrics", response_model=MetricsResponse)
 def metrics(ticker: str = Query(..., description="Stock ticker symbol")):
-    data = get_metrics(ticker)
-    # The refactored service already returns the correct field names
-    return data
+    logging.info(f"🔍 API: Starting metrics request for ticker: {ticker}")
+    try:
+        data = get_metrics(ticker)
+        logging.info(f"🔍 API: Received data from get_metrics: {data}")
+        # The refactored service already returns the correct field names
+        return data
+    except Exception as e:
+        logging.error(f"❌ API: Error in metrics endpoint for {ticker}: {e}")
+        import traceback
+        logging.error(f"❌ API: Full traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error calculating metrics: {str(e)}")
 
 @app.get("/revenue")
 def get_revenue(ticker: str = Query(..., description="Stock ticker symbol")):

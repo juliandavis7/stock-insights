@@ -261,7 +261,7 @@ class ProjectionService:
     
     def get_stock_current_data(self, ticker: str, fmp_api_key: str) -> Optional[Dict[str, float]]:
         """
-        Fetch current stock data using yfinance and FMP API.
+        Fetch current stock data using hybrid approach (actual + estimates) like metrics API.
         
         Args:
             ticker: Stock ticker symbol (e.g., 'AAPL', 'PYPL')
@@ -269,9 +269,9 @@ class ProjectionService:
         
         Returns:
             Dictionary containing current stock data:
-            - revenue: Current year revenue estimate from FMP
-            - net_income: Current year net income estimate from FMP
-            - current_year_eps: Current year EPS estimate from FMP
+            - revenue: Hybrid current year revenue (actual + estimated quarters)
+            - net_income: Calculated from hybrid revenue and margins
+            - current_year_eps: Hybrid current year EPS (actual + estimated quarters)
             - price: Current stock price
             - market_cap: Current market capitalization
             - shares_outstanding: Current shares outstanding
@@ -302,54 +302,52 @@ class ProjectionService:
                 info.get('floatShares')
             )
             
-            # Fetch current year financial data from FMP API
+            # Check if we have all required basic data
+            if any(x is None for x in [price, market_cap, shares_outstanding]):
+                logger.error(f"Missing basic stock data for {ticker}")
+                return None
+            
+            # Use hybrid approach like metrics API
             current_year = datetime.now().year
             revenue = None
             net_income = None
             current_year_eps = None
             
             try:
-                # FMP API call for analyst estimates
-                fmp_url = "https://financialmodelingprep.com/stable/analyst-estimates"
-                params = {
-                    "symbol": ticker,
-                    "period": "annual",
-                    "page": 0,
-                    "limit": 10,
-                    "apikey": fmp_api_key
-                }
+                # Get quarterly data for actual quarters
+                quarterly_data = self.fmp_service.fetch_quarterly_income_statement(ticker)
                 
-                response = requests.get(fmp_url, params=params)
-                response.raise_for_status()
+                # Get quarterly estimates for remaining quarters
+                quarterly_estimates = self.fmp_service.fetch_quarterly_analyst_estimates(ticker)
                 
-                fmp_data = response.json()
-                
-                if fmp_data:
-                    # Find current year data
-                    for record in fmp_data:
-                        if record.get('date'):
-                            # Extract year from date (format: YYYY-MM-DD)
-                            record_year = int(record['date'][:4])
-                            if record_year == current_year:
-                                revenue = record.get('estimatedRevenueAvg')
-                                net_income = record.get('estimatedNetIncomeAvg')
-                                current_year_eps = record.get('estimatedEpsAvg')
-                                break
+                if quarterly_data and quarterly_estimates:
+                    # Use the same hybrid calculation logic as metrics API
+                    from .metrics_calculator import MetricsCalculator
+                    calculator = MetricsCalculator()
                     
-                    if revenue is None:
-                        logger.warning(f"No current year ({current_year}) data found for {ticker} in FMP API")
+                    # Calculate hybrid current year revenue
+                    revenue = calculator._get_hybrid_current_year_revenue(
+                        quarterly_data, quarterly_estimates, current_year
+                    )
+                    
+                    # Calculate hybrid current year net income
+                    net_income = calculator._get_hybrid_current_year_net_income(
+                        quarterly_data, quarterly_estimates, current_year
+                    )
+                    
+                    # Calculate EPS from net income and shares outstanding
+                    if net_income and shares_outstanding:
+                        current_year_eps = net_income / shares_outstanding
+                    else:
+                        current_year_eps = None
+                    
+                    logger.info(f"Hybrid calculations for {ticker}: revenue={revenue}, eps={current_year_eps}, net_income={net_income}")
+                    
                 else:
-                    logger.warning(f"No data returned from FMP API for {ticker}")
+                    logger.warning(f"Insufficient data for hybrid calculations for {ticker}")
                     
-            except requests.exceptions.RequestException as e:
-                logger.error(f"FMP API request failed for {ticker}: {e}")
-            except (KeyError, ValueError) as e:
-                logger.error(f"Error parsing FMP API response for {ticker}: {e}")
-            
-            # Check if we have all required basic data
-            if any(x is None for x in [price, market_cap, shares_outstanding]):
-                logger.error(f"Missing basic stock data for {ticker}")
-                return None
+            except Exception as e:
+                logger.error(f"Error in hybrid calculations for {ticker}: {e}")
             
             # Build result dictionary
             result = {
