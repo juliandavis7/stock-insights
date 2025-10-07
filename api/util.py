@@ -26,6 +26,13 @@ def get_forward_pe(stock_info: Dict[str, Any]) -> Optional[float]:
     return round(val, 2) if val is not None else None
 
 
+def calculate_pe_from_eps(current_price: float, eps: float) -> Optional[float]:
+    """Calculate P/E ratio from current price and EPS."""
+    if eps is None or eps <= 0:
+        return None
+    return round(current_price / eps, 2)
+
+
 def get_ttm_ps(stock_info: Dict[str, Any]) -> Optional[float]:
     """Get trailing twelve months price-to-sales ratio."""
     val = stock_info.get('priceToSalesTrailing12Months') or stock_info.get('price_to_sales_ttm')
@@ -35,13 +42,17 @@ def get_ttm_ps(stock_info: Dict[str, Any]) -> Optional[float]:
 def get_gross_margin(stock_info: Dict[str, Any]) -> Optional[float]:
     """Get gross margin percentage."""
     val = stock_info.get('grossMargins') or stock_info.get('gross_margins')
-    return round(val, 2) if val is not None else None
+    if val is not None:
+        return round(val, 2)  # yfinance already returns as percentage
+    return None
 
 
 def get_net_margin(stock_info: Dict[str, Any]) -> Optional[float]:
     """Get net margin percentage."""
     val = stock_info.get('profitMargins') or stock_info.get('profit_margins')
-    return round(val, 2) if val is not None else None
+    if val is not None:
+        return round(val, 2)  # yfinance already returns as percentage
+    return None
 
 
 def get_earnings_growth(stock_info: Dict[str, Any]) -> Optional[float]:
@@ -174,14 +185,27 @@ def get_two_year_forward_pe(ticker: str, current_price: float, fmp_data: List[Di
     """Calculate two-year forward P/E ratio using FMP estimates."""
     try:
         current_year = datetime.now().year
-        target_year = str(current_year + 2)
+        target_year = current_year + 2
         
-        eps_by_year = extract_metric_by_year(fmp_data, 'estimatedEpsAvg')
+        # Find the annual EPS estimate for the target year
+        target_eps = None
         
-        if target_year not in eps_by_year:
+        for estimate in fmp_data:
+            if estimate.get('date'):
+                try:
+                    year = int(estimate['date'][:4])
+                    if year == target_year:
+                        eps = estimate.get('estimatedEpsAvg')
+                        if eps is not None and eps > 0:
+                            target_eps = eps
+                            break
+                except (ValueError, TypeError):
+                    continue
+        
+        # Check if we found the target year estimate
+        if target_eps is None:
             return None
         
-        target_eps = eps_by_year[target_year]
         if target_eps <= 0:
             return None
         
@@ -197,15 +221,29 @@ def get_two_year_forward_pe(ticker: str, current_price: float, fmp_data: List[Di
 
 def get_metrics(ticker: str) -> Dict[str, Any]:
     """Get comprehensive stock metrics for a ticker."""
-    from .services.metrics_service import MetricsService
-    service = MetricsService()
-    return service.get_metrics(ticker)
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🔍 UTIL: Starting get_metrics for ticker: {ticker}")
+    try:
+        from .services.metrics_service import MetricsService
+        logger.info(f"🔍 UTIL: Creating MetricsService instance")
+        service = MetricsService()
+        logger.info(f"🔍 UTIL: Calling service.get_metrics({ticker})")
+        result = service.get_metrics(ticker)
+        logger.info(f"🔍 UTIL: Received result from service: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"❌ UTIL: Error in get_metrics for {ticker}: {e}")
+        import traceback
+        logger.error(f"❌ UTIL: Full traceback: {traceback.format_exc()}")
+        raise
 
 
 def fetch_fmp_analyst_estimates(ticker: str, api_key: str = None) -> List[Dict[str, Any]]:
     """Fetch FMP analyst estimates for a ticker."""
     from .services.fmp_service import FMPService
-    from .constants import FMP_API_KEY
+    from .constants.constants import FMP_API_KEY
     
     service = FMPService(api_key or FMP_API_KEY)
     return service.fetch_analyst_estimates(ticker)
@@ -245,7 +283,7 @@ def fetch_chart_data(ticker: str, api_key: str = None) -> Optional[Dict[str, Any
         Dictionary with ticker, quarters, revenue, and eps arrays or None if failed
     """
     from .services.fmp_service import FMPService
-    from .constants import FMP_API_KEY
+    from .constants.constants import FMP_API_KEY
     
     service = FMPService(api_key or FMP_API_KEY)
     return service.fetch_chart_data(ticker)
@@ -264,7 +302,7 @@ def fetch_enhanced_chart_data(ticker: str, mode: str = 'quarterly', api_key: str
         Dictionary with ticker, quarters, revenue, eps, gross_margin, net_margin, operating_income arrays or None if failed
     """
     from .services.fmp_service import FMPService
-    from .constants import FMP_API_KEY
+    from .constants.constants import FMP_API_KEY
     
     service = FMPService(api_key or FMP_API_KEY)
     
@@ -341,3 +379,4 @@ def validate_ticker_symbol(ticker: str) -> List[str]:
         errors.append("Ticker must contain only letters")
     
     return errors
+

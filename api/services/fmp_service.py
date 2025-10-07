@@ -6,7 +6,7 @@ import json
 import os
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from ..constants import FMP_API_KEY, FMP_ANALYST_ESTIMATES_URL
+from ..constants.constants import FMP_API_KEY, FMP_ANALYST_ESTIMATES_URL
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ class FMPService:
     
     # List of stocks with cached JSON responses
     CACHED_STOCKS = [
-        "AAPL", "META", "GOOG", "GOOGL", "AMZN", "CELH", "ELF", "FUBO", "NVDA", 
+        "AAPL", "META", "GOOG", "GOOGL", "AMZN", "CELH", "CRM", "ELF", "FUBO", "NVDA", 
         "SOFI", "ADBE", "PLTR", "TSLA", "PYPL", "AMD", "NKE", "SHOP", 
         "CAKE", "WYNN", "MSFT"
     ]
@@ -42,22 +42,37 @@ class FMPService:
     def _load_mock_data(self, endpoint: str, ticker: str) -> Optional[Dict[str, Any]]:
         """Load mock data from JSON file"""
         try:
+            # Handle special case for analyst-estimates to use annual data
+            if endpoint == "analyst-estimates":
+                endpoint_path = os.path.join("analyst-estimates", "annual")
+            else:
+                endpoint_path = endpoint
+            
+            return self._load_mock_data_from_path(endpoint_path, ticker)
+            
+        except Exception as e:
+            logger.error(f"Failed to load mock data for {ticker} {endpoint}: {e}")
+            return None
+    
+    def _load_mock_data_from_path(self, endpoint_path: str, ticker: str) -> Optional[Dict[str, Any]]:
+        """Load mock data from a specific path"""
+        try:
             # Construct absolute file path - try multiple approaches
             # First, try relative to current working directory
-            file_path = os.path.join("mocks", endpoint, f"{ticker.upper()}.json")
+            file_path = os.path.join("mocks", endpoint_path, f"{ticker.upper()}.json")
             logger.info(f"🔍 Trying path 1: {file_path}")
             
             if not os.path.exists(file_path):
                 # Try relative to the services directory
                 current_dir = os.path.dirname(os.path.abspath(__file__))
                 api_dir = os.path.dirname(current_dir)  # Go up one level from services/ to api/
-                file_path = os.path.join(api_dir, "mocks", endpoint, f"{ticker.upper()}.json")
+                file_path = os.path.join(api_dir, "mocks", endpoint_path, f"{ticker.upper()}.json")
                 logger.info(f"🔍 Trying path 2: {file_path}")
                 
                 if not os.path.exists(file_path):
                     # Try relative to the project root (assuming we're in api/ subdirectory)
                     project_root = os.path.join(os.getcwd(), "api")
-                    file_path = os.path.join(project_root, "mocks", endpoint, f"{ticker.upper()}.json")
+                    file_path = os.path.join(project_root, "mocks", endpoint_path, f"{ticker.upper()}.json")
                     logger.info(f"🔍 Trying path 3: {file_path}")
             
             logger.info(f"🔍 Final path: {file_path}")
@@ -73,16 +88,20 @@ class FMPService:
             
             # Check if there was an error when the data was originally fetched
             if mock_data.get("error"):
-                logger.error(f"Mock data contains error for {ticker} {endpoint}: {mock_data['error']}")
+                logger.error(f"Mock data contains error for {ticker} {endpoint_path}: {mock_data['error']}")
                 return None
             
             data = mock_data.get("data")
-            logger.info(f"📁 Loaded mock data for {ticker} {endpoint}: {type(data)}, length: {len(data) if data else 'None'}")
+            logger.info(f"📁 Loaded mock data for {ticker} {endpoint_path}: {type(data)}, length: {len(data) if data else 'None'}")
             return data
             
         except Exception as e:
-            logger.error(f"Failed to load mock data for {ticker} {endpoint}: {e}")
+            logger.error(f"Failed to load mock data for {ticker} {endpoint_path}: {e}")
             return None
+    
+    def _load_quarterly_mock_data(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """Load quarterly mock data for analyst estimates"""
+        return self._load_mock_data_from_path("analyst-estimates/quarterly", ticker)
     
     def _handle_missing_stock(self, ticker: str, endpoint: str) -> None:
         """Handle case where stock is not in cached list"""
@@ -206,10 +225,15 @@ class FMPService:
             return []
         
         # Use live API
-        url = f"{self.analyst_estimates_url}?symbol={ticker}&period={period}&page={page}&limit={limit}&apikey={self.api_key}"
+        # Use v3 endpoint for analyst estimates with path parameter
+        url = f"{self.base_url_v3}/analyst-estimates/{ticker}"
+        params = {
+            'period': 'annual',  # Use 'annual' for annual data
+            'apikey': self.api_key
+        }
         
         try:
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
             
@@ -293,6 +317,64 @@ class FMPService:
             return None
         except Exception as e:
             logger.error(f"Unexpected error fetching current year data for {ticker}: {e}")
+            return None
+    
+    def fetch_ttm_eps(self, ticker: str) -> Optional[float]:
+        """
+        Fetch TTM (Trailing Twelve Months) EPS by summing the last 4 quarters.
+        
+        Args:
+            ticker: Stock ticker symbol
+            
+        Returns:
+            TTM EPS value or None if failed
+        """
+        # Use mock data if configured
+        if self.use_mock_data:
+            self._handle_missing_stock(ticker, "income-statement")
+            mock_data = self._load_mock_data("income-statement", ticker)
+            if mock_data is not None and isinstance(mock_data, list) and len(mock_data) >= 4:
+                # Sum the last 4 quarters of EPS
+                ttm_eps = 0
+                for i in range(4):
+                    quarter_eps = mock_data[i].get('eps', 0)
+                    if quarter_eps is not None:
+                        ttm_eps += float(quarter_eps)
+                
+                logger.info(f"Successfully calculated TTM EPS for {ticker} from mock: {ttm_eps}")
+                return ttm_eps
+            return None
+        
+        # Use live API
+        try:
+            # Get income statement data for last 4 quarters
+            income_url = f"{self.base_url_stable}/income-statement?symbol={ticker}&period=quarter&limit=4&apikey={self.api_key}"
+            income_response = requests.get(income_url, timeout=10)
+            income_response.raise_for_status()
+            income_data = income_response.json()
+            
+            if not income_data or not isinstance(income_data, list) or len(income_data) < 4:
+                logger.warning(f"Insufficient income statement data for TTM calculation for {ticker}")
+                return None
+            
+            # Sum the last 4 quarters of EPS
+            ttm_eps = 0
+            for i in range(4):
+                quarter_eps = income_data[i].get('eps', 0)
+                if quarter_eps is not None:
+                    ttm_eps += float(quarter_eps)
+            
+            logger.info(f"Successfully calculated TTM EPS for {ticker}: {ttm_eps}")
+            return ttm_eps
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"FMP API request failed for TTM EPS calculation {ticker}: {e}")
+            return None
+        except (ValueError, KeyError) as e:
+            logger.error(f"Error parsing TTM EPS data for {ticker}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error calculating TTM EPS for {ticker}: {e}")
             return None
     
     def fetch_company_profile(self, ticker: str) -> Optional[Dict[str, Any]]:
@@ -541,6 +623,24 @@ class FMPService:
         Returns:
             Dictionary with ticker, quarters, gross_margin, net_margin, operating_income arrays or None if failed
         """
+        # Use mock data if configured
+        if self.use_mock_data:
+            logger.info(f"🔧 Using mock data for {ticker} income statement ({mode} mode)")
+            self._handle_missing_stock(ticker, "income-statement")
+            mock_data = self._load_mock_data("income-statement", ticker)
+            if mock_data is not None:
+                logger.info(f"✅ Returning simplified mock income statement data for {ticker}")
+                # Return simplified mock data structure for now
+                return {
+                    'ticker': ticker,
+                    'quarters': ['2024 Q1', '2024 Q2', '2024 Q3', '2024 Q4'],
+                    'gross_margin': [45.0, 46.0, 47.0, 48.0],
+                    'net_margin': [20.0, 21.0, 22.0, 23.0],
+                    'operating_income': [1000000000, 1100000000, 1200000000, 1300000000]
+                }
+            logger.warning(f"❌ No mock income statement data available for {ticker}")
+            return None
+        
         try:
             current_year = datetime.now().year
             # For TTM mode, we need data starting from 2022 to calculate TTM for Q1 2023
@@ -658,6 +758,55 @@ class FMPService:
             return None
         except Exception as e:
             logger.error(f"Unexpected error fetching income statement data for {ticker}: {e}")
+            return None
+
+    def fetch_quarterly_income_statement(self, ticker: str) -> Optional[List[Dict[str, Any]]]:
+        """
+        Fetch quarterly income statement data from FMP API.
+        
+        Args:
+            ticker: Stock ticker symbol
+            
+        Returns:
+            List of quarterly income statement data or None if failed
+        """
+        # Use mock data if configured
+        if self.use_mock_data:
+            logger.info(f"🔧 Using mock data for {ticker} quarterly income statement")
+            self._handle_missing_stock(ticker, "income-statement")
+            mock_data = self._load_mock_data("income-statement", ticker)
+            if mock_data is not None:
+                logger.info(f"✅ Returning mock quarterly income statement data for {ticker}")
+                return mock_data
+            logger.warning(f"❌ No mock quarterly income statement data available for {ticker}")
+            return None
+        
+        try:
+            # Use live API
+            url = f"{self.base_url_stable}/income-statement"
+            params = {
+                'symbol': ticker,
+                'period': 'quarter',
+                'limit': 8,  # Get last 8 quarters for TTM calculations
+                'apikey': self.api_key
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data:
+                logger.warning(f"No quarterly income statement data returned from API for {ticker}")
+                return None
+            
+            logger.info(f"Successfully fetched {len(data)} quarters of income statement data for {ticker}")
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"FMP API request failed for quarterly income statement {ticker}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error fetching quarterly income statement data for {ticker}: {e}")
             return None
 
     def fetch_chart_data(self, ticker: str, mode: str = 'quarterly') -> Optional[Dict[str, Any]]:
@@ -804,4 +953,103 @@ class FMPService:
                 return self._date_to_quarter(date_str)
                 
         except (ValueError, TypeError):
+            return None
+    
+    def fetch_quarterly_analyst_estimates(self, ticker: str, limit: int = 20) -> Optional[List[Dict[str, Any]]]:
+        """
+        Fetch quarterly analyst estimates data from FMP API for hybrid calculations.
+        
+        Args:
+            ticker: Stock ticker symbol
+            limit: Number of quarters to fetch (default 20)
+            
+        Returns:
+            List of quarterly analyst estimate dictionaries or None if failed
+        """
+        # Use mock data if configured
+        if self.use_mock_data:
+            logger.info(f"🔧 Using mock data for {ticker} quarterly analyst estimates")
+            self._handle_missing_stock(ticker, "analyst-estimates")
+            mock_data = self._load_quarterly_mock_data(ticker)
+            if mock_data is not None:
+                logger.info(f"✅ Returning mock quarterly estimates data for {ticker}")
+                return mock_data
+            logger.warning(f"❌ No mock quarterly estimates data available for {ticker}")
+            return []
+        
+        # Use live API
+        try:
+            url = f"{self.base_url_v3}/analyst-estimates/{ticker}"
+            params = {
+                'period': 'quarter',  # Use 'quarter' for quarterly data
+                'apikey': self.api_key
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if isinstance(data, list):
+                logger.info(f"Successfully fetched {len(data)} quarterly analyst estimates for {ticker}")
+                if len(data) > 0:
+                    logger.info(f"📊 Sample quarterly FMP estimate: {data[0]}")
+                return data
+            else:
+                logger.warning(f"Unexpected response format for {ticker} quarterly estimates: {type(data)}")
+                return []
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"FMP API request failed for {ticker} quarterly estimates: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error fetching quarterly analyst estimates for {ticker}: {e}")
+            return []
+
+    def fetch_annual_income_statement(self, ticker: str, limit: int = 20) -> Optional[List[Dict[str, Any]]]:
+        """
+        Fetch annual income statement data from FMP API.
+        
+        Args:
+            ticker: Stock ticker symbol
+            limit: Number of years to fetch (default 20)
+            
+        Returns:
+            List of annual income statement dictionaries or None if failed
+        """
+        # Use mock data if configured
+        if self.use_mock_data:
+            logger.info(f"🔧 Using mock data for {ticker} annual income statement")
+            self._handle_missing_stock(ticker, "income-statement")
+            mock_data = self._load_mock_data("income-statement", ticker)
+            if mock_data is not None:
+                logger.info(f"✅ Returning mock annual income statement data for {ticker}")
+                return mock_data
+            logger.warning(f"❌ No mock annual income statement data available for {ticker}")
+            return None
+        
+        try:
+            url = f"{self.base_url_stable}/income-statement"
+            params = {
+                'symbol': ticker,
+                'period': 'year',
+                'limit': limit,
+                'apikey': self.api_key
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data:
+                logger.warning(f"No annual income statement data returned from API for {ticker}")
+                return None
+            
+            logger.info(f"Successfully fetched {len(data)} years of income statement data for {ticker}")
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"FMP API request failed for annual income statement {ticker}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error fetching annual income statement data for {ticker}: {e}")
             return None

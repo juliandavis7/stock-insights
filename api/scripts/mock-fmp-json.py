@@ -16,12 +16,17 @@ if not FMP_API_KEY:
 STOCKS = [
     "AAPL", "META", "GOOG", "AMZN", "CELH", "ELF", "FUBO", "NVDA", 
     "SOFI", "ADBE", "PLTR", "TSLA", "PYPL", "AMD", "NKE", "SHOP", 
-    "CAKE", "WYNN", "GOOGL", "MSFT"
+    "CAKE", "WYNN", "GOOGL", "MSFT", "CRM"
 ]
 
 # FMP API endpoints
 FMP_ENDPOINTS = {
-    "analyst-estimates": {
+    "analyst-estimates-annual": {
+        "url": "https://financialmodelingprep.com/api/v3/analyst-estimates",
+        "use_path_param": True,
+        "params": {"period": "annual", "apikey": FMP_API_KEY}
+    },
+    "analyst-estimates-quarterly": {
         "url": "https://financialmodelingprep.com/api/v3/analyst-estimates",
         "use_path_param": True,
         "params": {"period": "quarter", "apikey": FMP_API_KEY}
@@ -46,12 +51,25 @@ FMP_ENDPOINTS = {
 def create_mock_directories():
     """Create the mock directory structure"""
     base_dir = "mocks"
-    endpoints = ["analyst-estimates", "income-statement", "cash-flow-statement", "profile"]
     
+    # Create main endpoint directories
+    endpoints = ["income-statement", "cash-flow-statement", "profile"]
     for endpoint in endpoints:
         endpoint_dir = os.path.join(base_dir, endpoint)
         os.makedirs(endpoint_dir, exist_ok=True)
         print(f"Created directory: {endpoint_dir}")
+    
+    # Create analyst-estimates subdirectories
+    analyst_estimates_dir = os.path.join(base_dir, "analyst-estimates")
+    os.makedirs(analyst_estimates_dir, exist_ok=True)
+    print(f"Created directory: {analyst_estimates_dir}")
+    
+    annual_dir = os.path.join(analyst_estimates_dir, "annual")
+    quarterly_dir = os.path.join(analyst_estimates_dir, "quarterly")
+    os.makedirs(annual_dir, exist_ok=True)
+    os.makedirs(quarterly_dir, exist_ok=True)
+    print(f"Created directory: {annual_dir}")
+    print(f"Created directory: {quarterly_dir}")
 
 def fetch_api_data(endpoint_name, ticker):
     """Fetch data from FMP API for a specific endpoint and ticker"""
@@ -106,7 +124,13 @@ def fetch_api_data(endpoint_name, ticker):
 
 def save_mock_data(endpoint_name, ticker, data):
     """Save mock data to JSON file"""
-    filename = f"mocks/{endpoint_name}/{ticker}.json"
+    # Handle special case for analyst-estimates subdirectories
+    if endpoint_name == "analyst-estimates-annual":
+        filename = f"mocks/analyst-estimates/annual/{ticker}.json"
+    elif endpoint_name == "analyst-estimates-quarterly":
+        filename = f"mocks/analyst-estimates/quarterly/{ticker}.json"
+    else:
+        filename = f"mocks/{endpoint_name}/{ticker}.json"
     
     try:
         with open(filename, 'w') as f:

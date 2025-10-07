@@ -91,7 +91,7 @@ const MetricRow = ({ metric, ticker1, ticker2, ticker3, data1, data2, data3, met
 export default function Compare({ loaderData }: Route.ComponentProps) {
   const compareState = useCompareState();
   const actions = useStockActions();
-  const [inputTickers, setInputTickers] = useState<[string, string, string]>(compareState?.tickers || ['AAPL', 'MSFT', 'GOOGL']);
+  const [inputTickers, setInputTickers] = useState<[string, string, string]>(compareState?.tickers || ['GOOG', 'AAPL', 'META']);
 
   const fetchMetrics = async (ticker: string, index: number) => {
     actions.setCompareLoading(index, true);
@@ -135,7 +135,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
 
   // Auto-load default stocks on component mount (only run once)
   useEffect(() => {
-    const defaultTickers = ['AAPL', 'MSFT', 'GOOGL'];
+    const defaultTickers = ['GOOG', 'AAPL', 'META'];
     defaultTickers.forEach((ticker, index) => {
       fetchMetrics(ticker, index);
     });
@@ -407,7 +407,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                             data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
                             data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
                             metricKey="gross_margin"
-                            formatter={(val) => formatPercentage(val && val * 100)}
+                            formatter={formatPercentage}
                             benchmark="Many stocks trade at 40-48%"
                           />
                           <MetricRow
@@ -419,7 +419,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                             data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
                             data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
                             metricKey="net_margin"
-                            formatter={(val) => formatPercentage(val && val * 100)}
+                            formatter={formatPercentage}
                             benchmark="Many stocks trade at 8-10%"
                           />
                           <MetricRow

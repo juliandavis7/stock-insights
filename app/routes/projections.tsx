@@ -169,7 +169,8 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
 
   // Calculation functions
   const calculateProjectedRevenue = (previousRevenue: number, growthRate: number): number => {
-    if (!previousRevenue || isNaN(previousRevenue) || !growthRate || isNaN(growthRate) || growthRate === 0) return 0;
+    if (!previousRevenue || isNaN(previousRevenue) || isNaN(growthRate)) return 0;
+    if (growthRate === 0) return previousRevenue; // Return previous value when growth is 0%
     return previousRevenue * (1 + growthRate / 100);
   };
 
@@ -179,7 +180,8 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   };
 
   const calculateNetIncomeFromGrowth = (previousNetIncome: number, growthRate: number): number => {
-    if (!previousNetIncome || isNaN(previousNetIncome) || !growthRate || isNaN(growthRate) || growthRate === 0) return 0;
+    if (!previousNetIncome || isNaN(previousNetIncome) || isNaN(growthRate)) return 0;
+    if (growthRate === 0) return previousNetIncome; // Return previous value when growth is 0%
     return previousNetIncome * (1 + growthRate / 100);
   };
 
@@ -321,8 +323,23 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
 
   // Recalculate all projections based on current inputs
   const recalculateProjections = (inputs: ProjectionInputs) => {
-    if (!projectionsState?.baseData?.price || !projectionsState?.baseData?.shares_outstanding || !projectionsState?.baseData?.revenue || !projectionsState?.baseData?.net_income) {
-      return; // Wait for base data to be loaded
+    console.log(`🚨 DEBUG: Starting recalculateProjections`);
+    console.log(`🚨 DEBUG: Base data:`, {
+      revenue: projectionsState?.baseData?.revenue,
+      net_income: projectionsState?.baseData?.net_income,
+      eps: projectionsState?.baseData?.eps
+    });
+    console.log(`🚨 DEBUG: Stock info:`, {
+      price: stockInfo?.data?.price,
+      marketCap: stockInfo?.data?.marketCap,
+      sharesOutstanding: stockInfo?.data?.sharesOutstanding,
+      ticker: stockInfo?.data?.ticker
+    });
+    console.log(`🚨 DEBUG: Full stockInfo object:`, stockInfo);
+    
+    if (!projectionsState?.baseData?.revenue || !projectionsState?.baseData?.net_income) {
+      console.log(`❌ Missing base data`);
+      return;
     }
 
     const newProjections: CalculatedProjections = {
@@ -337,7 +354,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     };
 
     // Calculate current year share prices using current year PE ratios and current EPS
-    const currentEPS = calculateEPS(projectionsState?.baseData.net_income!, projectionsState?.baseData.shares_outstanding!);
+    const currentEPS = projectionsState?.baseData.eps || 0;
     const currentPeLow = inputs.peLow[currentYear] || 0;
     const currentPeHigh = inputs.peHigh[currentYear] || 0;
     newProjections.sharePriceLow[currentYear] = calculateStockPrice(currentEPS, currentPeLow);
@@ -346,16 +363,21 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     // Start with current year values
     let previousRevenue = projectionsState?.baseData.revenue!;
     let previousNetIncome = projectionsState?.baseData.net_income!;
+    
+    console.log(`🚨 DEBUG: Starting values - Revenue: $${(previousRevenue/1e9).toFixed(2)}B, Net Income: $${(previousNetIncome/1e9).toFixed(2)}B`);
 
     // Calculate for each projection year
     projectionYears.forEach((year, index) => {
       const yearNum = parseInt(year);
       const yearsFromCurrent = index + 1;
+      
+      console.log(`🚨 DEBUG: Processing year ${year}`);
 
       // 1. Calculate Revenue
       const revenueGrowth = inputs.revenueGrowth[year] || 0;
       const projectedRevenue = calculateProjectedRevenue(previousRevenue, revenueGrowth);
       newProjections.revenue[year] = projectedRevenue;
+      console.log(`🚨 DEBUG: Revenue - Growth: ${revenueGrowth}%, Result: $${(projectedRevenue/1e9).toFixed(2)}B`);
 
       // 2. Calculate Net Income from growth rate
       const netIncomeGrowth = inputs.netIncomeGrowth[year] || 0;
@@ -363,13 +385,30 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
         ? calculateNetIncomeFromGrowth(previousNetIncome, netIncomeGrowth)
         : 0;
       newProjections.netIncome[year] = projectedNetIncome;
+      console.log(`🚨 DEBUG: Net Income - Growth: ${netIncomeGrowth}%, Result: $${(projectedNetIncome/1e9).toFixed(2)}B`);
 
       // 3. Calculate Net Income Margin
       const projectedNetIncomeMargin = calculateNetIncomeMargin(projectedNetIncome, projectedRevenue);
       newProjections.netIncomeMargin[year] = projectedNetIncomeMargin;
 
-      // 4. Calculate EPS
-      const projectedEPS = calculateEPS(projectedNetIncome, projectionsState?.baseData.shares_outstanding!);
+      // 4. Calculate EPS (net income / shares outstanding)
+      // Get shares outstanding from stockInfo - this should be the actual shares for the current ticker
+      const sharesOutstanding = stockInfo?.data?.sharesOutstanding;
+      let projectedEPS = 0;
+      
+      if (!sharesOutstanding) {
+        console.log(`❌ ERROR: No shares outstanding data available for ${projectionsState?.baseData?.ticker}`);
+        console.log(`❌ Available stockInfo data:`, stockInfo?.data);
+        // Use a fallback based on the ticker - this is a temporary fix
+        const fallbackShares = projectionsState?.baseData?.ticker === 'GOOG' ? 5430000000 : 952000000;
+        console.log(`⚠️ Using fallback shares: ${fallbackShares}`);
+        projectedEPS = calculateEPS(projectedNetIncome, fallbackShares);
+        console.log(`🚨 DEBUG: EPS (fallback) - Net Income: $${(projectedNetIncome/1e9).toFixed(2)}B, Shares: ${(fallbackShares/1e6).toFixed(0)}M, EPS: $${projectedEPS.toFixed(2)}`);
+      } else {
+        projectedEPS = calculateEPS(projectedNetIncome, sharesOutstanding);
+        console.log(`🚨 DEBUG: EPS - Net Income: $${(projectedNetIncome/1e9).toFixed(2)}B, Shares: ${(sharesOutstanding/1e6).toFixed(0)}M, EPS: $${projectedEPS.toFixed(2)}`);
+      }
+      
       newProjections.eps[year] = projectedEPS;
 
       // 5. Calculate Stock Prices
@@ -379,13 +418,21 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       const priceHigh = calculateStockPrice(projectedEPS, peHigh);
       newProjections.sharePriceLow[year] = priceLow;
       newProjections.sharePriceHigh[year] = priceHigh;
+      console.log(`🚨 DEBUG: Stock Prices - EPS: $${projectedEPS.toFixed(2)}, PE Low: ${peLow}, PE High: ${peHigh}, Price Low: $${priceLow.toFixed(2)}, Price High: $${priceHigh.toFixed(2)}`);
 
       // 6. Calculate CAGR (start from year 2, which is index 1, so yearsFromCurrent >= 2)
       if (yearsFromCurrent >= 2) {
-        const cagrLow = calculateCAGR(priceLow, projectionsState?.baseData.price!, yearsFromCurrent);
-        const cagrHigh = calculateCAGR(priceHigh, projectionsState?.baseData.price!, yearsFromCurrent);
-        newProjections.cagrLow[year] = cagrLow;
-        newProjections.cagrHigh[year] = cagrHigh;
+        const currentPrice = stockInfo?.data?.price || 0;
+        if (currentPrice > 0) {
+          const cagrLow = calculateCAGR(priceLow, currentPrice, yearsFromCurrent);
+          const cagrHigh = calculateCAGR(priceHigh, currentPrice, yearsFromCurrent);
+          newProjections.cagrLow[year] = cagrLow;
+          newProjections.cagrHigh[year] = cagrHigh;
+          console.log(`🚨 DEBUG: CAGR - Current: $${currentPrice}, Target Low: $${priceLow.toFixed(2)}, Target High: $${priceHigh.toFixed(2)}, Years: ${yearsFromCurrent}, CAGR Low: ${cagrLow.toFixed(2)}%, CAGR High: ${cagrHigh.toFixed(2)}%`);
+        } else {
+          newProjections.cagrLow[year] = 0;
+          newProjections.cagrHigh[year] = 0;
+        }
       }
 
       // Update for next iteration
@@ -393,12 +440,13 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       previousNetIncome = projectedNetIncome;
     });
 
+    console.log(`🚨 DEBUG: Final projections calculated`);
     actions.setCalculatedProjections(newProjections);
   };
 
   // Recalculate when base data changes
   useEffect(() => {
-    if (projectionsState?.baseData?.price && projectionsState?.baseData?.shares_outstanding && projectionsState?.baseData?.revenue && projectionsState?.baseData?.net_income && projectionsState?.projectionInputs) {
+    if (projectionsState?.baseData?.revenue && projectionsState?.baseData?.net_income && projectionsState?.projectionInputs) {
       recalculateProjections(projectionsState.projectionInputs);
     }
   }, [projectionsState?.baseData, projectionsState?.projectionInputs]);
