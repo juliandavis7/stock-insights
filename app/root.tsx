@@ -20,7 +20,6 @@ export const links: Route.LinksFunction = () => [
   // DNS prefetch for external services
   { rel: "dns-prefetch", href: "https://fonts.googleapis.com" },
   { rel: "dns-prefetch", href: "https://fonts.gstatic.com" },
-  { rel: "dns-prefetch", href: "https://api.convex.dev" },
   { rel: "dns-prefetch", href: "https://clerk.dev" },
   
   // Preconnect to font services
