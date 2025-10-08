@@ -2,7 +2,6 @@ import { memo } from "react";
 import { Link } from "react-router";
 import { LogoIcon } from "~/components/logo";
 import {
-  Convex,
   Polar,
   ReactIcon,
   ReactRouter,
@@ -31,7 +30,7 @@ export default function IntegrationsSection({
                   <ReactRouter />
                 </IntegrationCard>
                 <IntegrationCard>
-                  <Convex />
+                  <Polar />
                 </IntegrationCard>
               </div>
               <div className="mx-auto my-2 flex w-fit justify-center gap-2">
@@ -61,11 +60,11 @@ export default function IntegrationsSection({
             </div>
             <div className="mx-auto mt-6 max-w-lg space-y-6 text-center sm:mt-0 sm:text-left">
               <h2 className="text-balance text-3xl font-semibold md:text-4xl">
-                React Starter Kit
+                Stock Insights Platform
               </h2>
               <p className="text-muted-foreground">
-                This powerful starter kit is designed to help you launch your
-                SAAS application quickly and efficiently.
+                Advanced financial analytics platform with Method 1C GAAP-adjusted 
+                EPS calculations, real-time data processing, and AI-powered insights.
               </p>
 
               <div className="flex gap-3">

@@ -1,5 +1,4 @@
 "use client";
-import { useQuery, useAction } from "convex/react";
 import { useAuth } from "@clerk/react-router";
 import { Button } from "~/components/ui/button";
 import {
@@ -11,28 +10,46 @@ import {
 } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Calendar, CreditCard, ExternalLink, Loader2 } from "lucide-react";
-import { api } from "../../convex/_generated/api";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+// TODO: Replace with actual FastAPI calls
+interface Subscription {
+  customerId?: string;
+  status?: string;
+  currentPeriodEnd?: number;
+  productName?: string;
+  amount?: number;
+  currency?: string;
+}
 
 export default function SubscriptionStatus() {
   const { isSignedIn } = useAuth();
   const [loadingDashboard, setLoadingDashboard] = useState(false);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<boolean>(false);
 
-  const subscription = useQuery(api.subscriptions.fetchUserSubscription);
-  const subscriptionStatus = useQuery(
-    api.subscriptions.checkUserSubscriptionStatus
-  );
-  const createPortalUrl = useAction(api.subscriptions.createCustomerPortalUrl);
+  // TODO: Replace with FastAPI calls
+  useEffect(() => {
+    if (isSignedIn) {
+      // Fetch subscription data from FastAPI
+      // fetchSubscriptionData();
+    }
+  }, [isSignedIn]);
 
   const handleManageSubscription = async () => {
     if (!subscription?.customerId) return;
 
     setLoadingDashboard(true);
     try {
-      const result = await createPortalUrl({
-        customerId: subscription.customerId,
-      });
-      window.open(result.url, "_blank");
+      // TODO: Replace with FastAPI call to create portal URL
+      // const result = await fetch(`${API_BASE_URL}/api/subscription/portal`, {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ customerId: subscription.customerId })
+      // });
+      // const data = await result.json();
+      // window.open(data.url, "_blank");
+      console.log("TODO: Implement FastAPI subscription portal");
     } catch (error) {
       console.error("Failed to open customer portal:", error);
     } finally {
