@@ -1,35 +1,7 @@
 import { httpRouter } from "convex/server";
-import { paymentWebhook } from "./subscriptions";
 import { httpAction } from "./_generated/server";
-import { openai } from "@ai-sdk/openai";
-import { streamText } from "ai";
-import { AnalystEstimatesService } from "./lib/services/analyst_estimates";
-
-export const chat = httpAction(async (ctx, req) => {
-  // Extract the `messages` from the body of the request
-  const { messages } = await req.json();
-
-  const result = streamText({
-    model: openai("gpt-4o"),
-    messages,
-    async onFinish({ text }) {
-      // implement your own logic here, e.g. for storing messages
-      // or recording token usage
-      console.log(text);
-    },
-  });
-
-  // Respond with the stream
-  return result.toDataStreamResponse({
-    headers: {
-      "Access-Control-Allow-Origin": process.env.FRONTEND_URL || "http://localhost:5173",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Access-Control-Allow-Credentials": "true",
-      Vary: "origin",
-    },
-  });
-});
+import { MetricsService } from "./lib/services/metrics_service";
+import { DataFetcher } from "./lib/services/data_fetcher";
 
 const http = httpRouter();
 
@@ -49,148 +21,106 @@ http.route({
   }),
 });
 
+// Comprehensive metrics endpoint (Method 1C with GAAP adjustments)
 http.route({
-  path: "/api/chat",
-  method: "POST",
-  handler: chat,
-});
-
-http.route({
-  path: "/api/chat",
-  method: "OPTIONS",
-  handler: httpAction(async (_, request) => {
-    // Make sure the necessary headers are present
-    // for this to be a valid pre-flight request
-    const headers = request.headers;
-    if (
-      headers.get("Origin") !== null &&
-      headers.get("Access-Control-Request-Method") !== null &&
-      headers.get("Access-Control-Request-Headers") !== null
-    ) {
-      return new Response(null, {
-        headers: new Headers({
-          "Access-Control-Allow-Origin": process.env.FRONTEND_URL || "http://localhost:5173",
-          "Access-Control-Allow-Methods": "POST",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
-          "Access-Control-Allow-Credentials": "true",
-          "Access-Control-Max-Age": "86400",
-        }),
-      });
-    } else {
-      return new Response();
-    }
-  }),
-});
-
-http.route({
-  path: "/api/auth/webhook",
-  method: "POST",
-  handler: httpAction(async (_, request) => {
-    // Make sure the necessary headers are present
-    // for this to be a valid pre-flight request
-    const headers = request.headers;
-    if (
-      headers.get("Origin") !== null &&
-      headers.get("Access-Control-Request-Method") !== null &&
-      headers.get("Access-Control-Request-Headers") !== null
-    ) {
-      return new Response(null, {
-        headers: new Headers({
-          "Access-Control-Allow-Origin": process.env.FRONTEND_URL || "http://localhost:5173",
-          "Access-Control-Allow-Methods": "POST",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
-          "Access-Control-Allow-Credentials": "true",
-          "Access-Control-Max-Age": "86400",
-        }),
-      });
-    } else {
-      return new Response();
-    }
-  }),
-});
-
-http.route({
-  path: "/payments/webhook",
-  method: "POST",
-  handler: paymentWebhook,
-});
-
-// Stock metrics endpoint
-http.route({
-  path: "/stock/metrics",
+  path: "/stock-metrics",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
     try {
       const url = new URL(request.url);
-      const stockName = url.searchParams.get("stock_name");
-      const currentPriceParam = url.searchParams.get("current_price");
+      const ticker = url.searchParams.get("ticker");
 
       // Validate required parameters
-      if (!stockName) {
+      if (!ticker) {
         return new Response(JSON.stringify({
-          error: "Missing required parameter: stock_name",
-          message: "Please provide a stock symbol (e.g., ?stock_name=AAPL)"
+          error: "Missing required parameter: ticker",
+          message: "Please provide a stock ticker symbol (e.g., ?ticker=CRM)"
         }), {
           status: 400,
           headers: { 
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": process.env.FRONTEND_URL || "http://localhost:5173",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type"
           }
         });
       }
 
-      // Parse current price if provided
-      let providedPrice: number | undefined;
-      if (currentPriceParam) {
-        providedPrice = parseFloat(currentPriceParam);
-        if (isNaN(providedPrice) || providedPrice <= 0) {
-          return new Response(JSON.stringify({
-            error: "Invalid current_price parameter",
-            message: "current_price must be a positive number"
-          }), {
-            status: 400,
-            headers: { 
-              "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*",
-              "Access-Control-Allow-Methods": "GET, OPTIONS",
-              "Access-Control-Allow-Headers": "Content-Type"
-            }
-          });
-        }
+      console.log(`🚀 API: Starting metrics request for ticker: ${ticker}`);
+
+      // Initialize data fetcher with caching
+      const dataFetcher = new DataFetcher(ctx);
+      
+      // Check for cached metrics first
+      const cachedMetrics = await dataFetcher.getCachedMetrics(ticker);
+      if (cachedMetrics) {
+        console.log(`💾 API: Returning cached metrics for ${ticker}`);
+        return new Response(JSON.stringify(cachedMetrics), {
+          status: 200,
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": process.env.FRONTEND_URL || "http://localhost:5173",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type"
+          }
+        });
       }
 
-      // Initialize service and fetch metrics (will fetch current price if not provided)
-      const service = new AnalystEstimatesService();
-      const metrics = await service.calculateAllMetrics(stockName.toUpperCase(), providedPrice);
+      // Initialize metrics service
+      console.log(`🔧 API: Initializing MetricsService for ${ticker}`);
+      const metricsService = new MetricsService();
+      
+      // Calculate comprehensive metrics with Method 1C
+      console.log(`🔍 API: Calculating fresh metrics for ${ticker} using Method 1C`);
+      console.log(`🔍 API: About to call metricsService.getMetrics(${ticker.toUpperCase()})`);
+      
+      const metrics = await metricsService.getMetrics(ticker.toUpperCase());
+      
+      console.log(`🔍 API: Received metrics from MetricsService for ${ticker}:`, JSON.stringify(metrics, null, 2));
+      console.log(`🔍 API: Metrics type:`, typeof metrics);
+      console.log(`🔍 API: Metrics keys:`, Object.keys(metrics || {}));
 
-      return new Response(JSON.stringify({
-        success: true,
-        data: metrics,
-        timestamp: new Date().toISOString()
-      }), {
+      // Log individual metric values for debugging
+      if (metrics) {
+        console.log(`📊 API: Individual metrics for ${ticker}:`);
+        console.log(`  - current_year_eps_growth: ${metrics.current_year_eps_growth} (${typeof metrics.current_year_eps_growth})`);
+        console.log(`  - next_year_eps_growth: ${metrics.next_year_eps_growth} (${typeof metrics.next_year_eps_growth})`);
+        console.log(`  - ttm_pe: ${metrics.ttm_pe} (${typeof metrics.ttm_pe})`);
+        console.log(`  - forward_pe: ${metrics.forward_pe} (${typeof metrics.forward_pe})`);
+        console.log(`  - price: ${metrics.price} (${typeof metrics.price})`);
+        console.log(`  - market_cap: ${metrics.market_cap} (${typeof metrics.market_cap})`);
+      } else {
+        console.log(`❌ API: metrics is null or undefined for ${ticker}`);
+      }
+
+      // Cache the results
+      console.log(`💾 API: Caching metrics for ${ticker}`);
+      await dataFetcher.cacheMetrics(ticker, metrics, "method_1c");
+
+      return new Response(JSON.stringify(metrics), {
         status: 200,
         headers: { 
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Origin": process.env.FRONTEND_URL || "http://localhost:5173",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type"
         }
       });
 
     } catch (error) {
-      console.error("Error fetching stock metrics:", error);
+      console.error("❌ API: Error in metrics endpoint:", error);
       
+      const url = new URL(request.url);
       return new Response(JSON.stringify({
         error: "Internal server error",
-        message: "Failed to fetch stock metrics",
-        details: error instanceof Error ? error.message : "Unknown error"
+        message: "Failed to calculate stock metrics",
+        details: error instanceof Error ? error.message : "Unknown error",
+        ticker: url.searchParams.get("ticker")?.toUpperCase()
       }), {
         status: 500,
         headers: { 
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Origin": process.env.FRONTEND_URL || "http://localhost:5173",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type"
         }
@@ -199,14 +129,14 @@ http.route({
   }),
 });
 
-// CORS preflight for stock metrics endpoint
+// CORS preflight for stock-metrics endpoint
 http.route({
-  path: "/stock/metrics",
+  path: "/stock-metrics",
   method: "OPTIONS",
   handler: httpAction(async () => {
     return new Response(null, {
       headers: {
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": process.env.FRONTEND_URL || "http://localhost:5173",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type",
         "Access-Control-Max-Age": "86400",
@@ -215,8 +145,6 @@ http.route({
   }),
 });
 
-// Log that routes are configured
 console.log("HTTP routes configured");
 
-// Convex expects the router to be the default export of `convex/http.js`.
 export default http;
