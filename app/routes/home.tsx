@@ -1,5 +1,8 @@
 import { getAuth } from "@clerk/react-router/ssr.server";
+import { createClerkClient } from "@clerk/react-router/api.server";
 import { Navbar } from "~/components/homepage/navbar";
+import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
+import { useEffect } from "react";
 import type { Route } from "./+types/home";
 
 export function meta({}: Route.MetaArgs) {
@@ -15,8 +18,12 @@ export function meta({}: Route.MetaArgs) {
 export async function loader(args: Route.LoaderArgs) {
   const { userId } = await getAuth(args);
 
-  // For development, assume all signed-in users have active subscriptions
-  // TODO: Re-enable Convex subscription check when needed
+  if (userId) {
+    // Get real user details from Clerk
+    const user = await createClerkClient({
+      secretKey: process.env.CLERK_SECRET_KEY,
+    }).users.getUser(userId);
+  }
   
   return {
     isSignedIn: !!userId,
@@ -25,6 +32,14 @@ export async function loader(args: Route.LoaderArgs) {
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
+  const { getAuthToken, isSignedIn } = useAuthenticatedFetch();
+
+  useEffect(() => {
+    if (isSignedIn) {
+      getAuthToken();
+    }
+  }, [isSignedIn, getAuthToken]);
+
   return (
     <>
       <Navbar loaderData={loaderData} />

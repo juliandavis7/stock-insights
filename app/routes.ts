@@ -24,4 +24,6 @@ export default [
     route("dashboard/chat", "routes/dashboard/chat.tsx"),
     route("dashboard/settings", "routes/dashboard/settings.tsx"),
   ]),
+  // Catch-all route for unmatched URLs (handles Chrome DevTools requests)
+  route("*", "routes/$.tsx"),
 ] satisfies RouteConfig;
