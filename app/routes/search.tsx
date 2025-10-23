@@ -4,6 +4,9 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { Navbar } from "~/components/homepage/navbar";
 import { StockSearchHeader } from "~/components/stock-search-header";
 import { useSearchState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
+import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
+import { getAuth } from "@clerk/react-router/ssr.server";
+import { redirect } from "react-router";
 import type { Route } from "./+types/search";
 
 export function meta({}: Route.MetaArgs) {
@@ -13,10 +16,18 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
-export async function loader() {
+export async function loader(args: Route.LoaderArgs) {
+  const { userId } = await getAuth(args);
+  
+  // Redirect to sign-in if not authenticated
+  if (!userId) {
+    throw redirect("/sign-in");
+  }
+
   return {
-    isSignedIn: false,
-    hasActiveSubscription: false,
+    isSignedIn: true,
+    hasActiveSubscription: true, // You can add subscription check logic here
+    userId
   };
 }
 
@@ -96,6 +107,7 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
   const globalTicker = useGlobalTicker();
   const stockInfo = useStockInfo();
   const actions = useStockActions();
+  const { authenticatedFetch } = useAuthenticatedFetch();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
 
   // Hard-coded sample data matching the FastAPI response structure
@@ -130,10 +142,10 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
         (async () => {
           const cachedData = actions.getCachedMetrics(symbol);
           if (cachedData) return cachedData;
-          return await actions.fetchMetrics(symbol);
+          return await actions.fetchMetrics(symbol, authenticatedFetch);
         })(),
         // Fetch stock info (handles its own caching)
-        actions.fetchStockInfo(symbol)
+        actions.fetchStockInfo(symbol, authenticatedFetch)
       ]);
       
       // Handle metrics result
@@ -177,6 +189,12 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
     }
   };
 
+  const handleSearchClick = () => {
+    if (stockSymbol.trim()) {
+      fetchMetrics(stockSymbol.trim());
+    }
+  };
+
   // Sync input field when global ticker changes from other pages
   useEffect(() => {
     if (globalTicker.currentTicker && globalTicker.currentTicker !== stockSymbol) {
@@ -193,7 +211,7 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
           <StockSearchHeader
             stockSymbol={stockSymbol}
             onStockSymbolChange={setStockSymbol}
-            onSearch={handleSearch}
+            onSearch={handleSearchClick}
             loading={searchState.loading || stockInfo.loading}
             ticker={stockInfo.data?.ticker}
             stockPrice={stockInfo.data?.price}

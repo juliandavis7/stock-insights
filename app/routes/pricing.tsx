@@ -121,8 +121,8 @@ export default function IntegratedPricing() {
           <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg max-w-md mx-auto">
             <p className="text-blue-800 font-medium">📋 Complete your setup</p>
             <p className="text-blue-700 text-sm mt-1">
-              You're signed in! Choose a plan below to access your dashboard and
-              start using all features.
+              You're signed in! Choose a plan below to access premium features and
+              start using all projections.
             </p>
           </div>
         )}

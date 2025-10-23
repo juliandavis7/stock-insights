@@ -6,6 +6,10 @@ import { Button } from "~/components/ui/button";
 import { Navbar } from "~/components/homepage/navbar";
 import { StockSearchHeader } from "~/components/stock-search-header";
 import { useProjectionsState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
+import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
+import { getAuth } from "@clerk/react-router/ssr.server";
+import { redirect } from "react-router";
+import { RotateCcw } from "lucide-react";
 import type { Route } from "./+types/projections";
 
 export function meta({}: Route.MetaArgs) {
@@ -15,10 +19,18 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
-export async function loader() {
+export async function loader(args: Route.LoaderArgs) {
+  const { userId } = await getAuth(args);
+  
+  // Redirect to sign-in if not authenticated
+  if (!userId) {
+    throw redirect("/sign-in");
+  }
+
   return {
-    isSignedIn: false,
-    hasActiveSubscription: false,
+    isSignedIn: true,
+    hasActiveSubscription: true, // You can add subscription check logic here
+    userId
   };
 }
 
@@ -282,6 +294,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   const globalTicker = useGlobalTicker();
   const stockInfo = useStockInfo();
   const actions = useStockActions();
+  const { authenticatedFetch } = useAuthenticatedFetch();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
   const [showForwardButton, setShowForwardButton] = useState<{[key: string]: boolean}>({});
   const [appliedCells, setAppliedCells] = useState<{[key: string]: boolean}>({});
@@ -289,6 +302,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   // Scenario management
   type ScenarioType = 'base' | 'bull' | 'bear';
   const [activeScenario, setActiveScenario] = useState<ScenarioType>('base');
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [scenarioData, setScenarioData] = useState<{
     [K in ScenarioType]: {
       projectionInputs: ProjectionInputs;
@@ -400,6 +414,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     actions.setProjectionsError(null);
     actions.setStockInfoLoading(true);
     actions.setGlobalTicker(stockSymbol); // Set global ticker
+    setIsInitialLoad(true); // Reset initial load flag for new search
     
     try {
       // Fetch both projections and stock info concurrently
@@ -408,10 +423,10 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
         (async () => {
           const cachedData = actions.getCachedProjections(stockSymbol);
           if (cachedData) return cachedData;
-          return await actions.fetchProjections(stockSymbol);
+          return await actions.fetchProjections(stockSymbol, authenticatedFetch);
         })(),
         // Fetch stock info (handles its own caching)
-        actions.fetchStockInfo(stockSymbol)
+        actions.fetchStockInfo(stockSymbol, authenticatedFetch)
       ]);
       
       // Handle projections result
@@ -428,8 +443,9 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
         actions.setStockInfoError(stockInfoPromise.reason instanceof Error ? stockInfoPromise.reason.message : "Error fetching stock info");
       }
       
-      // Clear scenario projections cache for all tickers when searching new ticker
-      actions.clearScenarioProjectionsCache();
+      // Clear scenario projections cache only for the new ticker being searched
+      console.log(`🗑️ Clearing scenario projections cache for new ticker: ${stockSymbol}`);
+      actions.clearScenarioProjectionsCache(stockSymbol);
       
       // Reset scenario data to initial state
       const clearedInputs = {
@@ -479,14 +495,6 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   // Scenario management functions
   const handleScenarioChange = (scenario: ScenarioType) => {
     setActiveScenario(scenario);
-    
-    // Save active scenario to cache
-    if (stockSymbol && projectionsState?.baseData?.ticker) {
-      actions.setCachedScenarioProjections(stockSymbol, {
-        ...scenarioData,
-        activeScenario: scenario
-      });
-    }
   };
 
   const getActiveScenarioData = () => {
@@ -503,13 +511,6 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
         }
       };
       
-      // Save to cache whenever scenario data changes
-      if (stockSymbol && projectionsState?.baseData?.ticker) {
-        actions.setCachedScenarioProjections(stockSymbol, {
-          ...newScenarioData,
-          activeScenario
-        });
-      }
       
       return newScenarioData;
     });
@@ -539,6 +540,12 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       projectionInputs: clearedInputs,
       calculatedProjections: clearedCalculations
     });
+
+    // Clear cache for current ticker when resetting
+    if (stockSymbol) {
+      console.log(`🗑️ Clearing scenario projections cache for reset: ${stockSymbol}`);
+      actions.clearScenarioProjectionsCache(stockSymbol);
+    }
   };
 
   const handleForwardApply = (metric: keyof ProjectionInputs, fromYear: string) => {
@@ -771,7 +778,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       recalculateProjections(projectionsState.projectionInputs);
       } else if (!stockInfo.loading && !stockInfoTicker) {
         // If stockInfo is not loading and we don't have data, try to fetch it
-        actions.fetchStockInfo(currentTicker).catch(console.error);
+        actions.fetchStockInfo(currentTicker, authenticatedFetch).catch(console.error);
     }
     }
   }, [projectionsState?.baseData, projectionsState?.projectionInputs, stockInfo]);
@@ -795,10 +802,10 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
             (async () => {
           const cachedData = actions.getCachedProjections(tickerToLoad);
               if (cachedData) return cachedData;
-              return await actions.fetchProjections(tickerToLoad);
+              return await actions.fetchProjections(tickerToLoad, authenticatedFetch);
             })(),
             // Fetch stock info (handles its own caching)
-            actions.fetchStockInfo(tickerToLoad)
+            actions.fetchStockInfo(tickerToLoad, authenticatedFetch)
           ]);
           
           // Handle projections result
@@ -862,16 +869,31 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     if (stockSymbol && projectionsState?.baseData?.ticker === stockSymbol) {
       const cachedScenarioData = actions.getCachedScenarioProjections(stockSymbol);
       if (cachedScenarioData) {
-        console.log(`Restoring cached scenario projections for ${stockSymbol}`);
+        console.log(`🔄 Restoring cached scenario projections for ${stockSymbol}:`, cachedScenarioData);
         setScenarioData({
           base: cachedScenarioData.base,
           bull: cachedScenarioData.bull,
           bear: cachedScenarioData.bear
         });
         setActiveScenario(cachedScenarioData.activeScenario);
+      } else {
+        console.log(`📝 No cached data found for ${stockSymbol}, using fresh state`);
       }
+      // Mark initial load as complete
+      setIsInitialLoad(false);
     }
   }, [stockSymbol, projectionsState?.baseData?.ticker, actions]);
+
+  // Save scenario data to cache whenever it changes (but not during initial load)
+  useEffect(() => {
+    if (!isInitialLoad && stockSymbol && projectionsState?.baseData?.ticker === stockSymbol && scenarioData) {
+      console.log(`💾 Saving scenario projections to cache for ${stockSymbol}:`, { scenarioData, activeScenario });
+      actions.setCachedScenarioProjections(stockSymbol, {
+        ...scenarioData,
+        activeScenario
+      });
+    }
+  }, [scenarioData, activeScenario, stockSymbol, projectionsState?.baseData?.ticker, actions, isInitialLoad]);
 
   return (
     <>
@@ -923,21 +945,28 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                               : { backgroundColor: '#D32F2F', borderBottomColor: 'transparent' } // Red
                           ) : {}}
                         >
-                          {scenario.label}
+                          <div className="flex items-center gap-2">
+                            <span>{scenario.label}</span>
+                            {activeScenario === scenario.key && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleResetProjections();
+                                }}
+                                className="p-1 rounded-full hover:bg-opacity-50 transition-colors"
+                                style={{
+                                  backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                                }}
+                                aria-label="Reset to default values"
+                              >
+                                <RotateCcw className="w-4 h-4 text-white" />
+                              </button>
+                            )}
+                          </div>
                         </button>
                       ))}
                     </nav>
                     
-                    {/* Reset Projections Button */}
-                    <div className="pb-3">
-                      <Button 
-                        onClick={handleResetProjections}
-                        variant="ghost"
-                        className="cursor-pointer !bg-transparent !border !border-gray-300 !text-gray-500 px-4 py-2 rounded-md text-sm font-medium hover:!border-gray-400 hover:!text-gray-700 hover:!bg-gray-50 hover:cursor-pointer active:!bg-gray-100 active:cursor-pointer focus:!outline-none focus:!ring-0 focus:!border-gray-300 focus-visible:!ring-0 focus-visible:!ring-offset-0"
-                      >
-                        Reset Projections
-                      </Button>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1310,6 +1339,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
           </div>
         </div>
       </main>
+
     </>
   );
 }

@@ -20,7 +20,7 @@ export default function SubscriptionRequired() {
             Subscription Required
           </CardTitle>
           <CardDescription className="text-lg">
-            You need an active subscription to access the dashboard.
+            You need an active subscription to access premium features.
           </CardDescription>
         </CardHeader>
 
@@ -31,8 +31,8 @@ export default function SubscriptionRequired() {
               <span className="font-medium">Choose Your Plan</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Select a subscription plan to unlock full access to your
-              dashboard, analytics, and all premium features.
+              Select a subscription plan to unlock full access to
+              projections, analytics, and all premium features.
             </p>
           </div>
 

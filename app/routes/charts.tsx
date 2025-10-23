@@ -7,6 +7,9 @@ import { StockSearchHeader } from "~/components/stock-search-header";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "~/components/ui/chart";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Legend, Cell } from "recharts";
 import { useChartsState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
+import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
+import { getAuth } from "@clerk/react-router/ssr.server";
+import { redirect } from "react-router";
 import type { Route } from "./+types/charts";
 
 export function meta({}: Route.MetaArgs) {
@@ -16,10 +19,18 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
-export async function loader() {
+export async function loader(args: Route.LoaderArgs) {
+  const { userId } = await getAuth(args);
+  
+  // Redirect to sign-in if not authenticated
+  if (!userId) {
+    throw redirect("/sign-in");
+  }
+
   return {
-    isSignedIn: false,
-    hasActiveSubscription: false,
+    isSignedIn: true,
+    hasActiveSubscription: true, // You can add subscription check logic here
+    userId
   };
 }
 
@@ -29,6 +40,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
   const globalTicker = useGlobalTicker();
   const stockInfo = useStockInfo();
   const actions = useStockActions();
+  const { authenticatedFetch } = useAuthenticatedFetch();
   
   // Use viewMode from global state instead of local state
   const viewMode = charts.viewMode;
@@ -57,8 +69,8 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
 
       // Fetch both charts data and stock info concurrently
       Promise.allSettled([
-        actions.fetchCharts(upperTicker, viewMode),
-        actions.fetchStockInfo(upperTicker)
+        actions.fetchCharts(upperTicker, viewMode, authenticatedFetch),
+        actions.fetchStockInfo(upperTicker, authenticatedFetch)
       ]).then(([chartsPromise, stockInfoPromise]) => {
         // Handle charts result
         if (chartsPromise.status === 'fulfilled') {

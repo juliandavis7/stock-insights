@@ -233,11 +233,11 @@ interface StockStore {
     getCachedCharts: (ticker: string) => ChartData | null;
     
     // API actions
-    fetchStockInfo: (ticker: string) => Promise<StockInfo>;
-    fetchMetrics: (ticker: string) => Promise<FinancialMetrics>;
-    fetchProjections: (ticker: string) => Promise<ProjectionBaseData>;
-    fetchFinancials: (ticker: string) => Promise<FinancialsData>;
-    fetchCharts: (ticker: string, mode?: string) => Promise<ChartData>;
+    fetchStockInfo: (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<StockInfo>;
+    fetchMetrics: (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<FinancialMetrics>;
+    fetchProjections: (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<ProjectionBaseData>;
+    fetchFinancials: (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<FinancialsData>;
+    fetchCharts: (ticker: string, mode?: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<ChartData>;
   };
 }
 
@@ -615,7 +615,7 @@ export const useStockStore = create<StockStore>()(
         },
 
         // API actions
-        fetchStockInfo: async (ticker: string): Promise<StockInfo> => {
+        fetchStockInfo: async (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>): Promise<StockInfo> => {
           const { actions, cache } = get();
           
           // Clear stock info if we're fetching for a different ticker
@@ -634,8 +634,9 @@ export const useStockStore = create<StockStore>()(
           }
           
           console.log(`Fetching stock info for ${ticker}`);
-          const fastApiUrl = import.meta.env.VITE_FASTAPI_URL || "http://127.0.0.1:8000";
-          const response = await fetch(`${fastApiUrl}/info?ticker=${ticker.toUpperCase()}`);
+          const fastApiUrl = import.meta.env.VITE_FASTAPI_URL;
+          const fetchFn = authenticatedFetch || fetch;
+          const response = await fetchFn(`${fastApiUrl}/info?ticker=${ticker.toUpperCase()}`);
           
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
@@ -650,7 +651,7 @@ export const useStockStore = create<StockStore>()(
           return data;
         },
         
-        fetchMetrics: async (ticker: string): Promise<FinancialMetrics> => {
+        fetchMetrics: async (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>): Promise<FinancialMetrics> => {
           const { actions, cache } = get();
           
           // Check cache first
@@ -661,8 +662,9 @@ export const useStockStore = create<StockStore>()(
           }
           
           console.log(`Fetching metrics for ${ticker}`);
-          const fastApiUrl = import.meta.env.VITE_FASTAPI_URL || "http://127.0.0.1:8000";
-          const response = await fetch(`${fastApiUrl}/metrics?ticker=${ticker.toUpperCase()}`);
+          const fastApiUrl = import.meta.env.VITE_FASTAPI_URL;
+          const fetchFn = authenticatedFetch || fetch;
+          const response = await fetchFn(`${fastApiUrl}/metrics?ticker=${ticker.toUpperCase()}`);
           
           if (!response.ok) {
             throw new Error(`API request failed: ${response.status} ${response.statusText}`);
@@ -681,7 +683,7 @@ export const useStockStore = create<StockStore>()(
           return data;
         },
         
-        fetchProjections: async (ticker: string): Promise<ProjectionBaseData> => {
+        fetchProjections: async (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>): Promise<ProjectionBaseData> => {
           const { cache } = get();
           
           // Check cache first
@@ -692,7 +694,9 @@ export const useStockStore = create<StockStore>()(
           }
           
           console.log(`Fetching projections for ${ticker}`);
-          const response = await fetch(`http://localhost:8000/projections?ticker=${ticker.toUpperCase()}`);
+          const fastApiUrl = import.meta.env.VITE_FASTAPI_URL;
+          const fetchFn = authenticatedFetch || fetch;
+          const response = await fetchFn(`${fastApiUrl}/projections?ticker=${ticker.toUpperCase()}`);
           
           if (!response.ok) {
             const errorData = await response.json();
@@ -712,7 +716,7 @@ export const useStockStore = create<StockStore>()(
           return data;
         },
         
-        fetchFinancials: async (ticker: string): Promise<FinancialsData> => {
+        fetchFinancials: async (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>): Promise<FinancialsData> => {
           const { cache } = get();
           
           // Check cache first
@@ -723,7 +727,9 @@ export const useStockStore = create<StockStore>()(
           }
           
           console.log(`Fetching financials for ${ticker}`);
-          const response = await fetch(`http://localhost:8000/financials?ticker=${ticker.toUpperCase()}`);
+          const fastApiUrl = import.meta.env.VITE_FASTAPI_URL;
+          const fetchFn = authenticatedFetch || fetch;
+          const response = await fetchFn(`${fastApiUrl}/financials?ticker=${ticker.toUpperCase()}`);
           
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
@@ -743,7 +749,7 @@ export const useStockStore = create<StockStore>()(
           return data;
         },
         
-        fetchCharts: async (ticker: string, mode: string = 'quarterly'): Promise<ChartData> => {
+        fetchCharts: async (ticker: string, mode: string = 'quarterly', authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>): Promise<ChartData> => {
           const { cache } = get();
           
           // Create cache key that includes both ticker and mode
@@ -757,7 +763,9 @@ export const useStockStore = create<StockStore>()(
           }
           
           console.log(`Fetching charts for ${ticker} (${mode})`);
-          const response = await fetch(`http://localhost:8000/charts?ticker=${ticker.toUpperCase()}&mode=${mode}`);
+          const fastApiUrl = import.meta.env.VITE_FASTAPI_URL;
+          const fetchFn = authenticatedFetch || fetch;
+          const response = await fetchFn(`${fastApiUrl}/charts?ticker=${ticker.toUpperCase()}&mode=${mode}`);
           
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));

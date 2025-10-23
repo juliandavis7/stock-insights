@@ -6,8 +6,8 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { cn } from "~/lib/utils";
 
-// TODO: Replace with FastAPI endpoint when available
-const API_BASE_URL = "http://localhost:8000"; // Your FastAPI server
+// Read API base URL from environment variable only
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export default function Chat() {
   const { messages, input, handleInputChange, handleSubmit, isLoading } =
