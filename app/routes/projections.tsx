@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Input } from "~/components/ui/input";
+import { Button } from "~/components/ui/button";
 import { Navbar } from "~/components/homepage/navbar";
 import { StockSearchHeader } from "~/components/stock-search-header";
 import { useProjectionsState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
@@ -218,6 +219,8 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   const stockInfo = useStockInfo();
   const actions = useStockActions();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
+  const [showForwardButton, setShowForwardButton] = useState<{[key: string]: boolean}>({});
+  const [appliedCells, setAppliedCells] = useState<{[key: string]: boolean}>({});
 
   // Sample data for initial display
   const sampleStockInfo: StockInfo = {
@@ -329,6 +332,140 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     await performSearch();
+  };
+
+  const handleResetProjections = () => {
+    // Clear all user inputs
+    const clearedInputs = {
+      revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+      netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+      peLow: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+      peHigh: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 }
+    };
+    actions.setProjectionsInputs(clearedInputs);
+    
+    // Clear calculated projections
+    actions.setCalculatedProjections({
+      revenue: {},
+      netIncome: {},
+      netIncomeMargin: {},
+      eps: {},
+      sharePriceLow: {},
+      sharePriceHigh: {},
+      cagrLow: {},
+      cagrHigh: {}
+    });
+  };
+
+  const handleForwardApply = (metric: keyof ProjectionInputs, fromYear: string) => {
+    if (!projectionsState?.projectionInputs) return;
+    
+    const currentValue = projectionsState.projectionInputs[metric][fromYear] || 0;
+    const fromIndex = projectionYears.indexOf(fromYear);
+    const isCurrentYear = fromYear === currentYear.toString();
+    const isPeMetric = metric === 'peLow' || metric === 'peHigh';
+    
+    // Don't apply from last projection year (2029), but allow current year (2025) for PE ratios
+    if (fromIndex === projectionYears.length - 1) return;
+    if (fromIndex === -1 && !(isCurrentYear && isPeMetric)) return;
+    
+    // Determine which years to apply to
+    let allYears: string[];
+    
+    if (isCurrentYear && isPeMetric) {
+      // From current year (2025) for PE ratios: apply to all projection years
+      allYears = projectionYears;
+    } else if (fromIndex !== -1) {
+      // From projection year: apply to remaining future years
+      allYears = projectionYears.slice(fromIndex + 1);
+    } else {
+      return; // Shouldn't reach here, but safety check
+    }
+    
+    // Create updated inputs with the value applied to all future years
+    const updated = {
+      ...projectionsState.projectionInputs,
+      [metric]: {
+        ...projectionsState.projectionInputs[metric],
+        ...allYears.reduce((acc, year) => ({ ...acc, [year]: currentValue }), {})
+      }
+    };
+    
+    actions.setProjectionsInputs(updated);
+    
+    // Show visual feedback for applied cells
+    const appliedKeys = allYears.map(year => `${metric}-${year}`);
+    const newAppliedCells = appliedKeys.reduce((acc, key) => ({ ...acc, [key]: true }), {});
+    setAppliedCells(newAppliedCells);
+    
+    // Clear visual feedback after 1 second
+    setTimeout(() => setAppliedCells({}), 1000);
+    
+    // Trigger recalculation
+    setTimeout(() => recalculateProjections(updated), 0);
+    
+    // Move cursor to next row's input field
+    setTimeout(() => {
+      const nextMetric = getNextMetric(metric);
+      if (nextMetric) {
+        const nextInputId = getNextInputId(nextMetric, fromYear);
+        const nextInput = document.getElementById(nextInputId);
+        if (nextInput) {
+          nextInput.focus();
+        }
+      }
+    }, 100);
+  };
+
+  const getNextMetric = (currentMetric: keyof ProjectionInputs): string | null => {
+    const metricOrder = ['revenueGrowth', 'netIncomeGrowth', 'peLow', 'peHigh'];
+    const currentIndex = metricOrder.indexOf(currentMetric);
+    
+    if (currentIndex !== -1 && currentIndex < metricOrder.length - 1) {
+      const nextMetric = metricOrder[currentIndex + 1];
+      // Convert to the ID format used in the DOM
+      switch (nextMetric) {
+        case 'revenueGrowth': return 'revenue-growth';
+        case 'netIncomeGrowth': return 'net-income-growth';
+        case 'peLow': return 'pe-low';
+        case 'peHigh': return 'pe-high';
+        default: return null;
+      }
+    }
+    return null;
+  };
+
+  const getNextInputId = (nextMetric: string, fromYear: string): string => {
+    const isCurrentYear = fromYear === currentYear.toString();
+    const isPeMetric = nextMetric === 'pe-low' || nextMetric === 'pe-high';
+    
+    // For PE metrics, start from current year (2025)
+    // For growth metrics, start from first projection year (2026)
+    if (isPeMetric) {
+      return `${nextMetric}-${currentYear}`;
+    } else {
+      return `${nextMetric}-${projectionYears[0]}`;
+    }
+  };
+
+  const handleInputFocus = (metric: string, year: string) => {
+    const yearIndex = projectionYears.indexOf(year);
+    const isCurrentYear = year === currentYear.toString();
+    const isPeMetric = metric === 'pe-low' || metric === 'pe-high';
+    
+    // Show button for:
+    // 1. Projection years 2026, 2027, 2028 (not 2029 since it's the last year)
+    // 2. Current year (2025) for PE metrics only
+    if ((yearIndex !== -1 && yearIndex < projectionYears.length - 1) || (isCurrentYear && isPeMetric)) {
+      setShowForwardButton({ [`${metric}-${year}`]: true });
+    }
+  };
+
+  const handleInputBlur = (metric: string, year: string) => {
+    // Hide button after a delay, unless it's being hovered
+    setTimeout(() => {
+      setShowForwardButton(prev => ({ ...prev, [`${metric}-${year}`]: false }));
+    }, 2000);
   };
 
 
@@ -623,21 +760,36 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         <tr id="revenue-growth-input-row" className="border-b border-gray-100 hover:bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">Revenue Growth</td>
                           <td className="py-2 px-4 text-center w-[120px]"></td>
-                          {projectionYears.map(year => (
-                            <td key={year} className="py-2 px-4 text-center w-[120px]">
-                              <Input
-                                id={`revenue-growth-${year}`}
-                                type="text"
-                                value={formatPercentageInput(projectionsState?.projectionInputs?.revenueGrowth[year])}
-                                onChange={(e) => {
-                                  const cleanValue = e.target.value.replace('%', '');
-                                  handlePercentageInputChange('revenueGrowth', year, cleanValue);
-                                }}
-                                onKeyDown={(e) => handleKeyDown(e, 'revenue-growth', year)}
-                                className="text-center h-8 w-16 mx-auto"
-                                style={inputStyle}
-                                placeholder="0%"
-                              />
+                          {projectionYears.map((year, index) => (
+                            <td key={year} className="py-2 px-4 text-center w-[120px] relative">
+                              <div className="flex justify-center">
+                                <Input
+                                  id={`revenue-growth-${year}`}
+                                  type="text"
+                                  autoComplete="off"
+                                  value={formatPercentageInput(projectionsState?.projectionInputs?.revenueGrowth[year])}
+                                  onChange={(e) => {
+                                    const cleanValue = e.target.value.replace('%', '');
+                                    handlePercentageInputChange('revenueGrowth', year, cleanValue);
+                                  }}
+                                  onFocus={() => handleInputFocus('revenue-growth', year)}
+                                  onBlur={() => handleInputBlur('revenue-growth', year)}
+                                  onKeyDown={(e) => handleKeyDown(e, 'revenue-growth', year)}
+                                  className={`text-center h-8 w-16 ${appliedCells[`revenueGrowth-${year}`] ? 'bg-blue-50 border-blue-200' : ''}`}
+                                  style={inputStyle}
+                                  placeholder="0%"
+                                />
+                              </div>
+                              {showForwardButton[`revenue-growth-${year}`] && index < projectionYears.length - 1 && (
+                                <button
+                                  onClick={() => handleForwardApply('revenueGrowth', year)}
+                                  onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`revenue-growth-${year}`]: true }))}
+                                  className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1"
+                                  title="Apply to all future years"
+                                >
+                                  →
+                                </button>
+                              )}
                             </td>
                           ))}
                         </tr>
@@ -654,21 +806,36 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         <tr id="net-income-growth-input-row" className="border-b border-gray-100 hover:bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Net Inc Growth</td>
                           <td className="py-2 px-4 text-center"></td>
-                          {projectionYears.map(year => (
-                            <td key={year} className="py-2 px-4 text-center w-[120px]">
-                              <Input
-                                id={`net-income-growth-${year}`}
-                                type="text"
-                                value={formatPercentageInput(projectionsState?.projectionInputs?.netIncomeGrowth[year])}
-                                onChange={(e) => {
-                                  const cleanValue = e.target.value.replace('%', '');
-                                  handlePercentageInputChange('netIncomeGrowth', year, cleanValue);
-                                }}
-                                onKeyDown={(e) => handleKeyDown(e, 'net-income-growth', year)}
-                                className="text-center h-8 w-16 mx-auto"
-                                style={inputStyle}
-                                placeholder="0%"
-                              />
+                          {projectionYears.map((year, index) => (
+                            <td key={year} className="py-2 px-4 text-center w-[120px] relative">
+                              <div className="flex justify-center">
+                                <Input
+                                  id={`net-income-growth-${year}`}
+                                  type="text"
+                                  autoComplete="off"
+                                  value={formatPercentageInput(projectionsState?.projectionInputs?.netIncomeGrowth[year])}
+                                  onChange={(e) => {
+                                    const cleanValue = e.target.value.replace('%', '');
+                                    handlePercentageInputChange('netIncomeGrowth', year, cleanValue);
+                                  }}
+                                  onFocus={() => handleInputFocus('net-income-growth', year)}
+                                  onBlur={() => handleInputBlur('net-income-growth', year)}
+                                  onKeyDown={(e) => handleKeyDown(e, 'net-income-growth', year)}
+                                  className={`text-center h-8 w-16 ${appliedCells[`netIncomeGrowth-${year}`] ? 'bg-blue-50 border-blue-200' : ''}`}
+                                  style={inputStyle}
+                                  placeholder="0%"
+                                />
+                              </div>
+                              {showForwardButton[`net-income-growth-${year}`] && index < projectionYears.length - 1 && (
+                                <button
+                                  onClick={() => handleForwardApply('netIncomeGrowth', year)}
+                                  onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`net-income-growth-${year}`]: true }))}
+                                  className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1"
+                                  title="Apply to all future years"
+                                >
+                                  →
+                                </button>
+                              )}
                             </td>
                           ))}
                         </tr>
@@ -694,71 +861,131 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         </tr>
                         <tr id="pe-low-input-row" className="border-b bg-white">
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">PE Low Est</td>
-                          <td className="py-2 px-4 text-center">
-                            <Input
-                              id={`pe-low-${currentYear}`}
-                              type="text"
-                              value={projectionsState?.projectionInputs?.peLow[currentYear] || ''}
-                              onChange={(e) => handleProjectionInputChange('peLow', currentYear.toString(), parseFloat(e.target.value) || 0)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  const nextInput = document.getElementById(`pe-low-${projectionYears[0]}`);
-                                  if (nextInput) nextInput.focus();
-                                }
-                              }}
-                              className="text-center h-8 w-16 mx-auto"
-                              style={inputStyle}
-                              placeholder="0"
-                            />
-                          </td>
-                          {projectionYears.map(year => (
-                            <td key={year} className="py-2 px-4 text-center w-[120px]">
+                          <td className="py-2 px-4 text-center relative">
+                            <div className="flex justify-center">
                               <Input
-                                id={`pe-low-${year}`}
+                                id={`pe-low-${currentYear}`}
                                 type="text"
-                                value={projectionsState?.projectionInputs?.peLow[year] || ''}
-                                onChange={(e) => handleProjectionInputChange('peLow', year, parseFloat(e.target.value) || 0)}
-                                onKeyDown={(e) => handleKeyDown(e, 'pe-low', year)}
-                                className="text-center h-8 w-16 mx-auto"
+                                autoComplete="off"
+                                value={projectionsState?.projectionInputs?.peLow[currentYear] || ''}
+                                onChange={(e) => handleProjectionInputChange('peLow', currentYear.toString(), parseFloat(e.target.value) || 0)}
+                                onFocus={() => handleInputFocus('pe-low', currentYear.toString())}
+                                onBlur={() => handleInputBlur('pe-low', currentYear.toString())}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const nextInput = document.getElementById(`pe-low-${projectionYears[0]}`);
+                                    if (nextInput) nextInput.focus();
+                                  }
+                                }}
+                                className={`text-center h-8 w-16 ${appliedCells[`peLow-${currentYear}`] ? 'bg-blue-50 border-blue-200' : ''}`}
                                 style={inputStyle}
                                 placeholder="0"
                               />
+                            </div>
+                            {showForwardButton[`pe-low-${currentYear}`] && (
+                              <button
+                                onClick={() => handleForwardApply('peLow', currentYear.toString())}
+                                onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`pe-low-${currentYear}`]: true }))}
+                                className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1"
+                                title="Apply to all future years"
+                              >
+                                →
+                              </button>
+                            )}
+                          </td>
+                          {projectionYears.map((year, index) => (
+                            <td key={year} className="py-2 px-4 text-center w-[120px] relative">
+                              <div className="flex justify-center">
+                                <Input
+                                  id={`pe-low-${year}`}
+                                  type="text"
+                                  autoComplete="off"
+                                  value={projectionsState?.projectionInputs?.peLow[year] || ''}
+                                  onChange={(e) => handleProjectionInputChange('peLow', year, parseFloat(e.target.value) || 0)}
+                                  onFocus={() => handleInputFocus('pe-low', year)}
+                                  onBlur={() => handleInputBlur('pe-low', year)}
+                                  onKeyDown={(e) => handleKeyDown(e, 'pe-low', year)}
+                                  className={`text-center h-8 w-16 ${appliedCells[`peLow-${year}`] ? 'bg-blue-50 border-blue-200' : ''}`}
+                                  style={inputStyle}
+                                  placeholder="0"
+                                />
+                              </div>
+                              {showForwardButton[`pe-low-${year}`] && index < projectionYears.length - 1 && (
+                                <button
+                                  onClick={() => handleForwardApply('peLow', year)}
+                                  onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`pe-low-${year}`]: true }))}
+                                  className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1"
+                                  title="Apply to all future years"
+                                >
+                                  →
+                                </button>
+                              )}
                             </td>
                           ))}
                         </tr>
                         <tr id="pe-high-input-row" className="bg-white" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">PE High Est</td>
-                          <td className="py-2 px-4 text-center">
-                            <Input
-                              id={`pe-high-${currentYear}`}
-                              type="text"
-                              value={projectionsState?.projectionInputs?.peHigh[currentYear] || ''}
-                              onChange={(e) => handleProjectionInputChange('peHigh', currentYear.toString(), parseFloat(e.target.value) || 0)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  const nextInput = document.getElementById(`pe-high-${projectionYears[0]}`);
-                                  if (nextInput) nextInput.focus();
-                                }
-                              }}
-                              className="text-center h-8 w-16 mx-auto"
-                              style={inputStyle}
-                              placeholder="0"
-                            />
-                          </td>
-                          {projectionYears.map(year => (
-                            <td key={year} className="py-2 px-4 text-center w-[120px]">
+                          <td className="py-2 px-4 text-center relative">
+                            <div className="flex justify-center">
                               <Input
-                                id={`pe-high-${year}`}
+                                id={`pe-high-${currentYear}`}
                                 type="text"
-                                value={projectionsState?.projectionInputs?.peHigh[year] || ''}
-                                onChange={(e) => handleProjectionInputChange('peHigh', year, parseFloat(e.target.value) || 0)}
-                                onKeyDown={(e) => handleKeyDown(e, 'pe-high', year)}
-                                className="text-center h-8 w-16 mx-auto"
+                                autoComplete="off"
+                                value={projectionsState?.projectionInputs?.peHigh[currentYear] || ''}
+                                onChange={(e) => handleProjectionInputChange('peHigh', currentYear.toString(), parseFloat(e.target.value) || 0)}
+                                onFocus={() => handleInputFocus('pe-high', currentYear.toString())}
+                                onBlur={() => handleInputBlur('pe-high', currentYear.toString())}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const nextInput = document.getElementById(`pe-high-${projectionYears[0]}`);
+                                    if (nextInput) nextInput.focus();
+                                  }
+                                }}
+                                className={`text-center h-8 w-16 ${appliedCells[`peHigh-${currentYear}`] ? 'bg-blue-50 border-blue-200' : ''}`}
                                 style={inputStyle}
                                 placeholder="0"
                               />
+                            </div>
+                            {showForwardButton[`pe-high-${currentYear}`] && (
+                              <button
+                                onClick={() => handleForwardApply('peHigh', currentYear.toString())}
+                                onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`pe-high-${currentYear}`]: true }))}
+                                className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1"
+                                title="Apply to all future years"
+                              >
+                                →
+                              </button>
+                            )}
+                          </td>
+                          {projectionYears.map((year, index) => (
+                            <td key={year} className="py-2 px-4 text-center w-[120px] relative">
+                              <div className="flex justify-center">
+                                <Input
+                                  id={`pe-high-${year}`}
+                                  type="text"
+                                  autoComplete="off"
+                                  value={projectionsState?.projectionInputs?.peHigh[year] || ''}
+                                  onChange={(e) => handleProjectionInputChange('peHigh', year, parseFloat(e.target.value) || 0)}
+                                  onFocus={() => handleInputFocus('pe-high', year)}
+                                  onBlur={() => handleInputBlur('pe-high', year)}
+                                  onKeyDown={(e) => handleKeyDown(e, 'pe-high', year)}
+                                  className={`text-center h-8 w-16 ${appliedCells[`peHigh-${year}`] ? 'bg-blue-50 border-blue-200' : ''}`}
+                                  style={inputStyle}
+                                  placeholder="0"
+                                />
+                              </div>
+                              {showForwardButton[`pe-high-${year}`] && index < projectionYears.length - 1 && (
+                                <button
+                                  onClick={() => handleForwardApply('peHigh', year)}
+                                  onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`pe-high-${year}`]: true }))}
+                                  className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1"
+                                  title="Apply to all future years"
+                                >
+                                  →
+                                </button>
+                              )}
                             </td>
                           ))}
                         </tr>
@@ -804,6 +1031,17 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Reset Projections Button */}
+            <div className="mt-4 flex justify-end">
+              <Button 
+                onClick={handleResetProjections}
+                variant="ghost"
+                className="!bg-transparent !border !border-gray-300 !text-gray-500 px-4 py-2 rounded-md text-sm font-medium hover:!border-gray-400 hover:!text-gray-700 hover:!bg-gray-50 active:!bg-gray-100 focus:!outline-none focus:!ring-0 focus:!border-gray-300 focus-visible:!ring-0 focus-visible:!ring-offset-0"
+              >
+                Reset Projections
+              </Button>
+            </div>
 
           </div>
         </div>
