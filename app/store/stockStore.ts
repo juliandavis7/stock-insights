@@ -160,6 +160,12 @@ interface StockStore {
     stockInfo: { [ticker: string]: { data: StockInfo; timestamp: number } };
     metrics: { [ticker: string]: FinancialMetrics };
     projections: { [ticker: string]: ProjectionBaseData };
+    scenarioProjections: { [ticker: string]: { 
+      base: { projectionInputs: ProjectionInputs; calculatedProjections: CalculatedProjections };
+      bull: { projectionInputs: ProjectionInputs; calculatedProjections: CalculatedProjections };
+      bear: { projectionInputs: ProjectionInputs; calculatedProjections: CalculatedProjections };
+      activeScenario: 'base' | 'bull' | 'bear';
+    }};
     financials: { [ticker: string]: FinancialsData };
     charts: { [ticker: string]: ChartData };
   };
@@ -210,6 +216,19 @@ interface StockStore {
     getCachedStockInfo: (ticker: string) => StockInfo | null;
     getCachedMetrics: (ticker: string) => FinancialMetrics | null;
     getCachedProjections: (ticker: string) => ProjectionBaseData | null;
+    getCachedScenarioProjections: (ticker: string) => { 
+      base: { projectionInputs: ProjectionInputs; calculatedProjections: CalculatedProjections };
+      bull: { projectionInputs: ProjectionInputs; calculatedProjections: CalculatedProjections };
+      bear: { projectionInputs: ProjectionInputs; calculatedProjections: CalculatedProjections };
+      activeScenario: 'base' | 'bull' | 'bear';
+    } | null;
+    setCachedScenarioProjections: (ticker: string, data: { 
+      base: { projectionInputs: ProjectionInputs; calculatedProjections: CalculatedProjections };
+      bull: { projectionInputs: ProjectionInputs; calculatedProjections: CalculatedProjections };
+      bear: { projectionInputs: ProjectionInputs; calculatedProjections: CalculatedProjections };
+      activeScenario: 'base' | 'bull' | 'bear';
+    }) => void;
+    clearScenarioProjectionsCache: (ticker?: string) => void;
     getCachedFinancials: (ticker: string) => FinancialsData | null;
     getCachedCharts: (ticker: string) => ChartData | null;
     
@@ -316,6 +335,7 @@ export const useStockStore = create<StockStore>()(
         stockInfo: {},
         metrics: {},
         projections: {},
+        scenarioProjections: {},
         financials: {},
         charts: {},
       },
@@ -552,6 +572,36 @@ export const useStockStore = create<StockStore>()(
         getCachedProjections: (ticker: string) => {
           const state = get();
           return state.cache.projections[ticker] || null;
+        },
+        
+        getCachedScenarioProjections: (ticker: string) => {
+          const state = get();
+          return state.cache.scenarioProjections[ticker] || null;
+        },
+        
+        setCachedScenarioProjections: (ticker: string, data: { 
+          base: { projectionInputs: ProjectionInputs; calculatedProjections: CalculatedProjections };
+          bull: { projectionInputs: ProjectionInputs; calculatedProjections: CalculatedProjections };
+          bear: { projectionInputs: ProjectionInputs; calculatedProjections: CalculatedProjections };
+          activeScenario: 'base' | 'bull' | 'bear';
+        }) => {
+          set((state) => ({
+            cache: { 
+              ...state.cache, 
+              scenarioProjections: { ...state.cache.scenarioProjections, [ticker]: data }
+            }
+          }), false, 'setCachedScenarioProjections');
+        },
+        
+        clearScenarioProjectionsCache: (ticker?: string) => {
+          set((state) => ({
+            cache: { 
+              ...state.cache, 
+              scenarioProjections: ticker ? 
+                Object.fromEntries(Object.entries(state.cache.scenarioProjections).filter(([key]) => key !== ticker)) :
+                {}
+            }
+          }), false, 'clearScenarioProjectionsCache');
         },
         
         getCachedFinancials: (ticker: string) => {
