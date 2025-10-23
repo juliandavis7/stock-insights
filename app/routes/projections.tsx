@@ -67,7 +67,7 @@ interface CalculatedProjections {
 }
 
 const formatCurrency = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || isNaN(value)) return "$0";
+  if (value === null || value === undefined || isNaN(value) || value === 0) return "$0";
   if (value >= 1e12) {
     return `$${(value / 1e12).toFixed(2)}T`;
   } else if (value >= 1e9) {
@@ -79,12 +79,30 @@ const formatCurrency = (value: number | null | undefined): string => {
 };
 
 const formatPercentage = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || isNaN(value)) return "0%";
+  if (value === null || value === undefined || isNaN(value) || value === 0) return "0%";
   return `${value.toFixed(2)}%`;
 };
 
 const formatMarginPercentage = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value)) return "0%";
+  return `${Math.round(value)}%`;
+};
+
+const formatRoundedCurrency = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value) || value === 0) return "$0";
+  const roundedValue = Math.round(value);
+  if (roundedValue >= 1e12) {
+    return `$${Math.round(roundedValue / 1e12)}T`;
+  } else if (roundedValue >= 1e9) {
+    return `$${Math.round(roundedValue / 1e9)}B`;
+  } else if (roundedValue >= 1e6) {
+    return `$${Math.round(roundedValue / 1e6)}M`;
+  }
+  return `$${roundedValue}`;
+};
+
+const formatRoundedPercentage = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value) || value === 0) return "0%";
   return `${Math.round(value)}%`;
 };
 
@@ -108,24 +126,70 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     WebkitAppearance: 'none' as const,
   };
 
+  // Cursor color-coding styles
+  const cursorStyles = `
+    /* Default cursor state - system default */
+    * {
+      cursor: default;
+    }
+    
+    /* Interactive elements - soft primary accent */
+    button, 
+    input[type="text"], 
+    input[type="number"], 
+    select, 
+    [role="button"],
+    .cursor-pointer {
+      cursor: pointer !important;
+    }
+    
+    /* Hover state - soft primary blue */
+    button:hover,
+    input:hover,
+    select:hover,
+    [role="button"]:hover,
+    .cursor-pointer:hover {
+      cursor: pointer !important;
+    }
+    
+    /* Active/Press state - slightly darker blue */
+    button:active,
+    input:active,
+    select:active,
+    [role="button"]:active,
+    .cursor-pointer:active {
+      cursor: pointer !important;
+    }
+    
+    /* Disabled state - desaturated gray */
+    button:disabled,
+    input:disabled,
+    select:disabled,
+    [aria-disabled="true"],
+    .cursor-not-allowed {
+      cursor: not-allowed !important;
+    }
+  `;
+
   // Handle percentage input formatting
   const handlePercentageInputChange = (metric: 'revenueGrowth' | 'netIncomeGrowth', year: string, value: string) => {
     const numValue = parseFloat(value) || 0;
+    const activeData = getActiveScenarioData();
     
-    if (!projectionsState?.projectionInputs) return;
+    if (!activeData?.projectionInputs) return;
     
     const updated = {
-      ...projectionsState.projectionInputs,
+      ...activeData.projectionInputs,
       [metric]: {
-        ...projectionsState.projectionInputs[metric],
+        ...activeData.projectionInputs[metric],
         [year]: numValue
       }
     };
     
-    actions.setProjectionsInputs(updated);
+    updateScenarioData({ projectionInputs: updated });
     
     // Trigger recalculation after state update
-    setTimeout(() => recalculateProjections(updated), 0);
+    setTimeout(() => recalculateProjectionsForScenario(updated), 0);
   };
 
   // Handle Enter key to move to next input
@@ -221,6 +285,71 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
   const [showForwardButton, setShowForwardButton] = useState<{[key: string]: boolean}>({});
   const [appliedCells, setAppliedCells] = useState<{[key: string]: boolean}>({});
+  
+  // Scenario management
+  type ScenarioType = 'base' | 'bull' | 'bear';
+  const [activeScenario, setActiveScenario] = useState<ScenarioType>('base');
+  const [scenarioData, setScenarioData] = useState<{
+    [K in ScenarioType]: {
+      projectionInputs: ProjectionInputs;
+      calculatedProjections: CalculatedProjections;
+    }
+  }>({
+    base: {
+      projectionInputs: {
+        revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        peLow: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        peHigh: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 }
+      },
+      calculatedProjections: {
+        revenue: {},
+        netIncome: {},
+        netIncomeMargin: {},
+        eps: {},
+        sharePriceLow: {},
+        sharePriceHigh: {},
+        cagrLow: {},
+        cagrHigh: {}
+      }
+    },
+    bull: {
+      projectionInputs: {
+        revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        peLow: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        peHigh: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 }
+      },
+      calculatedProjections: {
+        revenue: {},
+        netIncome: {},
+        netIncomeMargin: {},
+        eps: {},
+        sharePriceLow: {},
+        sharePriceHigh: {},
+        cagrLow: {},
+        cagrHigh: {}
+      }
+    },
+    bear: {
+      projectionInputs: {
+        revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        peLow: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+        peHigh: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 }
+      },
+      calculatedProjections: {
+        revenue: {},
+        netIncome: {},
+        netIncomeMargin: {},
+        eps: {},
+        sharePriceLow: {},
+        sharePriceHigh: {},
+        cagrLow: {},
+        cagrHigh: {}
+      }
+    }
+  });
 
   // Sample data for initial display
   const sampleStockInfo: StockInfo = {
@@ -244,20 +373,21 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   };
 
   const handleProjectionInputChange = (metric: keyof ProjectionInputs, year: string, value: number) => {
-    if (!projectionsState?.projectionInputs) return;
+    const activeData = getActiveScenarioData();
+    if (!activeData?.projectionInputs) return;
     
     const updated = {
-      ...projectionsState.projectionInputs,
+      ...activeData.projectionInputs,
       [metric]: {
-        ...projectionsState.projectionInputs[metric],
+        ...activeData.projectionInputs[metric],
         [year]: value
       }
     };
     
-    actions.setProjectionsInputs(updated);
+    updateScenarioData({ projectionInputs: updated });
     
     // Trigger recalculation after state update
-    setTimeout(() => recalculateProjections(updated), 0);
+    setTimeout(() => recalculateProjectionsForScenario(updated), 0);
   };
 
   const performSearch = async () => {
@@ -334,18 +464,35 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     await performSearch();
   };
 
+  // Scenario management functions
+  const handleScenarioChange = (scenario: ScenarioType) => {
+    setActiveScenario(scenario);
+  };
+
+  const getActiveScenarioData = () => {
+    return scenarioData[activeScenario];
+  };
+
+  const updateScenarioData = (updates: Partial<typeof scenarioData.base>) => {
+    setScenarioData(prev => ({
+      ...prev,
+      [activeScenario]: {
+        ...prev[activeScenario],
+        ...updates
+      }
+    }));
+  };
+
   const handleResetProjections = () => {
-    // Clear all user inputs
+    // Clear all user inputs for active scenario only
     const clearedInputs = {
       revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
       netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
       peLow: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
       peHigh: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 }
     };
-    actions.setProjectionsInputs(clearedInputs);
     
-    // Clear calculated projections
-    actions.setCalculatedProjections({
+    const clearedCalculations = {
       revenue: {},
       netIncome: {},
       netIncomeMargin: {},
@@ -354,13 +501,19 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       sharePriceHigh: {},
       cagrLow: {},
       cagrHigh: {}
+    };
+
+    updateScenarioData({
+      projectionInputs: clearedInputs,
+      calculatedProjections: clearedCalculations
     });
   };
 
   const handleForwardApply = (metric: keyof ProjectionInputs, fromYear: string) => {
-    if (!projectionsState?.projectionInputs) return;
+    const activeData = getActiveScenarioData();
+    if (!activeData?.projectionInputs) return;
     
-    const currentValue = projectionsState.projectionInputs[metric][fromYear] || 0;
+    const currentValue = activeData.projectionInputs[metric][fromYear] || 0;
     const fromIndex = projectionYears.indexOf(fromYear);
     const isCurrentYear = fromYear === currentYear.toString();
     const isPeMetric = metric === 'peLow' || metric === 'peHigh';
@@ -384,14 +537,14 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     
     // Create updated inputs with the value applied to all future years
     const updated = {
-      ...projectionsState.projectionInputs,
+      ...activeData.projectionInputs,
       [metric]: {
-        ...projectionsState.projectionInputs[metric],
+        ...activeData.projectionInputs[metric],
         ...allYears.reduce((acc, year) => ({ ...acc, [year]: currentValue }), {})
       }
     };
     
-    actions.setProjectionsInputs(updated);
+    updateScenarioData({ projectionInputs: updated });
     
     // Show visual feedback for applied cells
     const appliedKeys = allYears.map(year => `${metric}-${year}`);
@@ -402,7 +555,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     setTimeout(() => setAppliedCells({}), 1000);
     
     // Trigger recalculation
-    setTimeout(() => recalculateProjections(updated), 0);
+    setTimeout(() => recalculateProjectionsForScenario(updated), 0);
     
     // Move cursor to next row's input field
     setTimeout(() => {
@@ -469,9 +622,8 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   };
 
 
-  // Recalculate all projections based on current inputs
-  const recalculateProjections = (inputs: ProjectionInputs) => {
-    
+  // Recalculate projections for active scenario
+  const recalculateProjectionsForScenario = (inputs: ProjectionInputs) => {
     if (!projectionsState?.baseData?.revenue || !projectionsState?.baseData?.net_income) {
       return;
     }
@@ -521,24 +673,17 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
 
       // 4. Calculate EPS (net income / shares outstanding)
       // Get shares outstanding from stockInfo - this should be the actual shares for the current ticker
-      const currentTicker = projectionsState?.baseData?.ticker;
-      const stockInfoTicker = stockInfo?.data?.ticker;
       const sharesOutstanding = stockInfo?.data?.shares_outstanding;
       let projectedEPS = 0;
       
-      // Check if stockInfo is for the correct ticker
-      if (!sharesOutstanding || stockInfoTicker !== currentTicker) {
-        if (stockInfoTicker !== currentTicker) {
-          console.error(`Ticker mismatch: projections for ${currentTicker} but stockInfo for ${stockInfoTicker}`);
-        } else {
-          console.error(`No shares outstanding data available for ${currentTicker}. StockInfo state:`, {
-            hasData: !!stockInfo?.data,
-            ticker: stockInfo?.data?.ticker,
-            sharesOutstanding: stockInfo?.data?.shares_outstanding,
-            loading: stockInfo?.loading,
-            error: stockInfo?.error
-          });
-        }
+      if (!sharesOutstanding) {
+        console.error(`No shares outstanding data available for ${projectionsState?.baseData?.ticker}. StockInfo state:`, {
+          hasData: !!stockInfo?.data,
+          ticker: stockInfo?.data?.ticker,
+          sharesOutstanding: stockInfo?.data?.shares_outstanding,
+          loading: stockInfo?.loading,
+          error: stockInfo?.error
+        });
         // Use a fallback based on the ticker - this is a temporary fix
         const fallbackShares = projectionsState?.baseData?.ticker === 'GOOG' ? 5430000000 : 952000000;
         projectedEPS = calculateEPS(projectedNetIncome, fallbackShares);
@@ -575,7 +720,12 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       previousNetIncome = projectedNetIncome;
     });
 
-    actions.setCalculatedProjections(newProjections);
+    updateScenarioData({ calculatedProjections: newProjections });
+  };
+
+  // Legacy function for compatibility (now just calls scenario version)
+  const recalculateProjections = (inputs: ProjectionInputs) => {
+    recalculateProjectionsForScenario(inputs);
   };
 
   // Recalculate when base data changes
@@ -586,11 +736,11 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       const stockInfoTicker = stockInfo?.data?.ticker;
       
       if (stockInfoTicker === currentTicker || stockInfo.loading) {
-        recalculateProjections(projectionsState.projectionInputs);
+      recalculateProjections(projectionsState.projectionInputs);
       } else if (!stockInfo.loading && !stockInfoTicker) {
         // If stockInfo is not loading and we don't have data, try to fetch it
         actions.fetchStockInfo(currentTicker).catch(console.error);
-      }
+    }
     }
   }, [projectionsState?.baseData, projectionsState?.projectionInputs, stockInfo]);
 
@@ -611,7 +761,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
           const [projectionsPromise, stockInfoPromise] = await Promise.allSettled([
             // Check cache first for projections, then fetch if needed
             (async () => {
-              const cachedData = actions.getCachedProjections(tickerToLoad);
+          const cachedData = actions.getCachedProjections(tickerToLoad);
               if (cachedData) return cachedData;
               return await actions.fetchProjections(tickerToLoad);
             })(),
@@ -677,6 +827,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
 
   return (
     <>
+      <style dangerouslySetInnerHTML={{ __html: cursorStyles }} />
       <Navbar loaderData={loaderData} />
       <main className="min-h-screen pt-20 bg-background">
         <div className="container mx-auto px-6 py-8">
@@ -695,6 +846,81 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
               formatCurrency={formatCurrency}
               formatNumber={formatNumber}
             />
+
+            {/* Scenario Tabs */}
+            <div className="mt-8 mb-6">
+              {/* Desktop Tabs */}
+              <div className="hidden md:block">
+                <div className="border-b border-gray-200">
+                  <div className="flex justify-between items-end">
+                    <nav className="-mb-px flex space-x-2">
+                      {[
+                        { key: 'bear', label: 'Bear Case' },
+                        { key: 'base', label: 'Base Case' },
+                        { key: 'bull', label: 'Bull Case' }
+                      ].map((scenario) => (
+                        <button
+                          key={scenario.key}
+                          onClick={() => handleScenarioChange(scenario.key as ScenarioType)}
+                          className={`px-6 py-3 text-sm font-medium rounded-t-lg border-b-3 transition-colors cursor-pointer hover:cursor-pointer active:cursor-pointer ${
+                            activeScenario === scenario.key
+                              ? 'text-white font-semibold border-transparent'
+                              : 'bg-transparent text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50 hover:cursor-pointer'
+                          }`}
+                          style={activeScenario === scenario.key ? (
+                            scenario.key === 'base' 
+                              ? { backgroundColor: '#1976D2', borderBottomColor: 'transparent' } // Neutral Blue
+                              : scenario.key === 'bull'
+                              ? { backgroundColor: '#388E3C', borderBottomColor: 'transparent' } // Green
+                              : { backgroundColor: '#D32F2F', borderBottomColor: 'transparent' } // Red
+                          ) : {}}
+                        >
+                          {scenario.label}
+                        </button>
+                      ))}
+                    </nav>
+                    
+                    {/* Reset Projections Button */}
+                    <div className="pb-3">
+                      <Button 
+                        onClick={handleResetProjections}
+                        variant="ghost"
+                        className="cursor-pointer !bg-transparent !border !border-gray-300 !text-gray-500 px-4 py-2 rounded-md text-sm font-medium hover:!border-gray-400 hover:!text-gray-700 hover:!bg-gray-50 hover:cursor-pointer active:!bg-gray-100 active:cursor-pointer focus:!outline-none focus:!ring-0 focus:!border-gray-300 focus-visible:!ring-0 focus-visible:!ring-offset-0"
+                      >
+                        Reset Projections
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile Dropdown */}
+              <div className="md:hidden">
+                <div className="flex justify-between items-end mb-2">
+                  <label htmlFor="scenario-select" className="block text-sm font-medium text-gray-700">
+                    Scenario
+                  </label>
+                  <Button 
+                    onClick={handleResetProjections}
+                    variant="ghost"
+                    size="sm"
+                    className="cursor-pointer !bg-transparent !border !border-gray-300 !text-gray-500 px-3 py-1 rounded-md text-xs font-medium hover:!border-gray-400 hover:!text-gray-700 hover:!bg-gray-50 hover:cursor-pointer active:!bg-gray-100 active:cursor-pointer focus:!outline-none focus:!ring-0 focus:!border-gray-300 focus-visible:!ring-0 focus-visible:!ring-offset-0"
+                  >
+                    Reset
+                  </Button>
+                </div>
+                <select
+                  id="scenario-select"
+                  value={activeScenario}
+                  onChange={(e) => handleScenarioChange(e.target.value as ScenarioType)}
+                  className="cursor-pointer block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 hover:cursor-pointer"
+                >
+                  <option value="bear">Bear Case</option>
+                  <option value="base">Base Case</option>
+                  <option value="bull">Bull Case</option>
+                </select>
+              </div>
+            </div>
 
             {/* Error State */}
             {(projectionsState?.error || stockInfo.error) && (
@@ -752,10 +978,10 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         <tr id="revenue-data-row" className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">Revenue</td>
                           <td id={`revenue-${currentYear}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState.baseData?.revenue)}</td>
-                          <td id={`revenue-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[0]])}</td>
-                          <td id={`revenue-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[1]])}</td>
-                          <td id={`revenue-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[2]])}</td>
-                          <td id={`revenue-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.revenue[projectionYears[3]])}</td>
+                          <td id={`revenue-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.revenue[projectionYears[0]])}</td>
+                          <td id={`revenue-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.revenue[projectionYears[1]])}</td>
+                          <td id={`revenue-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.revenue[projectionYears[2]])}</td>
+                          <td id={`revenue-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.revenue[projectionYears[3]])}</td>
                         </tr>
                         <tr id="revenue-growth-input-row" className="border-b border-gray-100 hover:bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">Revenue Growth</td>
@@ -763,22 +989,22 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                           {projectionYears.map((year, index) => (
                             <td key={year} className="py-2 px-4 text-center w-[120px] relative">
                               <div className="flex justify-center">
-                                <Input
-                                  id={`revenue-growth-${year}`}
-                                  type="text"
+                              <Input
+                                id={`revenue-growth-${year}`}
+                                type="text"
                                   autoComplete="off"
-                                  value={formatPercentageInput(projectionsState?.projectionInputs?.revenueGrowth[year])}
-                                  onChange={(e) => {
-                                    const cleanValue = e.target.value.replace('%', '');
-                                    handlePercentageInputChange('revenueGrowth', year, cleanValue);
-                                  }}
+                                  value={formatPercentageInput(getActiveScenarioData()?.projectionInputs?.revenueGrowth[year])}
+                                onChange={(e) => {
+                                  const cleanValue = e.target.value.replace('%', '');
+                                  handlePercentageInputChange('revenueGrowth', year, cleanValue);
+                                }}
                                   onFocus={() => handleInputFocus('revenue-growth', year)}
                                   onBlur={() => handleInputBlur('revenue-growth', year)}
-                                  onKeyDown={(e) => handleKeyDown(e, 'revenue-growth', year)}
+                                onKeyDown={(e) => handleKeyDown(e, 'revenue-growth', year)}
                                   className={`text-center h-8 w-16 ${appliedCells[`revenueGrowth-${year}`] ? 'bg-blue-50 border-blue-200' : ''}`}
-                                  style={inputStyle}
-                                  placeholder="0%"
-                                />
+                                style={inputStyle}
+                                placeholder="0%"
+                              />
                               </div>
                               {showForwardButton[`revenue-growth-${year}`] && index < projectionYears.length - 1 && (
                                 <button
@@ -798,10 +1024,10 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         <tr id="net-income-data-row" className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">Net Income</td>
                           <td id={`net-income-${currentYear}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState.baseData?.net_income)}</td>
-                          <td id={`net-income-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[0]])}</td>
-                          <td id={`net-income-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[1]])}</td>
-                          <td id={`net-income-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[2]])}</td>
-                          <td id={`net-income-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState?.calculatedProjections?.netIncome[projectionYears[3]])}</td>
+                          <td id={`net-income-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.netIncome[projectionYears[0]])}</td>
+                          <td id={`net-income-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.netIncome[projectionYears[1]])}</td>
+                          <td id={`net-income-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.netIncome[projectionYears[2]])}</td>
+                          <td id={`net-income-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.netIncome[projectionYears[3]])}</td>
                         </tr>
                         <tr id="net-income-growth-input-row" className="border-b border-gray-100 hover:bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Net Inc Growth</td>
@@ -809,22 +1035,22 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                           {projectionYears.map((year, index) => (
                             <td key={year} className="py-2 px-4 text-center w-[120px] relative">
                               <div className="flex justify-center">
-                                <Input
-                                  id={`net-income-growth-${year}`}
-                                  type="text"
+                              <Input
+                                id={`net-income-growth-${year}`}
+                                type="text"
                                   autoComplete="off"
-                                  value={formatPercentageInput(projectionsState?.projectionInputs?.netIncomeGrowth[year])}
-                                  onChange={(e) => {
-                                    const cleanValue = e.target.value.replace('%', '');
-                                    handlePercentageInputChange('netIncomeGrowth', year, cleanValue);
-                                  }}
+                                  value={formatPercentageInput(getActiveScenarioData()?.projectionInputs?.netIncomeGrowth[year])}
+                                onChange={(e) => {
+                                  const cleanValue = e.target.value.replace('%', '');
+                                  handlePercentageInputChange('netIncomeGrowth', year, cleanValue);
+                                }}
                                   onFocus={() => handleInputFocus('net-income-growth', year)}
                                   onBlur={() => handleInputBlur('net-income-growth', year)}
-                                  onKeyDown={(e) => handleKeyDown(e, 'net-income-growth', year)}
+                                onKeyDown={(e) => handleKeyDown(e, 'net-income-growth', year)}
                                   className={`text-center h-8 w-16 ${appliedCells[`netIncomeGrowth-${year}`] ? 'bg-blue-50 border-blue-200' : ''}`}
-                                  style={inputStyle}
-                                  placeholder="0%"
-                                />
+                                style={inputStyle}
+                                placeholder="0%"
+                              />
                               </div>
                               {showForwardButton[`net-income-growth-${year}`] && index < projectionYears.length - 1 && (
                                 <button
@@ -844,44 +1070,44 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         <tr id="net-income-margin-row" className="bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Net Inc Margins</td>
                           <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(projectionsState.baseData?.net_income_margin)}</td>
-                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[0]])}</td>
-                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[1]])}</td>
-                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[2]])}</td>
-                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[3]])}</td>
+                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(getActiveScenarioData()?.calculatedProjections?.netIncomeMargin[projectionYears[0]])}</td>
+                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(getActiveScenarioData()?.calculatedProjections?.netIncomeMargin[projectionYears[1]])}</td>
+                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(getActiveScenarioData()?.calculatedProjections?.netIncomeMargin[projectionYears[2]])}</td>
+                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(getActiveScenarioData()?.calculatedProjections?.netIncomeMargin[projectionYears[3]])}</td>
                         </tr>
 
                         {/* EPS Section */}
                         <tr id="eps-data-row" className="border-b bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">EPS</td>
                           <td id={`eps-${currentYear}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState.baseData?.eps)}</td>
-                          <td id={`eps-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[0]])}</td>
-                          <td id={`eps-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[1]])}</td>
-                          <td id={`eps-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[2]])}</td>
-                          <td id={`eps-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.eps[projectionYears[3]])}</td>
+                          <td id={`eps-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.eps[projectionYears[0]])}</td>
+                          <td id={`eps-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.eps[projectionYears[1]])}</td>
+                          <td id={`eps-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.eps[projectionYears[2]])}</td>
+                          <td id={`eps-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.eps[projectionYears[3]])}</td>
                         </tr>
                         <tr id="pe-low-input-row" className="border-b bg-white">
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">PE Low Est</td>
                           <td className="py-2 px-4 text-center relative">
                             <div className="flex justify-center">
-                              <Input
-                                id={`pe-low-${currentYear}`}
-                                type="text"
+                            <Input
+                              id={`pe-low-${currentYear}`}
+                              type="text"
                                 autoComplete="off"
-                                value={projectionsState?.projectionInputs?.peLow[currentYear] || ''}
-                                onChange={(e) => handleProjectionInputChange('peLow', currentYear.toString(), parseFloat(e.target.value) || 0)}
+                                value={getActiveScenarioData()?.projectionInputs?.peLow[currentYear] || ''}
+                              onChange={(e) => handleProjectionInputChange('peLow', currentYear.toString(), parseFloat(e.target.value) || 0)}
                                 onFocus={() => handleInputFocus('pe-low', currentYear.toString())}
                                 onBlur={() => handleInputBlur('pe-low', currentYear.toString())}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    const nextInput = document.getElementById(`pe-low-${projectionYears[0]}`);
-                                    if (nextInput) nextInput.focus();
-                                  }
-                                }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const nextInput = document.getElementById(`pe-low-${projectionYears[0]}`);
+                                  if (nextInput) nextInput.focus();
+                                }
+                              }}
                                 className={`text-center h-8 w-16 ${appliedCells[`peLow-${currentYear}`] ? 'bg-blue-50 border-blue-200' : ''}`}
-                                style={inputStyle}
-                                placeholder="0"
-                              />
+                              style={inputStyle}
+                              placeholder="0"
+                            />
                             </div>
                             {showForwardButton[`pe-low-${currentYear}`] && (
                               <button
@@ -897,19 +1123,19 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                           {projectionYears.map((year, index) => (
                             <td key={year} className="py-2 px-4 text-center w-[120px] relative">
                               <div className="flex justify-center">
-                                <Input
-                                  id={`pe-low-${year}`}
-                                  type="text"
+                              <Input
+                                id={`pe-low-${year}`}
+                                type="text"
                                   autoComplete="off"
-                                  value={projectionsState?.projectionInputs?.peLow[year] || ''}
-                                  onChange={(e) => handleProjectionInputChange('peLow', year, parseFloat(e.target.value) || 0)}
+                                  value={getActiveScenarioData()?.projectionInputs?.peLow[year] || ''}
+                                onChange={(e) => handleProjectionInputChange('peLow', year, parseFloat(e.target.value) || 0)}
                                   onFocus={() => handleInputFocus('pe-low', year)}
                                   onBlur={() => handleInputBlur('pe-low', year)}
-                                  onKeyDown={(e) => handleKeyDown(e, 'pe-low', year)}
+                                onKeyDown={(e) => handleKeyDown(e, 'pe-low', year)}
                                   className={`text-center h-8 w-16 ${appliedCells[`peLow-${year}`] ? 'bg-blue-50 border-blue-200' : ''}`}
-                                  style={inputStyle}
-                                  placeholder="0"
-                                />
+                                style={inputStyle}
+                                placeholder="0"
+                              />
                               </div>
                               {showForwardButton[`pe-low-${year}`] && index < projectionYears.length - 1 && (
                                 <button
@@ -928,25 +1154,25 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">PE High Est</td>
                           <td className="py-2 px-4 text-center relative">
                             <div className="flex justify-center">
-                              <Input
-                                id={`pe-high-${currentYear}`}
-                                type="text"
+                            <Input
+                              id={`pe-high-${currentYear}`}
+                              type="text"
                                 autoComplete="off"
-                                value={projectionsState?.projectionInputs?.peHigh[currentYear] || ''}
-                                onChange={(e) => handleProjectionInputChange('peHigh', currentYear.toString(), parseFloat(e.target.value) || 0)}
+                                value={getActiveScenarioData()?.projectionInputs?.peHigh[currentYear] || ''}
+                              onChange={(e) => handleProjectionInputChange('peHigh', currentYear.toString(), parseFloat(e.target.value) || 0)}
                                 onFocus={() => handleInputFocus('pe-high', currentYear.toString())}
                                 onBlur={() => handleInputBlur('pe-high', currentYear.toString())}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    const nextInput = document.getElementById(`pe-high-${projectionYears[0]}`);
-                                    if (nextInput) nextInput.focus();
-                                  }
-                                }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const nextInput = document.getElementById(`pe-high-${projectionYears[0]}`);
+                                  if (nextInput) nextInput.focus();
+                                }
+                              }}
                                 className={`text-center h-8 w-16 ${appliedCells[`peHigh-${currentYear}`] ? 'bg-blue-50 border-blue-200' : ''}`}
-                                style={inputStyle}
-                                placeholder="0"
-                              />
+                              style={inputStyle}
+                              placeholder="0"
+                            />
                             </div>
                             {showForwardButton[`pe-high-${currentYear}`] && (
                               <button
@@ -962,19 +1188,19 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                           {projectionYears.map((year, index) => (
                             <td key={year} className="py-2 px-4 text-center w-[120px] relative">
                               <div className="flex justify-center">
-                                <Input
-                                  id={`pe-high-${year}`}
-                                  type="text"
+                              <Input
+                                id={`pe-high-${year}`}
+                                type="text"
                                   autoComplete="off"
-                                  value={projectionsState?.projectionInputs?.peHigh[year] || ''}
-                                  onChange={(e) => handleProjectionInputChange('peHigh', year, parseFloat(e.target.value) || 0)}
+                                  value={getActiveScenarioData()?.projectionInputs?.peHigh[year] || ''}
+                                onChange={(e) => handleProjectionInputChange('peHigh', year, parseFloat(e.target.value) || 0)}
                                   onFocus={() => handleInputFocus('pe-high', year)}
                                   onBlur={() => handleInputBlur('pe-high', year)}
-                                  onKeyDown={(e) => handleKeyDown(e, 'pe-high', year)}
+                                onKeyDown={(e) => handleKeyDown(e, 'pe-high', year)}
                                   className={`text-center h-8 w-16 ${appliedCells[`peHigh-${year}`] ? 'bg-blue-50 border-blue-200' : ''}`}
-                                  style={inputStyle}
-                                  placeholder="0"
-                                />
+                                style={inputStyle}
+                                placeholder="0"
+                              />
                               </div>
                               {showForwardButton[`pe-high-${year}`] && index < projectionYears.length - 1 && (
                                 <button
@@ -993,19 +1219,19 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         {/* Share Price Section */}
                         <tr id="share-price-low-data-row" className="border-b bg-gray-50">
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Share Price Low</td>
-                          <td id={`share-price-low-${currentYear}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[currentYear])}</td>
-                          <td id={`share-price-low-${projectionYears[0]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[0]])}</td>
-                          <td id={`share-price-low-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[1]])}</td>
-                          <td id={`share-price-low-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[2]])}</td>
-                          <td id={`share-price-low-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceLow[projectionYears[3]])}</td>
+                          <td id={`share-price-low-${currentYear}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[currentYear])}</td>
+                          <td id={`share-price-low-${projectionYears[0]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[projectionYears[0]])}</td>
+                          <td id={`share-price-low-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[projectionYears[1]])}</td>
+                          <td id={`share-price-low-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[projectionYears[2]])}</td>
+                          <td id={`share-price-low-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[projectionYears[3]])}</td>
                         </tr>
                         <tr id="share-price-high-data-row" className="bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Share Price High</td>
-                          <td id={`share-price-high-${currentYear}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[currentYear])}</td>
-                          <td id={`share-price-high-${projectionYears[0]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[0]])}</td>
-                          <td id={`share-price-high-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[1]])}</td>
-                          <td id={`share-price-high-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[2]])}</td>
-                          <td id={`share-price-high-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatCurrency(projectionsState?.calculatedProjections?.sharePriceHigh[projectionYears[3]])}</td>
+                          <td id={`share-price-high-${currentYear}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[currentYear])}</td>
+                          <td id={`share-price-high-${projectionYears[0]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[projectionYears[0]])}</td>
+                          <td id={`share-price-high-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[projectionYears[1]])}</td>
+                          <td id={`share-price-high-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[projectionYears[2]])}</td>
+                          <td id={`share-price-high-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[projectionYears[3]])}</td>
                         </tr>
 
                         {/* CAGR Section */}
@@ -1013,17 +1239,17 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">CAGR Low</td>
                           <td id={`cagr-low-${currentYear}`} className="py-2 px-4 text-center"></td>
                           <td id={`cagr-low-${projectionYears[0]}`} className="py-2 px-4 text-center"></td>
-                          <td id={`cagr-low-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.cagrLow[projectionYears[1]])}</td>
-                          <td id={`cagr-low-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.cagrLow[projectionYears[2]])}</td>
-                          <td id={`cagr-low-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.cagrLow[projectionYears[3]])}</td>
+                          <td id={`cagr-low-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrLow[projectionYears[1]])}</td>
+                          <td id={`cagr-low-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrLow[projectionYears[2]])}</td>
+                          <td id={`cagr-low-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrLow[projectionYears[3]])}</td>
                         </tr>
                         <tr id="cagr-high-data-row" className="bg-gray-50">
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">CAGR High</td>
                           <td id={`cagr-high-${currentYear}`} className="py-2 px-4 text-center"></td>
                           <td id={`cagr-high-${projectionYears[0]}`} className="py-2 px-4 text-center"></td>
-                          <td id={`cagr-high-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.cagrHigh[projectionYears[1]])}</td>
-                          <td id={`cagr-high-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.cagrHigh[projectionYears[2]])}</td>
-                          <td id={`cagr-high-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.cagrHigh[projectionYears[3]])}</td>
+                          <td id={`cagr-high-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrHigh[projectionYears[1]])}</td>
+                          <td id={`cagr-high-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrHigh[projectionYears[2]])}</td>
+                          <td id={`cagr-high-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrHigh[projectionYears[3]])}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -1032,16 +1258,6 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
               </CardContent>
             </Card>
 
-            {/* Reset Projections Button */}
-            <div className="mt-4 flex justify-end">
-              <Button 
-                onClick={handleResetProjections}
-                variant="ghost"
-                className="!bg-transparent !border !border-gray-300 !text-gray-500 px-4 py-2 rounded-md text-sm font-medium hover:!border-gray-400 hover:!text-gray-700 hover:!bg-gray-50 active:!bg-gray-100 focus:!outline-none focus:!ring-0 focus:!border-gray-300 focus-visible:!ring-0 focus-visible:!ring-offset-0"
-              >
-                Reset Projections
-              </Button>
-            </div>
 
           </div>
         </div>
