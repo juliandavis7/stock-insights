@@ -428,17 +428,18 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
         actions.setStockInfoError(stockInfoPromise.reason instanceof Error ? stockInfoPromise.reason.message : "Error fetching stock info");
       }
       
-      // Clear all user inputs when searching for a new ticker
+      // Clear scenario projections cache for all tickers when searching new ticker
+      actions.clearScenarioProjectionsCache();
+      
+      // Reset scenario data to initial state
       const clearedInputs = {
         revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
         netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
         peLow: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
         peHigh: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 }
       };
-      actions.setProjectionsInputs(clearedInputs);
       
-      // Clear calculated projections
-      actions.setCalculatedProjections({
+      const clearedCalculations = {
         revenue: {},
         netIncome: {},
         netIncomeMargin: {},
@@ -447,7 +448,18 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
         sharePriceHigh: {},
         cagrLow: {},
         cagrHigh: {}
+      };
+
+      setScenarioData({
+        base: { projectionInputs: clearedInputs, calculatedProjections: clearedCalculations },
+        bull: { projectionInputs: clearedInputs, calculatedProjections: clearedCalculations },
+        bear: { projectionInputs: clearedInputs, calculatedProjections: clearedCalculations }
       });
+      setActiveScenario('base');
+      
+      // Also clear the global projections state for backward compatibility
+      actions.setProjectionsInputs(clearedInputs);
+      actions.setCalculatedProjections(clearedCalculations);
       
     } catch (err) {
       console.error('Unexpected error:', err);
@@ -467,6 +479,14 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   // Scenario management functions
   const handleScenarioChange = (scenario: ScenarioType) => {
     setActiveScenario(scenario);
+    
+    // Save active scenario to cache
+    if (stockSymbol && projectionsState?.baseData?.ticker) {
+      actions.setCachedScenarioProjections(stockSymbol, {
+        ...scenarioData,
+        activeScenario: scenario
+      });
+    }
   };
 
   const getActiveScenarioData = () => {
@@ -474,13 +494,25 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   };
 
   const updateScenarioData = (updates: Partial<typeof scenarioData.base>) => {
-    setScenarioData(prev => ({
-      ...prev,
-      [activeScenario]: {
-        ...prev[activeScenario],
-        ...updates
+    setScenarioData(prev => {
+      const newScenarioData = {
+        ...prev,
+        [activeScenario]: {
+          ...prev[activeScenario],
+          ...updates
+        }
+      };
+      
+      // Save to cache whenever scenario data changes
+      if (stockSymbol && projectionsState?.baseData?.ticker) {
+        actions.setCachedScenarioProjections(stockSymbol, {
+          ...newScenarioData,
+          activeScenario
+        });
       }
-    }));
+      
+      return newScenarioData;
+    });
   };
 
   const handleResetProjections = () => {
@@ -824,6 +856,22 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       setStockSymbol(globalTicker.currentTicker);
     }
   }, [globalTicker.currentTicker]);
+
+  // Restore cached scenario projections when component loads or ticker changes
+  useEffect(() => {
+    if (stockSymbol && projectionsState?.baseData?.ticker === stockSymbol) {
+      const cachedScenarioData = actions.getCachedScenarioProjections(stockSymbol);
+      if (cachedScenarioData) {
+        console.log(`Restoring cached scenario projections for ${stockSymbol}`);
+        setScenarioData({
+          base: cachedScenarioData.base,
+          bull: cachedScenarioData.bull,
+          bear: cachedScenarioData.bear
+        });
+        setActiveScenario(cachedScenarioData.activeScenario);
+      }
+    }
+  }, [stockSymbol, projectionsState?.baseData?.ticker, actions]);
 
   return (
     <>
