@@ -233,11 +233,11 @@ interface StockStore {
     getCachedCharts: (ticker: string) => ChartData | null;
     
     // API actions
-    fetchStockInfo: (ticker: string) => Promise<StockInfo>;
-    fetchMetrics: (ticker: string) => Promise<FinancialMetrics>;
-    fetchProjections: (ticker: string) => Promise<ProjectionBaseData>;
-    fetchFinancials: (ticker: string) => Promise<FinancialsData>;
-    fetchCharts: (ticker: string, mode?: string) => Promise<ChartData>;
+    fetchStockInfo: (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<StockInfo>;
+    fetchMetrics: (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<FinancialMetrics>;
+    fetchProjections: (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<ProjectionBaseData>;
+    fetchFinancials: (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<FinancialsData>;
+    fetchCharts: (ticker: string, mode?: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<ChartData>;
   };
 }
 
