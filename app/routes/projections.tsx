@@ -6,6 +6,9 @@ import { Button } from "~/components/ui/button";
 import { Navbar } from "~/components/homepage/navbar";
 import { StockSearchHeader } from "~/components/stock-search-header";
 import { useProjectionsState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
+import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
+import { getAuth } from "@clerk/react-router/ssr.server";
+import { redirect } from "react-router";
 import type { Route } from "./+types/projections";
 
 export function meta({}: Route.MetaArgs) {
@@ -15,10 +18,18 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
-export async function loader() {
+export async function loader(args: Route.LoaderArgs) {
+  const { userId } = await getAuth(args);
+  
+  // Redirect to sign-in if not authenticated
+  if (!userId) {
+    throw redirect("/sign-in");
+  }
+
   return {
-    isSignedIn: false,
-    hasActiveSubscription: false,
+    isSignedIn: true,
+    hasActiveSubscription: true, // You can add subscription check logic here
+    userId
   };
 }
 
@@ -282,6 +293,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   const globalTicker = useGlobalTicker();
   const stockInfo = useStockInfo();
   const actions = useStockActions();
+  const { authenticatedFetch } = useAuthenticatedFetch();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
   const [showForwardButton, setShowForwardButton] = useState<{[key: string]: boolean}>({});
   const [appliedCells, setAppliedCells] = useState<{[key: string]: boolean}>({});
@@ -771,7 +783,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       recalculateProjections(projectionsState.projectionInputs);
       } else if (!stockInfo.loading && !stockInfoTicker) {
         // If stockInfo is not loading and we don't have data, try to fetch it
-        actions.fetchStockInfo(currentTicker).catch(console.error);
+        actions.fetchStockInfo(currentTicker, authenticatedFetch).catch(console.error);
     }
     }
   }, [projectionsState?.baseData, projectionsState?.projectionInputs, stockInfo]);
@@ -795,10 +807,10 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
             (async () => {
           const cachedData = actions.getCachedProjections(tickerToLoad);
               if (cachedData) return cachedData;
-              return await actions.fetchProjections(tickerToLoad);
+              return await actions.fetchProjections(tickerToLoad, authenticatedFetch);
             })(),
             // Fetch stock info (handles its own caching)
-            actions.fetchStockInfo(tickerToLoad)
+            actions.fetchStockInfo(tickerToLoad, authenticatedFetch)
           ]);
           
           // Handle projections result

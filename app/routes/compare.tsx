@@ -7,6 +7,9 @@ import { Label } from "~/components/ui/label";
 import { BarChart3 } from "lucide-react";
 import { Navbar } from "~/components/homepage/navbar";
 import { useCompareState, useStockActions } from "~/store/stockStore";
+import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
+import { getAuth } from "@clerk/react-router/ssr.server";
+import { redirect } from "react-router";
 import type { Route } from "./+types/compare";
 
 export function meta({}: Route.MetaArgs) {
@@ -16,10 +19,18 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
-export async function loader() {
+export async function loader(args: Route.LoaderArgs) {
+  const { userId } = await getAuth(args);
+  
+  // Redirect to sign-in if not authenticated
+  if (!userId) {
+    throw redirect("/sign-in");
+  }
+
   return {
-    isSignedIn: false,
-    hasActiveSubscription: false,
+    isSignedIn: true,
+    hasActiveSubscription: true, // You can add subscription check logic here
+    userId
   };
 }
 
@@ -91,6 +102,7 @@ const MetricRow = ({ metric, ticker1, ticker2, ticker3, data1, data2, data3, met
 export default function Compare({ loaderData }: Route.ComponentProps) {
   const compareState = useCompareState();
   const actions = useStockActions();
+  const { authenticatedFetch } = useAuthenticatedFetch();
   const [inputTickers, setInputTickers] = useState<[string, string, string]>(compareState?.tickers || ['GOOG', 'AAPL', 'META']);
 
   const fetchMetrics = async (ticker: string, index: number) => {
@@ -107,7 +119,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
         return;
       }
       
-      const data = await actions.fetchMetrics(ticker);
+      const data = await actions.fetchMetrics(ticker, authenticatedFetch);
       actions.setCompareData(ticker, data);
     } catch (err) {
       console.error(`Error fetching stock metrics for ${ticker}:`, err);

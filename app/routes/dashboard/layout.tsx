@@ -10,17 +10,9 @@ import { Outlet } from "react-router";
 export async function loader(args: Route.LoaderArgs) {
   const { userId } = await getAuth(args);
 
-  // For development, make authentication optional
+  // Redirect to sign-in if not authenticated
   if (!userId) {
-    // Return mock user for development
-    return { 
-      user: {
-        id: "dev-user",
-        firstName: "Dev",
-        lastName: "User",
-        emailAddresses: [{ emailAddress: "dev@example.com" }]
-      }
-    };
+    throw redirect("/sign-in");
   }
 
   // Get user details from Clerk if authenticated
