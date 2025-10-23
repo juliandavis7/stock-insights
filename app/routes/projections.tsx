@@ -82,6 +82,11 @@ const formatPercentage = (value: number | null | undefined): string => {
   return `${value.toFixed(2)}%`;
 };
 
+const formatMarginPercentage = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value)) return "0%";
+  return `${Math.round(value)}%`;
+};
+
 const formatNumber = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value)) return "0";
   return value.toLocaleString();
@@ -150,7 +155,10 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
         }
         
         if (nextMetric) {
-          const nextInput = document.getElementById(`${nextMetric}-${projectionYears[0]}`);
+          // For pe-low and pe-high, start with current year (2025), otherwise use first projection year
+          const actualCurrentYear = new Date().getFullYear();
+          const targetYear = (nextMetric === 'pe-low' || nextMetric === 'pe-high') ? actualCurrentYear.toString() : projectionYears[0];
+          const nextInput = document.getElementById(`${nextMetric}-${targetYear}`);
           if (nextInput) {
             nextInput.focus();
           }
@@ -170,7 +178,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   // Calculation functions
   const calculateProjectedRevenue = (previousRevenue: number, growthRate: number): number => {
     if (!previousRevenue || isNaN(previousRevenue) || isNaN(growthRate)) return 0;
-    if (growthRate === 0) return previousRevenue; // Return previous value when growth is 0%
+    if (growthRate === 0) return 0; // Return 0 when no growth rate is entered
     return previousRevenue * (1 + growthRate / 100);
   };
 
@@ -181,7 +189,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
 
   const calculateNetIncomeFromGrowth = (previousNetIncome: number, growthRate: number): number => {
     if (!previousNetIncome || isNaN(previousNetIncome) || isNaN(growthRate)) return 0;
-    if (growthRate === 0) return previousNetIncome; // Return previous value when growth is 0%
+    if (growthRate === 0) return 0; // Return 0 when no growth rate is entered
     return previousNetIncome * (1 + growthRate / 100);
   };
 
@@ -249,9 +257,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     setTimeout(() => recalculateProjections(updated), 0);
   };
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const performSearch = async () => {
     if (!stockSymbol.trim()) {
       actions.setProjectionsError("Please enter a valid ticker symbol");
       return;
@@ -320,25 +326,16 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     }
   };
 
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await performSearch();
+  };
+
 
   // Recalculate all projections based on current inputs
   const recalculateProjections = (inputs: ProjectionInputs) => {
-    console.log(`🚨 DEBUG: Starting recalculateProjections`);
-    console.log(`🚨 DEBUG: Base data:`, {
-      revenue: projectionsState?.baseData?.revenue,
-      net_income: projectionsState?.baseData?.net_income,
-      eps: projectionsState?.baseData?.eps
-    });
-    console.log(`🚨 DEBUG: Stock info:`, {
-      price: stockInfo?.data?.price,
-      marketCap: stockInfo?.data?.marketCap,
-      sharesOutstanding: stockInfo?.data?.sharesOutstanding,
-      ticker: stockInfo?.data?.ticker
-    });
-    console.log(`🚨 DEBUG: Full stockInfo object:`, stockInfo);
     
     if (!projectionsState?.baseData?.revenue || !projectionsState?.baseData?.net_income) {
-      console.log(`❌ Missing base data`);
       return;
     }
 
@@ -363,21 +360,16 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     // Start with current year values
     let previousRevenue = projectionsState?.baseData.revenue!;
     let previousNetIncome = projectionsState?.baseData.net_income!;
-    
-    console.log(`🚨 DEBUG: Starting values - Revenue: $${(previousRevenue/1e9).toFixed(2)}B, Net Income: $${(previousNetIncome/1e9).toFixed(2)}B`);
 
     // Calculate for each projection year
     projectionYears.forEach((year, index) => {
       const yearNum = parseInt(year);
       const yearsFromCurrent = index + 1;
-      
-      console.log(`🚨 DEBUG: Processing year ${year}`);
 
       // 1. Calculate Revenue
       const revenueGrowth = inputs.revenueGrowth[year] || 0;
       const projectedRevenue = calculateProjectedRevenue(previousRevenue, revenueGrowth);
       newProjections.revenue[year] = projectedRevenue;
-      console.log(`🚨 DEBUG: Revenue - Growth: ${revenueGrowth}%, Result: $${(projectedRevenue/1e9).toFixed(2)}B`);
 
       // 2. Calculate Net Income from growth rate
       const netIncomeGrowth = inputs.netIncomeGrowth[year] || 0;
@@ -385,7 +377,6 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
         ? calculateNetIncomeFromGrowth(previousNetIncome, netIncomeGrowth)
         : 0;
       newProjections.netIncome[year] = projectedNetIncome;
-      console.log(`🚨 DEBUG: Net Income - Growth: ${netIncomeGrowth}%, Result: $${(projectedNetIncome/1e9).toFixed(2)}B`);
 
       // 3. Calculate Net Income Margin
       const projectedNetIncomeMargin = calculateNetIncomeMargin(projectedNetIncome, projectedRevenue);
@@ -393,20 +384,29 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
 
       // 4. Calculate EPS (net income / shares outstanding)
       // Get shares outstanding from stockInfo - this should be the actual shares for the current ticker
-      const sharesOutstanding = stockInfo?.data?.sharesOutstanding;
+      const currentTicker = projectionsState?.baseData?.ticker;
+      const stockInfoTicker = stockInfo?.data?.ticker;
+      const sharesOutstanding = stockInfo?.data?.shares_outstanding;
       let projectedEPS = 0;
       
-      if (!sharesOutstanding) {
-        console.log(`❌ ERROR: No shares outstanding data available for ${projectionsState?.baseData?.ticker}`);
-        console.log(`❌ Available stockInfo data:`, stockInfo?.data);
+      // Check if stockInfo is for the correct ticker
+      if (!sharesOutstanding || stockInfoTicker !== currentTicker) {
+        if (stockInfoTicker !== currentTicker) {
+          console.error(`Ticker mismatch: projections for ${currentTicker} but stockInfo for ${stockInfoTicker}`);
+        } else {
+          console.error(`No shares outstanding data available for ${currentTicker}. StockInfo state:`, {
+            hasData: !!stockInfo?.data,
+            ticker: stockInfo?.data?.ticker,
+            sharesOutstanding: stockInfo?.data?.shares_outstanding,
+            loading: stockInfo?.loading,
+            error: stockInfo?.error
+          });
+        }
         // Use a fallback based on the ticker - this is a temporary fix
         const fallbackShares = projectionsState?.baseData?.ticker === 'GOOG' ? 5430000000 : 952000000;
-        console.log(`⚠️ Using fallback shares: ${fallbackShares}`);
         projectedEPS = calculateEPS(projectedNetIncome, fallbackShares);
-        console.log(`🚨 DEBUG: EPS (fallback) - Net Income: $${(projectedNetIncome/1e9).toFixed(2)}B, Shares: ${(fallbackShares/1e6).toFixed(0)}M, EPS: $${projectedEPS.toFixed(2)}`);
       } else {
         projectedEPS = calculateEPS(projectedNetIncome, sharesOutstanding);
-        console.log(`🚨 DEBUG: EPS - Net Income: $${(projectedNetIncome/1e9).toFixed(2)}B, Shares: ${(sharesOutstanding/1e6).toFixed(0)}M, EPS: $${projectedEPS.toFixed(2)}`);
       }
       
       newProjections.eps[year] = projectedEPS;
@@ -418,7 +418,6 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       const priceHigh = calculateStockPrice(projectedEPS, peHigh);
       newProjections.sharePriceLow[year] = priceLow;
       newProjections.sharePriceHigh[year] = priceHigh;
-      console.log(`🚨 DEBUG: Stock Prices - EPS: $${projectedEPS.toFixed(2)}, PE Low: ${peLow}, PE High: ${peHigh}, Price Low: $${priceLow.toFixed(2)}, Price High: $${priceHigh.toFixed(2)}`);
 
       // 6. Calculate CAGR (start from year 2, which is index 1, so yearsFromCurrent >= 2)
       if (yearsFromCurrent >= 2) {
@@ -428,7 +427,6 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
           const cagrHigh = calculateCAGR(priceHigh, currentPrice, yearsFromCurrent);
           newProjections.cagrLow[year] = cagrLow;
           newProjections.cagrHigh[year] = cagrHigh;
-          console.log(`🚨 DEBUG: CAGR - Current: $${currentPrice}, Target Low: $${priceLow.toFixed(2)}, Target High: $${priceHigh.toFixed(2)}, Years: ${yearsFromCurrent}, CAGR Low: ${cagrLow.toFixed(2)}%, CAGR High: ${cagrHigh.toFixed(2)}%`);
         } else {
           newProjections.cagrLow[year] = 0;
           newProjections.cagrHigh[year] = 0;
@@ -440,42 +438,92 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       previousNetIncome = projectedNetIncome;
     });
 
-    console.log(`🚨 DEBUG: Final projections calculated`);
     actions.setCalculatedProjections(newProjections);
   };
 
   // Recalculate when base data changes
   useEffect(() => {
     if (projectionsState?.baseData?.revenue && projectionsState?.baseData?.net_income && projectionsState?.projectionInputs) {
-      recalculateProjections(projectionsState.projectionInputs);
+      // Only recalculate if we have stockInfo for the same ticker, or if stockInfo is still loading
+      const currentTicker = projectionsState.baseData.ticker;
+      const stockInfoTicker = stockInfo?.data?.ticker;
+      
+      if (stockInfoTicker === currentTicker || stockInfo.loading) {
+        recalculateProjections(projectionsState.projectionInputs);
+      } else if (!stockInfo.loading && !stockInfoTicker) {
+        // If stockInfo is not loading and we don't have data, try to fetch it
+        actions.fetchStockInfo(currentTicker).catch(console.error);
+      }
     }
-  }, [projectionsState?.baseData, projectionsState?.projectionInputs]);
+  }, [projectionsState?.baseData, projectionsState?.projectionInputs, stockInfo]);
 
   // Load data for global ticker on component mount and when it changes
   useEffect(() => {
     const tickerToLoad = globalTicker.currentTicker || 'AAPL';
-    if (tickerToLoad && (!projectionsState?.baseData || projectionsState.baseData.ticker !== tickerToLoad)) {
+    const needsProjectionsData = !projectionsState?.baseData || projectionsState.baseData.ticker !== tickerToLoad;
+    const needsStockInfoData = !stockInfo?.data || stockInfo.data.ticker !== tickerToLoad;
+    
+    if (tickerToLoad && (needsProjectionsData || needsStockInfoData)) {
       const loadData = async () => {
         actions.setProjectionsLoading(true);
         actions.setProjectionsError(null);
+        actions.setStockInfoLoading(true);
         
         try {
-          // Check cache first
-          const cachedData = actions.getCachedProjections(tickerToLoad);
-          if (cachedData) {
-            actions.setProjectionsBaseData(cachedData);
-            actions.setProjectionsLoading(false);
-            return;
+          // Fetch both projections and stock info concurrently
+          const [projectionsPromise, stockInfoPromise] = await Promise.allSettled([
+            // Check cache first for projections, then fetch if needed
+            (async () => {
+              const cachedData = actions.getCachedProjections(tickerToLoad);
+              if (cachedData) return cachedData;
+              return await actions.fetchProjections(tickerToLoad);
+            })(),
+            // Fetch stock info (handles its own caching)
+            actions.fetchStockInfo(tickerToLoad)
+          ]);
+          
+          // Handle projections result
+          if (projectionsPromise.status === 'fulfilled') {
+            actions.setProjectionsBaseData(projectionsPromise.value);
+          } else {
+            console.error("Error fetching projections:", projectionsPromise.reason);
+            actions.setProjectionsError(projectionsPromise.reason instanceof Error ? projectionsPromise.reason.message : "Error fetching projections");
           }
           
-          const data = await actions.fetchProjections(tickerToLoad);
-          actions.setProjectionsBaseData(data);
+          // Stock info is automatically handled by the fetchStockInfo action
+          if (stockInfoPromise.status === 'rejected') {
+            console.error("Error fetching stock info:", stockInfoPromise.reason);
+            actions.setStockInfoError(stockInfoPromise.reason instanceof Error ? stockInfoPromise.reason.message : "Error fetching stock info");
+          }
+          
+          // Clear all user inputs when switching to a new ticker
+          const clearedInputs = {
+            revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+            netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+            peLow: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
+            peHigh: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 }
+          };
+          actions.setProjectionsInputs(clearedInputs);
+          
+          // Clear calculated projections
+          actions.setCalculatedProjections({
+            revenue: {},
+            netIncome: {},
+            netIncomeMargin: {},
+            eps: {},
+            sharePriceLow: {},
+            sharePriceHigh: {},
+            cagrLow: {},
+            cagrHigh: {}
+          });
           
         } catch (err) {
           console.error(`Error loading ${tickerToLoad} data:`, err);
           actions.setProjectionsError(err instanceof Error ? err.message : `Failed to load ${tickerToLoad} data`);
+          actions.setStockInfoError(err instanceof Error ? err.message : `Failed to load ${tickerToLoad} stock info`);
         } finally {
           actions.setProjectionsLoading(false);
+          actions.setStockInfoLoading(false);
         }
       };
       
@@ -500,7 +548,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
             <StockSearchHeader
               stockSymbol={stockSymbol}
               onStockSymbolChange={handleTickerChange}
-              onSearch={handleSearch}
+              onSearch={performSearch}
               loading={projectionsState?.loading || stockInfo.loading || false}
               ticker={stockInfo.data?.ticker || stockSymbol}
               stockPrice={stockInfo.data?.price}
@@ -628,11 +676,11 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         {/* Net Income Margins Section - Calculated Field */}
                         <tr id="net-income-margin-row" className="bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Net Inc Margins</td>
-                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatPercentage(projectionsState.baseData?.net_income_margin)}</td>
-                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[0]])}</td>
-                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[1]])}</td>
-                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[2]])}</td>
-                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[3]])}</td>
+                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(projectionsState.baseData?.net_income_margin)}</td>
+                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[0]])}</td>
+                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[1]])}</td>
+                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[2]])}</td>
+                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(projectionsState?.calculatedProjections?.netIncomeMargin[projectionYears[3]])}</td>
                         </tr>
 
                         {/* EPS Section */}
