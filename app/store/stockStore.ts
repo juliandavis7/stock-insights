@@ -634,7 +634,7 @@ export const useStockStore = create<StockStore>()(
           }
           
           console.log(`Fetching stock info for ${ticker}`);
-          const fastApiUrl = import.meta.env.VITE_FASTAPI_URL;
+          const fastApiUrl = import.meta.env.VITE_API_BASE_URL;
           const fetchFn = authenticatedFetch || fetch;
           const response = await fetchFn(`${fastApiUrl}/info?ticker=${ticker.toUpperCase()}`);
           
@@ -662,7 +662,7 @@ export const useStockStore = create<StockStore>()(
           }
           
           console.log(`Fetching metrics for ${ticker}`);
-          const fastApiUrl = import.meta.env.VITE_FASTAPI_URL;
+          const fastApiUrl = import.meta.env.VITE_API_BASE_URL;
           const fetchFn = authenticatedFetch || fetch;
           const response = await fetchFn(`${fastApiUrl}/metrics?ticker=${ticker.toUpperCase()}`);
           
@@ -694,7 +694,7 @@ export const useStockStore = create<StockStore>()(
           }
           
           console.log(`Fetching projections for ${ticker}`);
-          const fastApiUrl = import.meta.env.VITE_FASTAPI_URL;
+          const fastApiUrl = import.meta.env.VITE_API_BASE_URL;
           const fetchFn = authenticatedFetch || fetch;
           const response = await fetchFn(`${fastApiUrl}/projections?ticker=${ticker.toUpperCase()}`);
           
@@ -727,7 +727,7 @@ export const useStockStore = create<StockStore>()(
           }
           
           console.log(`Fetching financials for ${ticker}`);
-          const fastApiUrl = import.meta.env.VITE_FASTAPI_URL;
+          const fastApiUrl = import.meta.env.VITE_API_BASE_URL;
           const fetchFn = authenticatedFetch || fetch;
           const response = await fetchFn(`${fastApiUrl}/financials?ticker=${ticker.toUpperCase()}`);
           
@@ -763,7 +763,7 @@ export const useStockStore = create<StockStore>()(
           }
           
           console.log(`Fetching charts for ${ticker} (${mode})`);
-          const fastApiUrl = import.meta.env.VITE_FASTAPI_URL;
+          const fastApiUrl = import.meta.env.VITE_API_BASE_URL;
           const fetchFn = authenticatedFetch || fetch;
           const response = await fetchFn(`${fastApiUrl}/charts?ticker=${ticker.toUpperCase()}&mode=${mode}`);
           

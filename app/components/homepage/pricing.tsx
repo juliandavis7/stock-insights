@@ -1,6 +1,6 @@
 "use client";
 import { useAuth } from "@clerk/react-router";
-import { useAction, useMutation, useQuery } from "convex/react";
+// import { useAction, useMutation, useQuery } from "convex/react";
 import { Check, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
-import { api } from "../../../convex/_generated/api";
+// import { api } from "../../../convex/_generated/api";
 
 export default function Pricing({ loaderData }: { loaderData: any }) {
   const { isSignedIn } = useAuth();

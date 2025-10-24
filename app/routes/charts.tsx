@@ -5,7 +5,7 @@ import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import { Navbar } from "~/components/homepage/navbar";
 import { StockSearchHeader } from "~/components/stock-search-header";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "~/components/ui/chart";
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Legend, Cell } from "recharts";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ReferenceLine, Legend, Cell } from "recharts";
 import { useChartsState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { getAuth } from "@clerk/react-router/ssr.server";

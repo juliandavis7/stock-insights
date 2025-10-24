@@ -27,7 +27,7 @@ A modern, full-stack financial analytics platform built with React Router v7, Cl
 - **Revenue Growth Metrics** - Current and next-year analysis
 - **Margin Analysis** - Gross and net margin calculations
 - **P/S Ratio Analysis** - Price-to-sales metrics
-- **Real-time Data Integration** - FMP API and AlphaVantage integration
+- **Real-time Data Integration** - AlphaVantage integration
 - **Mock Data Support** - Development mode with embedded financial data
 
 ## Tech Stack
@@ -45,7 +45,6 @@ A modern, full-stack financial analytics platform built with React Router v7, Cl
 - **Clerk** - Authentication and user management
 - **Polar.sh** - Subscription billing and payments
 - **OpenAI** - AI-powered financial insights
-- **FMP API** - Financial data provider
 - **AlphaVantage API** - Market data integration
 
 ### Development & Deployment
@@ -61,7 +60,6 @@ A modern, full-stack financial analytics platform built with React Router v7, Cl
 - Clerk account for authentication
 - Polar.sh account for subscriptions
 - OpenAI API key (for AI chat features)
-- FMP API key (for financial data)
 - AlphaVantage API key (for market data)
 - Python 3.8+ (for FastAPI backend)
 
@@ -76,10 +74,10 @@ npm install
 2. Copy the environment file and configure your credentials:
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env
 ```
 
-3. Set up your environment variables in `.env.local`:
+3. Set up your environment variables in `.env`:
 
 ```bash
 # Clerk Authentication
@@ -95,14 +93,13 @@ POLAR_WEBHOOK_SECRET=your_polar_webhook_secret_here
 OPENAI_API_KEY=your_openai_api_key_here
 
 # Financial Data APIs
-FMP_API_KEY=your_fmp_api_key_here
 ALPHAVANTAGE_API_KEY=your_alphavantage_api_key_here
 
 # FastAPI Backend URL
-VITE_API_BASE_URL=http://localhost:8000
+VITE_API_BASE_URL=http://127.0.0.1:8000
 
 # Frontend URL for redirects
-FRONTEND_URL=http://localhost:5173
+VITE_FRONTEND_URL=http://localhost:5173
 ```
 
 4. Start your FastAPI backend (in separate repository):
@@ -243,10 +240,9 @@ Make sure to deploy the output of `npm run build`
 - `POLAR_ORGANIZATION_ID` - Your Polar.sh organization ID
 - `POLAR_WEBHOOK_SECRET` - Polar.sh webhook secret
 - `OPENAI_API_KEY` - OpenAI API key for chat features
-- `FMP_API_KEY` - Financial Modeling Prep API key
 - `ALPHAVANTAGE_API_KEY` - AlphaVantage API key
 - `VITE_API_BASE_URL` - Your FastAPI backend URL
-- `FRONTEND_URL` - Your production frontend URL
+- `VITE_FRONTEND_URL` - Your production frontend URL
 
 ## Project Structure
 
