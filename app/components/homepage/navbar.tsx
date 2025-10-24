@@ -1,4 +1,3 @@
-"use client";
 import { UserButton } from "@clerk/react-router";
 import { Menu, X } from "lucide-react";
 import React, { useCallback } from "react";

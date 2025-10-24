@@ -11,14 +11,17 @@
     },
     "routeIdToServerBundleId": {
       "routes/home": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/search": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/compare": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/charts": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/projections": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/financials": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/sign-in": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/sign-up": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/pricing": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/success": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/subscription-required": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
-      "routes/dashboard/index": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
-      "routes/dashboard/chat": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
-      "routes/dashboard/settings": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0"
+      "routes/$": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0"
     },
     "routes": {
       "root": {
@@ -32,6 +35,51 @@
         "parentId": "root",
         "file": "app/routes/home.tsx",
         "index": true,
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/search": {
+        "id": "routes/search",
+        "parentId": "root",
+        "file": "app/routes/search.tsx",
+        "path": "search",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/compare": {
+        "id": "routes/compare",
+        "parentId": "root",
+        "file": "app/routes/compare.tsx",
+        "path": "compare",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/charts": {
+        "id": "routes/charts",
+        "parentId": "root",
+        "file": "app/routes/charts.tsx",
+        "path": "charts",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/projections": {
+        "id": "routes/projections",
+        "parentId": "root",
+        "file": "app/routes/projections.tsx",
+        "path": "projections",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/financials": {
+        "id": "routes/financials",
+        "parentId": "root",
+        "file": "app/routes/financials.tsx",
+        "path": "financials",
         "config": {
           "runtime": "nodejs"
         }
@@ -81,35 +129,11 @@
           "runtime": "nodejs"
         }
       },
-      "routes/dashboard/layout": {
-        "id": "routes/dashboard/layout",
+      "routes/$": {
+        "id": "routes/$",
         "parentId": "root",
-        "file": "app/routes/dashboard/layout.tsx",
-        "config": {}
-      },
-      "routes/dashboard/index": {
-        "id": "routes/dashboard/index",
-        "parentId": "routes/dashboard/layout",
-        "file": "app/routes/dashboard/index.tsx",
-        "path": "dashboard",
-        "config": {
-          "runtime": "nodejs"
-        }
-      },
-      "routes/dashboard/chat": {
-        "id": "routes/dashboard/chat",
-        "parentId": "routes/dashboard/layout",
-        "file": "app/routes/dashboard/chat.tsx",
-        "path": "dashboard/chat",
-        "config": {
-          "runtime": "nodejs"
-        }
-      },
-      "routes/dashboard/settings": {
-        "id": "routes/dashboard/settings",
-        "parentId": "routes/dashboard/layout",
-        "file": "app/routes/dashboard/settings.tsx",
-        "path": "dashboard/settings",
+        "file": "app/routes/$.tsx",
+        "path": "*",
         "config": {
           "runtime": "nodejs"
         }
@@ -117,9 +141,9 @@
     }
   },
   "reactRouterConfig": {
-    "appDirectory": "/Users/michaelshimeles/Desktop/rsk/app",
+    "appDirectory": "/Users/juliandavis/dev/stock-insights/app",
     "basename": "/",
-    "buildDirectory": "/Users/michaelshimeles/Desktop/rsk/build",
+    "buildDirectory": "/Users/juliandavis/dev/stock-insights/build",
     "future": {
       "unstable_middleware": false,
       "unstable_optimizeDeps": false,
@@ -138,6 +162,36 @@
         "parentId": "root",
         "file": "routes/home.tsx",
         "index": true
+      },
+      "routes/search": {
+        "id": "routes/search",
+        "parentId": "root",
+        "file": "routes/search.tsx",
+        "path": "search"
+      },
+      "routes/compare": {
+        "id": "routes/compare",
+        "parentId": "root",
+        "file": "routes/compare.tsx",
+        "path": "compare"
+      },
+      "routes/charts": {
+        "id": "routes/charts",
+        "parentId": "root",
+        "file": "routes/charts.tsx",
+        "path": "charts"
+      },
+      "routes/projections": {
+        "id": "routes/projections",
+        "parentId": "root",
+        "file": "routes/projections.tsx",
+        "path": "projections"
+      },
+      "routes/financials": {
+        "id": "routes/financials",
+        "parentId": "root",
+        "file": "routes/financials.tsx",
+        "path": "financials"
       },
       "routes/sign-in": {
         "id": "routes/sign-in",
@@ -169,28 +223,11 @@
         "file": "routes/subscription-required.tsx",
         "path": "subscription-required"
       },
-      "routes/dashboard/layout": {
-        "id": "routes/dashboard/layout",
+      "routes/$": {
+        "id": "routes/$",
         "parentId": "root",
-        "file": "routes/dashboard/layout.tsx"
-      },
-      "routes/dashboard/index": {
-        "id": "routes/dashboard/index",
-        "parentId": "routes/dashboard/layout",
-        "file": "routes/dashboard/index.tsx",
-        "path": "dashboard"
-      },
-      "routes/dashboard/chat": {
-        "id": "routes/dashboard/chat",
-        "parentId": "routes/dashboard/layout",
-        "file": "routes/dashboard/chat.tsx",
-        "path": "dashboard/chat"
-      },
-      "routes/dashboard/settings": {
-        "id": "routes/dashboard/settings",
-        "parentId": "routes/dashboard/layout",
-        "file": "routes/dashboard/settings.tsx",
-        "path": "dashboard/settings"
+        "file": "routes/$.tsx",
+        "path": "*"
       }
     },
     "routeDiscovery": {

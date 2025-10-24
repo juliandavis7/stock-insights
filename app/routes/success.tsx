@@ -1,4 +1,3 @@
-"use client";
 import { useQuery, useMutation } from "convex/react";
 import { useAuth } from "@clerk/react-router";
 import { Link } from "react-router";
