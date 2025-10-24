@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Card, CardContent } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Input } from "~/components/ui/input";
@@ -9,7 +10,7 @@ import { useProjectionsState, useStockActions, useGlobalTicker, useStockInfo } f
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { redirect } from "react-router";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Info } from "lucide-react";
 import type { Route } from "./+types/projections";
 
 export function meta({}: Route.MetaArgs) {
@@ -298,6 +299,10 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
   const [showForwardButton, setShowForwardButton] = useState<{[key: string]: boolean}>({});
   const [appliedCells, setAppliedCells] = useState<{[key: string]: boolean}>({});
+  const [showMetricTooltip, setShowMetricTooltip] = useState(false);
+  const [metricTooltipCoords, setMetricTooltipCoords] = useState({ top: 0, left: 0 });
+  const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
+  const metricButtonRef = useRef<HTMLButtonElement>(null);
   
   // Scenario management
   type ScenarioType = 'base' | 'bull' | 'bear';
@@ -660,6 +665,47 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     }, 2000);
   };
 
+  // Metric tooltip handlers
+  const updateMetricTooltipPosition = () => {
+    if (metricButtonRef.current) {
+      const rect = metricButtonRef.current.getBoundingClientRect();
+      setMetricTooltipCoords({
+        top: rect.top - 8,
+        left: rect.left + rect.width / 2
+      });
+    }
+  };
+
+  const handleMetricTooltipMouseEnter = () => {
+    const timeout = setTimeout(() => {
+      updateMetricTooltipPosition();
+      setShowMetricTooltip(true);
+    }, 250); // 250ms delay
+    setHoverTimeout(timeout);
+  };
+
+  const handleMetricTooltipMouseLeave = () => {
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout);
+      setHoverTimeout(null);
+    }
+    setShowMetricTooltip(false);
+  };
+
+  const handleMetricTooltipClick = () => {
+    updateMetricTooltipPosition();
+    setShowMetricTooltip(!showMetricTooltip);
+  };
+
+  const handleMetricTooltipKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleMetricTooltipClick();
+    } else if (e.key === 'Escape') {
+      setShowMetricTooltip(false);
+    }
+  };
+
 
   // Recalculate projections for active scenario
   const recalculateProjectionsForScenario = (inputs: ProjectionInputs) => {
@@ -1020,9 +1066,56 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                     <table className="w-full table-fixed">
                       <thead>
                         <tr id="financial-data-year-headers" className="border-b">
-                          <th id="financial-metric-column" className="py-3 px-4 text-left font-bold text-gray-900 text-sm uppercase tracking-wider w-[200px]">METRIC</th>
-                          <th id={`year-${currentYear}-column`} className="py-3 px-4 text-center font-bold text-gray-900 text-sm w-[120px] align-top">
-                            <div className="text-gray-900">{currentYear}</div>
+                          <th id="financial-metric-column" className="py-3 px-4 text-left font-bold text-gray-900 text-sm uppercase tracking-wider w-[200px]">
+                            <div className="inline-flex items-center gap-1.5">
+                              <span>METRIC</span>
+                              <button
+                                ref={metricButtonRef}
+                                onClick={handleMetricTooltipClick}
+                                onKeyDown={handleMetricTooltipKeyDown}
+                                onMouseEnter={handleMetricTooltipMouseEnter}
+                                onMouseLeave={handleMetricTooltipMouseLeave}
+                                className="inline-flex items-center justify-center w-4 h-4 text-gray-500 opacity-70 hover:opacity-100 transition-opacity duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 rounded"
+                                aria-label="Information about data periods"
+                                aria-describedby="metric-tooltip"
+                                tabIndex={0}
+                              >
+                                <Info className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </th>
+                          {showMetricTooltip && typeof document !== 'undefined' && createPortal(
+                            <div
+                              id="metric-tooltip"
+                              className="fixed z-[9999] bg-gray-800 text-white text-xs px-4 py-3 rounded-md shadow-lg pointer-events-none"
+                              role="tooltip"
+                              aria-live="polite"
+                              style={{
+                                top: `${metricTooltipCoords.top}px`,
+                                left: `${metricTooltipCoords.left}px`,
+                                transform: 'translate(-50%, -100%)',
+                                opacity: showMetricTooltip ? 1 : 0,
+                                transition: 'opacity 200ms ease-in-out',
+                                maxWidth: '340px',
+                                lineHeight: '1.5'
+                              }}
+                            >
+                              <p>{currentYear} figures combine actual results with estimates</p>
+                              <div 
+                                className="absolute left-1/2 transform -translate-x-1/2 w-2 h-2 bg-gray-800 rotate-45"
+                                style={{
+                                  top: '100%',
+                                  marginTop: '-4px'
+                                }}
+                              ></div>
+                            </div>,
+                            document.body
+                          )}
+                          <th id={`year-${currentYear}-column`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
+                            <div className="text-blue-600">{currentYear}</div>
+                            <div className="h-4 flex items-center justify-center">
+                              <span className="text-xs text-blue-600 font-semibold">EST</span>
+                            </div>
                           </th>
                           <th id={`year-${projectionYears[0]}-column`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
                             <div className="text-blue-600">{projectionYears[0]}</div>

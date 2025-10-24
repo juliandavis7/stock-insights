@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Card, CardContent } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Navbar } from "~/components/homepage/navbar";
@@ -7,6 +8,7 @@ import { useFinancialsState, useStockActions, useGlobalTicker, useStockInfo } fr
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { redirect } from "react-router";
+import { Info } from "lucide-react";
 import type { Route } from "./+types/financials";
 
 export function meta({}: Route.MetaArgs) {
@@ -156,6 +158,10 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
   const actions = useStockActions();
   const { authenticatedFetch } = useAuthenticatedFetch();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState<'above' | 'below'>('above');
+  const [tooltipCoords, setTooltipCoords] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const fetchFinancials = async (symbol: string) => {  
     actions.setFinancialsLoading(true);
@@ -204,6 +210,46 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
     e.preventDefault();
     if (stockSymbol.trim()) {
       fetchFinancials(stockSymbol.trim().toUpperCase());
+    }
+  };
+
+  // Tooltip handlers
+  const updateTooltipPosition = () => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const tooltipHeight = 40; // Approximate tooltip height
+      const spaceAbove = rect.top;
+      
+      // Determine position (above or below)
+      if (spaceAbove < tooltipHeight + 20) {
+        setTooltipPosition('below');
+        setTooltipCoords({
+          top: rect.bottom + 8,
+          left: rect.left + rect.width / 2
+        });
+      } else {
+        setTooltipPosition('above');
+        setTooltipCoords({
+          top: rect.top - 8,
+          left: rect.left + rect.width / 2
+        });
+      }
+    }
+  };
+
+  const handleTooltipToggle = () => {
+    if (!showTooltip) {
+      updateTooltipPosition();
+    }
+    setShowTooltip(!showTooltip);
+  };
+
+  const handleTooltipKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleTooltipToggle();
+    } else if (e.key === 'Escape') {
+      setShowTooltip(false);
     }
   };
 
@@ -287,7 +333,54 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                       <thead>
                         <tr id="financials-table-header" className="border-b border-gray-200">
                           <th id="metric-column" className="py-3 px-4 text-left font-bold text-gray-900 text-sm uppercase tracking-wider w-[200px]">
-                            METRIC
+                            <div className="flex items-center gap-2">
+                              <span>METRIC</span>
+                              <div className="relative">
+                                <button
+                                  ref={buttonRef}
+                                  onClick={handleTooltipToggle}
+                                  onKeyDown={handleTooltipKeyDown}
+                                  onMouseEnter={() => {
+                                    updateTooltipPosition();
+                                    setShowTooltip(true);
+                                  }}
+                                  onMouseLeave={() => setShowTooltip(false)}
+                                  className="inline-flex items-center justify-center w-4 h-4 text-gray-500 opacity-70 hover:opacity-100 transition-opacity duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 rounded"
+                                  aria-label="Information about data periods"
+                                  aria-describedby="metric-tooltip"
+                                  tabIndex={0}
+                                >
+                                  <Info className="w-4 h-4" />
+                                </button>
+                                {showTooltip && typeof document !== 'undefined' && createPortal(
+                                  <div
+                                    id="metric-tooltip"
+                                    className="fixed z-[9999] bg-gray-800 text-white text-xs px-3 py-2 rounded-md shadow-lg whitespace-nowrap pointer-events-none"
+                                    role="tooltip"
+                                    aria-live="polite"
+                                    style={{
+                                      top: tooltipPosition === 'above' ? `${tooltipCoords.top}px` : `${tooltipCoords.top}px`,
+                                      left: `${tooltipCoords.left}px`,
+                                      transform: tooltipPosition === 'above' 
+                                        ? 'translate(-50%, -100%)' 
+                                        : 'translate(-50%, 0)',
+                                      opacity: showTooltip ? 1 : 0,
+                                      transition: 'opacity 200ms ease-in-out'
+                                    }}
+                                  >
+                                    Data reflects calendar year (Jan-Dec), not fiscal year
+                                    <div 
+                                      className="absolute left-1/2 transform -translate-x-1/2 w-2 h-2 bg-gray-800 rotate-45"
+                                      style={{
+                                        top: tooltipPosition === 'above' ? '100%' : '-4px',
+                                        marginTop: tooltipPosition === 'above' ? '-4px' : '0'
+                                      }}
+                                    ></div>
+                                  </div>,
+                                  document.body
+                                )}
+                              </div>
+                            </div>
                           </th>
                           {allYears.map(year => (
                             <th key={year} id={`year-${year}`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
