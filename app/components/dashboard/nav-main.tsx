@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
 import { type Icon } from "@tabler/icons-react";
+import { type LucideIcon } from "lucide-react";
 
 import { Link, useLocation } from "react-router";
 import {
@@ -16,7 +17,7 @@ export const NavMain = memo(({
   items: {
     title: string;
     url: string;
-    icon?: Icon;
+    icon?: Icon | LucideIcon;
   }[];
 }) => {
   const location = useLocation();

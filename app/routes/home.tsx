@@ -1,88 +1,58 @@
 import { getAuth } from "@clerk/react-router/ssr.server";
-import { fetchAction, fetchQuery } from "convex/nextjs";
-import ContentSection from "~/components/homepage/content";
-import Footer from "~/components/homepage/footer";
-import Integrations from "~/components/homepage/integrations";
-import Pricing from "~/components/homepage/pricing";
-import Team from "~/components/homepage/team";
-import { api } from "../../convex/_generated/api";
+import { createClerkClient } from "@clerk/react-router/api.server";
+import { Navbar } from "~/components/homepage/navbar";
+import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
+import { useEffect } from "react";
 import type { Route } from "./+types/home";
 
 export function meta({}: Route.MetaArgs) {
-  const title = "React Starter Kit - Launch Your SAAS Quickly";
-  const description =
-    "This powerful starter kit is designed to help you launch your SAAS application quickly and efficiently.";
-  const keywords = "React, Starter Kit, SAAS, Launch, Quickly, Efficiently";
-  const siteUrl = "https://www.reactstarter.xyz/";
-  const imageUrl =
-    "https://jdj14ctwppwprnqu.public.blob.vercel-storage.com/rsk-image-FcUcfBMBgsjNLo99j3NhKV64GT2bQl.png";
+  const title = "Stock Insights - Financial Analysis Platform";
+  const description = "A comprehensive stock analysis platform with real-time data and projections.";
 
   return [
     { title },
-    {
-      name: "description",
-      content: description,
-    },
-
-    // Open Graph / Facebook
-    { property: "og:type", content: "website" },
-    { property: "og:title", content: title },
-    { property: "og:description", content: description },
-    { property: "og:image", content: imageUrl },
-    { property: "og:image:width", content: "1200" },
-    { property: "og:image:height", content: "630" },
-    { property: "og:url", content: siteUrl },
-    { property: "og:site_name", content: "React Starter Kit" },
-    { property: "og:image", content: imageUrl },
-
-    // Twitter Card
-    { name: "twitter:card", content: "summary_large_image" },
-    { name: "twitter:title", content: title },
-    {
-      name: "twitter:description",
-      content: description,
-    },
-    { name: "twitter:image", content: imageUrl },
-    {
-      name: "keywords",
-      content: keywords,
-    },
-    { name: "author", content: "Ras Mic" },
-    { name: "favicon", content: imageUrl },
+    { name: "description", content: description },
   ];
 }
 
 export async function loader(args: Route.LoaderArgs) {
   const { userId } = await getAuth(args);
 
-  // Skip Polar.sh integration - no payment processing needed
-  const subscriptionData = userId
-    ? await fetchQuery(api.subscriptions.checkUserSubscriptionStatus, {
-        userId,
-      }).catch((error) => {
-        console.error("Failed to fetch subscription data:", error);
-        return null;
-      })
-    : null;
+  if (userId) {
+    // Get real user details from Clerk
+    const user = await createClerkClient({
+      secretKey: process.env.CLERK_SECRET_KEY,
+    }).users.getUser(userId);
+  }
   
-  // Return empty plans object with items array instead of fetching from Polar.sh
-  const plans = { items: [] };
-
   return {
     isSignedIn: !!userId,
-    hasActiveSubscription: subscriptionData?.hasActiveSubscription || false,
-    plans,
+    hasActiveSubscription: !!userId, // Simplified for development
   };
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
+  const { getAuthToken, isSignedIn } = useAuthenticatedFetch();
+
+  useEffect(() => {
+    if (isSignedIn) {
+      getAuthToken();
+    }
+  }, [isSignedIn, getAuthToken]);
+
   return (
     <>
-      <Integrations loaderData={loaderData} />
-      <ContentSection />
-      <Team />
-      <Pricing loaderData={loaderData} />
-      <Footer />
+      <Navbar loaderData={loaderData} />
+      <main className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-foreground mb-4">
+            Stock Insights
+          </h1>
+          <p className="text-lg text-muted-foreground">
+            Analyze Your Next Investment
+          </p>
+        </div>
+      </main>
     </>
   );
 }

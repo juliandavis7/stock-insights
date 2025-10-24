@@ -6,16 +6,14 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { cn } from "~/lib/utils";
 
-const CONVEX_SITE_URL = import.meta.env.VITE_CONVEX_URL!.replace(
-  /.cloud$/,
-  ".site"
-);
+// Read API base URL from environment variable only
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export default function Chat() {
   const { messages, input, handleInputChange, handleSubmit, isLoading } =
     useChat({
       maxSteps: 10,
-      api: `${CONVEX_SITE_URL}/api/chat`,
+      api: `${API_BASE_URL}/api/chat`, // Update to FastAPI endpoint
     });
 
   return (

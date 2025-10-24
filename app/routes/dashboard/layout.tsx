@@ -1,10 +1,8 @@
 import { getAuth } from "@clerk/react-router/ssr.server";
-import { fetchQuery } from "convex/nextjs";
 import { redirect, useLoaderData } from "react-router";
 import { AppSidebar } from "~/components/dashboard/app-sidebar";
 import { SiteHeader } from "~/components/dashboard/site-header";
 import { SidebarInset, SidebarProvider } from "~/components/ui/sidebar";
-import { api } from "../../../convex/_generated/api";
 import type { Route } from "./+types/layout";
 import { createClerkClient } from "@clerk/react-router/api.server";
 import { Outlet } from "react-router";
@@ -17,18 +15,10 @@ export async function loader(args: Route.LoaderArgs) {
     throw redirect("/sign-in");
   }
 
-  // Parallel data fetching to reduce waterfall
-  const [subscriptionStatus, user] = await Promise.all([
-    fetchQuery(api.subscriptions.checkUserSubscriptionStatus, { userId }),
-    createClerkClient({
-      secretKey: process.env.CLERK_SECRET_KEY,
-    }).users.getUser(userId)
-  ]);
-
-  // Redirect to subscription-required if no active subscription
-  if (!subscriptionStatus?.hasActiveSubscription) {
-    throw redirect("/subscription-required");
-  }
+  // Get user details from Clerk if authenticated
+  const user = await createClerkClient({
+    secretKey: process.env.CLERK_SECRET_KEY,
+  }).users.getUser(userId);
 
   return { user };
 }

@@ -1,6 +1,6 @@
-# React Starter Kit (RSK)
+# Stock Insights Platform
 
-A modern, production-ready SaaS starter template for building full-stack React applications using React Router v7, Convex, Clerk, and Polar.sh. Ready for Vercel deployment with built-in AI chat capabilities.
+A modern, full-stack financial analytics platform built with React Router v7, Clerk, and Polar.sh. Features advanced stock metrics calculation using Method 1C GAAP-adjusted EPS analysis, real-time data processing, and AI-powered insights.
 
 ## Features
 
@@ -12,12 +12,23 @@ A modern, production-ready SaaS starter template for building full-stack React a
 - 🎨 **TailwindCSS v4** - Modern utility-first CSS
 - 🔐 **Authentication with Clerk** - Complete user management
 - 💳 **Subscription management with Polar.sh** - Billing and payments
-- 🗄️ **Real-time database with Convex** - Serverless backend
-- 🤖 **AI Chat Integration** - OpenAI-powered chat functionality
-- 📊 **Interactive Dashboard** - User management and analytics
-- 🎯 **Webhook handling** - Payment and subscription events
-- 📱 **Responsive Design** - Mobile-first approach
+- 🗄️ **FastAPI Backend** - High-performance Python API
+- 🤖 **AI Chat Integration** - OpenAI-powered financial insights
+- 📊 **Advanced Stock Analytics** - Method 1C GAAP-adjusted calculations
+- 📈 **Interactive Charts** - Real-time financial data visualization
+- 🎯 **Financial Projections** - AI-powered earnings forecasts
+- 📱 **Responsive Design** - Mobile-first approach 
 - 🚢 **Vercel Deployment Ready** - One-click deployment
+
+## Financial Analytics Features
+
+- **Method 1C GAAP-Adjusted EPS Growth** - Advanced hybrid calculation methodology
+- **P/E Ratio Analysis** - TTM, Forward, and Two-year projections
+- **Revenue Growth Metrics** - Current and next-year analysis
+- **Margin Analysis** - Gross and net margin calculations
+- **P/S Ratio Analysis** - Price-to-sales metrics
+- **Real-time Data Integration** - AlphaVantage integration
+- **Mock Data Support** - Development mode with embedded financial data
 
 ## Tech Stack
 
@@ -26,14 +37,15 @@ A modern, production-ready SaaS starter template for building full-stack React a
 - **TailwindCSS v4** - Utility-first CSS framework
 - **shadcn/ui** - Modern component library with Radix UI
 - **Lucide React & Tabler Icons** - Beautiful icon libraries
-- **Recharts** - Data visualization
+- **Recharts** - Financial data visualization
 - **Motion** - Smooth animations
 
 ### Backend & Services
-- **Convex** - Real-time database and serverless functions
+- **FastAPI** - High-performance Python backend API
 - **Clerk** - Authentication and user management
 - **Polar.sh** - Subscription billing and payments
-- **OpenAI** - AI chat capabilities
+- **OpenAI** - AI-powered financial insights
+- **AlphaVantage API** - Market data integration
 
 ### Development & Deployment
 - **Vite** - Fast build tool
@@ -46,9 +58,10 @@ A modern, production-ready SaaS starter template for building full-stack React a
 
 - Node.js 18+ 
 - Clerk account for authentication
-- Convex account for database
 - Polar.sh account for subscriptions
 - OpenAI API key (for AI chat features)
+- AlphaVantage API key (for market data)
+- Python 3.8+ (for FastAPI backend)
 
 ### Installation
 
@@ -61,16 +74,12 @@ npm install
 2. Copy the environment file and configure your credentials:
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env
 ```
 
-3. Set up your environment variables in `.env.local`:
+3. Set up your environment variables in `.env`:
 
 ```bash
-# Convex Configuration
-CONVEX_DEPLOYMENT=your_convex_deployment_here
-VITE_CONVEX_URL=your_convex_url_here
-
 # Clerk Authentication
 VITE_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key_here
 CLERK_SECRET_KEY=your_clerk_secret_key_here
@@ -83,14 +92,21 @@ POLAR_WEBHOOK_SECRET=your_polar_webhook_secret_here
 # OpenAI Configuration (for AI chat)
 OPENAI_API_KEY=your_openai_api_key_here
 
+# Financial Data APIs
+ALPHAVANTAGE_API_KEY=your_alphavantage_api_key_here
+
+# FastAPI Backend URL
+VITE_API_BASE_URL=http://127.0.0.1:8000
+
 # Frontend URL for redirects
-FRONTEND_URL=http://localhost:5173
+VITE_FRONTEND_URL=http://localhost:5173
 ```
 
-4. Initialize Convex:
+4. Start your FastAPI backend (in separate repository):
 
 ```bash
-npx convex dev
+# In your FastAPI repository
+uvicorn main:app --reload --port 8000
 ```
 
 5. Set up your Polar.sh webhook endpoint:
@@ -105,7 +121,8 @@ Start the development server with HMR:
 npm run dev
 ```
 
-Your application will be available at `http://localhost:5173`.
+Your frontend application will be available at `http://localhost:5173`.
+Make sure your FastAPI backend is running on `http://localhost:8000`.
 
 ## Building for Production
 
@@ -167,8 +184,13 @@ Make sure to deploy the output of `npm run build`
 - `/` - Homepage with pricing
 - `/pricing` - Dynamic pricing page
 - `/dashboard` - Protected user dashboard
-- `/dashboard/chat` - AI-powered chat interface
+- `/dashboard/chat` - AI-powered financial chat interface
 - `/dashboard/settings` - User settings
+- `/charts` - Interactive financial charts
+- `/financials` - Financial statements analysis
+- `/projections` - Earnings projections and forecasts
+- `/compare` - Stock comparison tools
+- `/search` - Stock search and discovery
 - `/success` - Subscription success page
 - `/webhook/polar` - Polar.sh webhook handler
 
@@ -193,25 +215,34 @@ Make sure to deploy the output of `npm run build`
 - AI chat functionality
 - Subscription status display
 
+#### Financial Analytics Engine
+- Method 1C GAAP-adjusted EPS calculations
+- Real-time stock metrics processing
+- P/E ratio and growth analysis
+- Revenue and margin calculations
+- Financial data caching and optimization
+- Mock data support for development
+
 #### AI Chat Integration
-- OpenAI-powered conversations
+- OpenAI-powered financial conversations
 - Real-time message streaming
 - Chat history persistence
+- Context-aware financial insights
 - Responsive chat interface
 
 ## Environment Variables
 
 ### Required for Production
 
-- `CONVEX_DEPLOYMENT` - Your Convex deployment URL
-- `VITE_CONVEX_URL` - Your Convex client URL
 - `VITE_CLERK_PUBLISHABLE_KEY` - Clerk publishable key
 - `CLERK_SECRET_KEY` - Clerk secret key
 - `POLAR_ACCESS_TOKEN` - Polar.sh API access token
 - `POLAR_ORGANIZATION_ID` - Your Polar.sh organization ID
 - `POLAR_WEBHOOK_SECRET` - Polar.sh webhook secret
 - `OPENAI_API_KEY` - OpenAI API key for chat features
-- `FRONTEND_URL` - Your production frontend URL
+- `ALPHAVANTAGE_API_KEY` - AlphaVantage API key
+- `VITE_API_BASE_URL` - Your FastAPI backend URL
+- `VITE_FRONTEND_URL` - Your production frontend URL
 
 ## Project Structure
 
@@ -223,7 +254,6 @@ Make sure to deploy the output of `npm run build`
 │   │   └── dashboard/     # Dashboard components
 │   ├── routes/            # React Router routes
 │   └── utils/             # Utility functions
-├── convex/                # Convex backend functions
 ├── public/                # Static assets
 └── docs/                  # Documentation
 ```
@@ -233,7 +263,6 @@ Make sure to deploy the output of `npm run build`
 - `react` & `react-dom` v19 - Latest React
 - `react-router` v7 - Full-stack React framework
 - `@clerk/react-router` - Authentication
-- `convex` - Real-time database
 - `@polar-sh/sdk` - Subscription management
 - `@ai-sdk/openai` & `ai` - AI chat capabilities
 - `@vercel/react-router` - Vercel deployment
@@ -261,6 +290,6 @@ This project is licensed under the MIT License.
 
 ---
 
-**Stop rebuilding the same foundation over and over.** RSK eliminates months of integration work by providing a complete, production-ready SaaS template with authentication, payments, AI chat, and real-time data working seamlessly out of the box.
+**Advanced Financial Analytics Platform** - Built with cutting-edge technology stack for real-time stock analysis, Method 1C GAAP-adjusted calculations, and AI-powered insights.
 
-Built with ❤️ using React Router v7, Convex, Clerk, Polar.sh, and OpenAI.
+Built with ❤️ using React Router v7, FastAPI, Clerk, Polar.sh, and OpenAI.

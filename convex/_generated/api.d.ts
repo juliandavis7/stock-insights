@@ -8,10 +8,6 @@
  * @module
  */
 
-import type * as http from "../http.js";
-import type * as subscriptions from "../subscriptions.js";
-import type * as users from "../users.js";
-
 import type {
   ApiFromModules,
   FilterApi,
@@ -26,20 +22,12 @@ import type {
  * const myFunctionReference = api.myModule.myFunction;
  * ```
  */
-declare const fullApi: ApiFromModules<{
-  http: typeof http;
-  subscriptions: typeof subscriptions;
-  users: typeof users;
-}>;
-declare const fullApiWithMounts: typeof fullApi;
-
+declare const fullApi: ApiFromModules<{}>;
 export declare const api: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "public">
 >;
 export declare const internal: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "internal">
 >;
-
-export declare const components: {};
