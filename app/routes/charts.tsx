@@ -504,7 +504,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
 
                 {/* Revenue Chart */}
                 <div id="revenue-chart-container">
-                    <ChartContainer config={chartConfig} className="min-h-[225px]">
+                    <ChartContainer config={chartConfig} className="min-h-[300px]">
                       <BarChart data={formatChartData(charts.data)} margin={{ left: 20, right: 20, top: 40, bottom: 20 }} maxBarSize={40}>
                         <XAxis 
                           dataKey="quarter" 
@@ -609,7 +609,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
 
                 {/* Gross Margin & Net Margin Chart */}
                 <div id="margin-chart-container">
-                    <ChartContainer config={chartConfig} className="min-h-[225px]">
+                    <ChartContainer config={chartConfig} className="min-h-[300px]">
                       <LineChart data={formatMarginData(charts.data)} margin={{ left: 20, right: 20, top: 60, bottom: 20 }}>
                         <XAxis 
                           dataKey="quarter" 
@@ -691,7 +691,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
 
                 {/* EPS Chart */}
                 <div id="net-income-chart-container">
-                    <ChartContainer config={chartConfig} className="min-h-[225px]">
+                    <ChartContainer config={chartConfig} className="min-h-[300px]">
                       <BarChart data={formatChartData(charts.data)} margin={{ left: 20, right: 20, top: 40, bottom: 20 }} maxBarSize={40}>
                         <XAxis 
                           dataKey="quarter"
@@ -796,7 +796,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
 
                 {/* Free Cash Flow Chart */}
                 <div id="free-cash-flow-chart-container">
-                    <ChartContainer config={chartConfig} className="min-h-[225px]">
+                    <ChartContainer config={chartConfig} className="min-h-[300px]">
                       <BarChart data={formatFreeCashFlowData(charts.data)} margin={{ left: 20, right: 20, top: 40, bottom: 20 }} maxBarSize={40}>
                         <XAxis 
                           dataKey="quarter" 
@@ -838,7 +838,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
 
                 {/* Operating Cash Flow Chart */}
                 <div id="operating-cash-flow-chart-container">
-                    <ChartContainer config={chartConfig} className="min-h-[225px]">
+                    <ChartContainer config={chartConfig} className="min-h-[300px]">
                       <BarChart data={formatOperatingCashFlowData(charts.data)} margin={{ left: 20, right: 20, top: 40, bottom: 20 }} maxBarSize={40}>
                         <XAxis 
                           dataKey="quarter" 
@@ -880,7 +880,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
 
                 {/* Operating Income Chart */}
                 <div id="operating-income-chart-container">
-                    <ChartContainer config={chartConfig} className="min-h-[225px]">
+                    <ChartContainer config={chartConfig} className="min-h-[300px]">
                       <BarChart data={formatOperatingIncomeData(charts.data)} margin={{ left: 20, right: 20, top: 40, bottom: 20 }} maxBarSize={40}>
                         <XAxis 
                           dataKey="quarter" 

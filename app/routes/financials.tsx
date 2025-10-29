@@ -325,7 +325,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
               </Card>
             ) : data && (
               /* Financial Metrics Table */
-              <Card>
+              <Card className="mt-25">
                 <CardContent className="pt-6 pb-5">
                   <div id="financials-metrics-table" className="overflow-x-auto">
                     <table className="w-full table-fixed">
