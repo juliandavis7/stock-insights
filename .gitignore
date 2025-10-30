@@ -63,7 +63,7 @@ pids
 
 # Gatsby files
 .cache/
-public
+# public  # Commented out - React Router needs public/ folder in repo
 
 # Storybook build outputs
 .out
