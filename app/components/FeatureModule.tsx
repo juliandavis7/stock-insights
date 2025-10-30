@@ -55,13 +55,13 @@ export function FeatureModule({ module, className }: FeatureModuleProps) {
             )}
           >
             <div className="relative overflow-hidden rounded-lg shadow-2xl">
-              <div className="relative bg-gray-100" style={{ aspectRatio: '16/12' }}>
+              <div className="relative bg-gray-100" style={{ aspectRatio: '4/3' }}>
                 <img
                   src={module.image.src}
                   alt={module.image.alt}
                   className="absolute inset-0 w-full h-full object-cover"
                   style={{
-                    objectPosition: 'center -50px', // Adjusted to show navbar and stock info
+                    objectPosition: 'center -2px', // Adjusted to show navbar and stock info
                     objectFit: 'cover',
                     transform: 'scale(1.3)' // Slightly zoomed out to show more content
                   }}

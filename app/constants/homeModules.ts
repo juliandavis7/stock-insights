@@ -18,9 +18,9 @@ export const featureModules: FeatureModule[] = [
     id: 'search',
     header: 'Search',
     headline: 'Search',
-    description: 'Access the most relevant financial metrics for long-term investors. Real-time data and peer comparisons at your fingertips.',
+    description: 'Access the metrics that matter - built for investors, by investors.',
     features: [
-      '15+ key metrics: P/E ratios, margins, growth rates, and more',
+      '10+ key financial indicators: P/E ratios, margins, growth rates, and more',
       'Industry benchmarking with contextual ranges'
     ],
     ctaText: 'Explore Search',
@@ -35,10 +35,10 @@ export const featureModules: FeatureModule[] = [
     id: 'compare',
     header: 'Compare',
     headline: 'Compare',
-    description: 'Instant side-by-side comparisons with color-coded columns to easily differentiate between stocks.',
+    description: 'Quickly see how stocks stack up side-by-side.',
     features: [
-      'Compare 2-5 stocks simultaneously with identical metrics',
-      'Save comparison sessions for future reference'
+      'Compare up to 3 stocks across key financial indicators',
+      'Industry benchmarking with contextual ranges'
     ],
     ctaText: 'Start Comparing',
     ctaLink: '/compare',
@@ -52,10 +52,10 @@ export const featureModules: FeatureModule[] = [
     id: 'projections',
     header: 'Projections',
     headline: 'Projections',
-    description: 'Create custom 5-year projections with your assumptions. Test different scenarios with instant calculations.',
+    description: 'Create custom 5-year projections with your assumptions.',
     features: [
-      'Bear, base, and bull case scenario modeling',
-      'Compare your projections with analyst estimates'
+      'Input revenue growth, net income growth, and PE ratios to project stock price and CAGR',
+      'Build bear, base, and bull case scenarios'
     ],
     ctaText: 'Build Projections',
     ctaLink: '/projections',
@@ -69,10 +69,10 @@ export const featureModules: FeatureModule[] = [
     id: 'financials',
     header: 'Financials',
     headline: 'Financials',
-    description: 'View 2 years of historical performance plus 2 years of analyst estimates for comprehensive financial metrics.',
+    description: 'Understand the company\'s financial trajectory at a glance.',
     features: [
       'Year-over-year growth rates for every metric',
-      'Historical data combined with analyst estimates'
+      'Combine historical data with analyst estimates for deeper insights',
     ],
     ctaText: 'View Financials',
     ctaLink: '/financials',
@@ -86,10 +86,10 @@ export const featureModules: FeatureModule[] = [
     id: 'charts',
     header: 'Charts',
     headline: 'Charts',
-    description: 'Interactive charts showing 2 years of historical data plus 2 years of analyst estimates. Hover for details, toggle views for precision.',
+    description: 'Recognize trends visually.',
     features: [
-      'Historical and projected data with clear visual distinction',
-      'Interactive tooltips and toggle between quarterly/TTM views'
+      'View revenue, margin %, EPS, free cash flow, operating cash flow, and operating income charts',
+      'Toggle between quarterly and TTM'
     ],
     ctaText: 'Explore Charts',
     ctaLink: '/charts',
