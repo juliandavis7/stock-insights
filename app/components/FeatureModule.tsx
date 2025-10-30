@@ -61,7 +61,7 @@ export function FeatureModule({ module, className }: FeatureModuleProps) {
                   alt={module.image.alt}
                   className="absolute inset-0 w-full h-full object-cover"
                   style={{
-                    objectPosition: 'center -2px', // Adjusted to show navbar and stock info
+                    objectPosition: 'center -3px', // Adjusted to show navbar and stock info
                     objectFit: 'cover',
                     transform: 'scale(1.3)' // Slightly zoomed out to show more content
                   }}

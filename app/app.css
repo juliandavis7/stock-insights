@@ -6,6 +6,8 @@
 @theme inline {
     --color-background: var(--background);
     --color-foreground: var(--foreground);
+    --color-page-background: var(--page-background);
+    --color-footer-background: var(--footer-background);
     --font-sans: var(--font-apple-system);
     --font-mono: var(--font-sf-mono);
     --color-sidebar-ring: var(--sidebar-ring);
@@ -47,6 +49,8 @@
     /* Apple Light Theme Colors */
     --background: #ffffff;
     --foreground: #000000;
+    --page-background: #f8fafc;
+    --footer-background: #1E293B; /* Dark gray footer (same as bg-gray-900) */
     --card: #ffffff;
     --card-foreground: #000000;
     --popover: #ffffff;

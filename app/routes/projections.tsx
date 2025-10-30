@@ -948,7 +948,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     <>
       <style dangerouslySetInnerHTML={{ __html: cursorStyles }} />
       <Navbar loaderData={loaderData} />
-      <main className="min-h-screen pt-20 bg-background">
+      <main className="min-h-screen pt-20 bg-page-background">
         <div className="container mx-auto px-6 py-8">
           <div className="w-full max-w-6xl mx-auto">
             

@@ -31,7 +31,7 @@ Each module should include:
 **Headline:** "Find Any Stock Instantly"
 
 **Description:** 
-"Access the most relevant financial metrics for long-term investors. Real-time data and peer comparisons at your fingertips."
+"Access the metrics that matter – built for investors, by investors."
 
 **Image:** Screenshot of the Search page showing stock with metrics displayed
 - Position: Right side on desktop
@@ -39,7 +39,7 @@ Each module should include:
 - Browser tab cropping: CSS objectPosition '0 -140px' to hide top 140px
 
 **Feature Bullets:**
-- ✓ 15+ key metrics: P/E ratios, margins, growth rates, and more
+- ✓ 10+ key financial indicators: P/E ratios, margins, growth rates, and more
 - ✓ Industry benchmarking with contextual ranges
 
 **CTA Link:** "Explore Search →"
@@ -53,7 +53,7 @@ Each module should include:
 **Headline:** "Compare Stocks Side-by-Side"
 
 **Description:** 
-"Instant side-by-side comparisons with color-coded columns to easily differentiate between stocks."
+"Quickly see how stocks stack up side-by-side."
 
 **Image:** Screenshot of the Compare page showing multiple stocks comparison
 - Position: Left side on desktop
@@ -61,8 +61,8 @@ Each module should include:
 - Browser tab cropping: CSS objectPosition '0 -140px' to hide top 140px
 
 **Feature Bullets:**
-- ✓ Compare 2-5 stocks simultaneously with identical metrics
-- ✓ Save comparison sessions for future reference
+- ✓ Compare up to 3 stocks across key financial indicators
+- ✓ Industry benchmarking with contextual ranges
 
 **CTA Link:** "Start Comparing →"
 
@@ -75,7 +75,7 @@ Each module should include:
 **Headline:** "Model Your Own Financial Scenarios"
 
 **Description:** 
-"Create custom 5-year projections with your assumptions. Test different scenarios with instant calculations."
+"Create custom 5-year projections with your assumptions."
 
 **Image:** Screenshot of the Projections page showing scenario modeling
 - Position: Right side on desktop
@@ -83,8 +83,8 @@ Each module should include:
 - Browser tab cropping: CSS objectPosition '0 -140px' to hide top 140px
 
 **Feature Bullets:**
-- ✓ Bear, base, and bull case scenario modeling
-- ✓ Compare your projections with analyst estimates
+- ✓ Input revenue growth, net income growth, and PE ratios to project stock price and CAGR
+- ✓ Build bear, base, and bull case scenarios
 
 **CTA Link:** "Build Projections →"
 
@@ -97,7 +97,7 @@ Each module should include:
 **Headline:** "Financial History & Future Estimates"
 
 **Description:** 
-"View 2 years of historical performance plus 2 years of analyst estimates for comprehensive financial metrics."
+"Understand the company's financial trajectory at a glance."
 
 **Image:** Screenshot of the Financials page showing historical data
 - Position: Left side on desktop
@@ -106,7 +106,7 @@ Each module should include:
 
 **Feature Bullets:**
 - ✓ Year-over-year growth rates for every metric
-- ✓ Historical data combined with analyst estimates
+- ✓ Combine historical data with analyst estimates for deeper insights
 
 **CTA Link:** "View Financials →"
 
@@ -119,7 +119,7 @@ Each module should include:
 **Headline:** "Visualize Financial Trends"
 
 **Description:** 
-"Interactive charts showing 2 years of historical data plus 2 years of analyst estimates. Hover for details, toggle views for precision."
+"Recognize trends visually."
 
 **Image:** Screenshot of the Charts page showing revenue trends
 - Position: Right side on desktop
@@ -127,8 +127,8 @@ Each module should include:
 - Browser tab cropping: CSS objectPosition '0 -140px' to hide top 140px
 
 **Feature Bullets:**
-- ✓ Historical and projected data with clear visual distinction
-- ✓ Interactive tooltips and toggle between quarterly/TTM views
+- ✓ View revenue, margin %, EPS, free cash flow, operating cash flow, and operating income charts
+- ✓ Toggle between quarterly and TTM views
 
 **CTA Link:** "Explore Charts →"
 
@@ -215,9 +215,9 @@ export const featureModules: FeatureModule[] = [
     id: 'search',
     header: 'Search',
     headline: 'Find Any Stock Instantly',
-    description: 'Access the most relevant financial metrics for long-term investors. Real-time data and peer comparisons at your fingertips.',
+    description: 'Access the metrics that matter – built for investors, by investors.',
     features: [
-      '15+ key metrics: P/E ratios, margins, growth rates, and more',
+      '10+ key financial indicators: P/E ratios, margins, growth rates, and more',
       'Industry benchmarking with contextual ranges'
     ],
     ctaText: 'Explore Search',
@@ -228,7 +228,74 @@ export const featureModules: FeatureModule[] = [
     },
     imagePosition: 'right'
   },
-  // ... additional modules
+  {
+    id: 'compare',
+    header: 'Compare',
+    headline: 'Compare Stocks Side-by-Side',
+    description: 'Quickly see how stocks stack up side-by-side.',
+    features: [
+      'Compare up to 3 stocks across key financial indicators',
+      'Industry benchmarking with contextual ranges'
+    ],
+    ctaText: 'Start Comparing',
+    ctaLink: '/compare',
+    image: {
+      src: '/images/features/compare.png',
+      alt: 'Stock comparison table showing multiple stocks with performance metrics'
+    },
+    imagePosition: 'left'
+  },
+  {
+    id: 'projections',
+    header: 'Projections',
+    headline: 'Model Your Own Financial Scenarios',
+    description: 'Create custom 5-year projections with your assumptions.',
+    features: [
+      'Input revenue growth, net income growth, and PE ratios to project stock price and CAGR',
+      'Build bear, base, and bull case scenarios'
+    ],
+    ctaText: 'Build Projections',
+    ctaLink: '/projections',
+    image: {
+      src: '/images/features/projections.png',
+      alt: 'Financial projections calculator showing scenario modeling interface'
+    },
+    imagePosition: 'right'
+  },
+  {
+    id: 'financials',
+    header: 'Financials',
+    headline: 'Financial History & Future Estimates',
+    description: 'Understand the company\'s financial trajectory at a glance.',
+    features: [
+      'Year-over-year growth rates for every metric',
+      'Combine historical data with analyst estimates for deeper insights'
+    ],
+    ctaText: 'View Financials',
+    ctaLink: '/financials',
+    image: {
+      src: '/images/features/financials.png',
+      alt: 'Historical financials table showing performance data and estimates'
+    },
+    imagePosition: 'left'
+  },
+  {
+    id: 'charts',
+    header: 'Charts',
+    headline: 'Visualize Financial Trends',
+    description: 'Recognize trends visually.',
+    features: [
+      'View revenue, margin %, EPS, free cash flow, operating cash flow, and operating income charts',
+      'Toggle between quarterly and TTM views'
+    ],
+    ctaText: 'Explore Charts',
+    ctaLink: '/charts',
+    image: {
+      src: '/images/features/charts.png',
+      alt: 'Interactive charts showing historical and projected financial trends'
+    },
+    imagePosition: 'right'
+  }
 ];
 ```
 

@@ -151,7 +151,7 @@ export const Navbar = ({
                       className={cn(isScrolled ? "lg:inline-flex" : "hidden")}
                     >
                       <Link to="/sign-up" prefetch="viewport">
-                        <span>Get Started</span>
+                        <span>Start Free Trial</span>
                       </Link>
                     </Button>
                   </>

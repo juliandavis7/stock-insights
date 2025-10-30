@@ -398,11 +398,11 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
   return (
     <>
       <Navbar loaderData={loaderData} />
-      <main className="min-h-screen pt-20 bg-background">
+      <main className="min-h-screen pt-20 bg-page-background">
         <div className="container mx-auto px-6 py-8">
           <div className="w-full max-w-6xl mx-auto">
             {/* Sticky Header Section */}
-            <div className="sticky top-22 z-50 bg-background pb-4">
+            <div className="sticky top-22 z-50 bg-page-background pb-4">
               {/* Stock Search Header */}
               <StockSearchHeader
                 stockSymbol={ticker}

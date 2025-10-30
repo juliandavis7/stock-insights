@@ -281,7 +281,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
   return (
     <>
       <Navbar loaderData={loaderData} />
-      <main className="min-h-screen pt-20 bg-background">
+      <main className="min-h-screen pt-20 bg-page-background">
         <div className="container mx-auto px-6 py-8">
           <div className="w-full max-w-7xl mx-auto">
             
