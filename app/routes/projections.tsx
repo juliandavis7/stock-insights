@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Card, CardContent } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Input } from "~/components/ui/input";
@@ -9,7 +10,7 @@ import { useProjectionsState, useStockActions, useGlobalTicker, useStockInfo } f
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { redirect } from "react-router";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Info, RefreshCw } from "lucide-react";
 import type { Route } from "./+types/projections";
 
 export function meta({}: Route.MetaArgs) {
@@ -298,6 +299,10 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
   const [showForwardButton, setShowForwardButton] = useState<{[key: string]: boolean}>({});
   const [appliedCells, setAppliedCells] = useState<{[key: string]: boolean}>({});
+  const [showMetricTooltip, setShowMetricTooltip] = useState(false);
+  const [metricTooltipCoords, setMetricTooltipCoords] = useState({ top: 0, left: 0 });
+  const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
+  const metricButtonRef = useRef<HTMLButtonElement>(null);
   
   // Scenario management
   type ScenarioType = 'base' | 'bull' | 'bear';
@@ -516,8 +521,8 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     });
   };
 
-  const handleResetProjections = () => {
-    // Clear all user inputs for active scenario only
+  const handleResetAllProjections = () => {
+    // Clear all user inputs for ALL scenarios
     const clearedInputs = {
       revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
       netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
@@ -536,10 +541,13 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       cagrHigh: {}
     };
 
-    updateScenarioData({
-      projectionInputs: clearedInputs,
-      calculatedProjections: clearedCalculations
+    // Reset all three scenarios
+    setScenarioData({
+      base: { projectionInputs: clearedInputs, calculatedProjections: clearedCalculations },
+      bull: { projectionInputs: clearedInputs, calculatedProjections: clearedCalculations },
+      bear: { projectionInputs: clearedInputs, calculatedProjections: clearedCalculations }
     });
+    setActiveScenario('base');
 
     // Clear cache for current ticker when resetting
     if (stockSymbol) {
@@ -658,6 +666,47 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     setTimeout(() => {
       setShowForwardButton(prev => ({ ...prev, [`${metric}-${year}`]: false }));
     }, 2000);
+  };
+
+  // Metric tooltip handlers
+  const updateMetricTooltipPosition = () => {
+    if (metricButtonRef.current) {
+      const rect = metricButtonRef.current.getBoundingClientRect();
+      setMetricTooltipCoords({
+        top: rect.top - 8,
+        left: rect.left + rect.width / 2
+      });
+    }
+  };
+
+  const handleMetricTooltipMouseEnter = () => {
+    const timeout = setTimeout(() => {
+      updateMetricTooltipPosition();
+      setShowMetricTooltip(true);
+    }, 250); // 250ms delay
+    setHoverTimeout(timeout);
+  };
+
+  const handleMetricTooltipMouseLeave = () => {
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout);
+      setHoverTimeout(null);
+    }
+    setShowMetricTooltip(false);
+  };
+
+  const handleMetricTooltipClick = () => {
+    updateMetricTooltipPosition();
+    setShowMetricTooltip(!showMetricTooltip);
+  };
+
+  const handleMetricTooltipKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleMetricTooltipClick();
+    } else if (e.key === 'Escape') {
+      setShowMetricTooltip(false);
+    }
   };
 
 
@@ -899,7 +948,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     <>
       <style dangerouslySetInnerHTML={{ __html: cursorStyles }} />
       <Navbar loaderData={loaderData} />
-      <main className="min-h-screen pt-20 bg-background">
+      <main className="min-h-screen pt-20 bg-page-background">
         <div className="container mx-auto px-6 py-8">
           <div className="w-full max-w-6xl mx-auto">
             
@@ -945,28 +994,20 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                               : { backgroundColor: '#D32F2F', borderBottomColor: 'transparent' } // Red
                           ) : {}}
                         >
-                          <div className="flex items-center gap-2">
-                            <span>{scenario.label}</span>
-                            {activeScenario === scenario.key && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleResetProjections();
-                                }}
-                                className="p-1 rounded-full hover:bg-opacity-50 transition-colors"
-                                style={{
-                                  backgroundColor: 'rgba(255, 255, 255, 0.1)'
-                                }}
-                                aria-label="Reset to default values"
-                              >
-                                <RotateCcw className="w-4 h-4 text-white" />
-                              </button>
-                            )}
-                          </div>
+                          <span>{scenario.label}</span>
                         </button>
                       ))}
                     </nav>
                     
+                    {/* Reset All Button */}
+                    <Button
+                      onClick={handleResetAllProjections}
+                      variant="outline"
+                      className="cursor-pointer mb-3 bg-transparent border-gray-300 text-gray-500 px-6 py-3 rounded-md text-sm font-medium hover:text-red-500 hover:border-red-300 hover:bg-red-50 hover:cursor-pointer active:bg-red-100 active:cursor-pointer focus:outline-none focus:ring-0 focus:border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors duration-200"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Reset All
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -978,12 +1019,13 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                     Scenario
                   </label>
                   <Button 
-                    onClick={handleResetProjections}
-                    variant="ghost"
+                    onClick={handleResetAllProjections}
+                    variant="outline"
                     size="sm"
-                    className="cursor-pointer !bg-transparent !border !border-gray-300 !text-gray-500 px-3 py-1 rounded-md text-xs font-medium hover:!border-gray-400 hover:!text-gray-700 hover:!bg-gray-50 hover:cursor-pointer active:!bg-gray-100 active:cursor-pointer focus:!outline-none focus:!ring-0 focus:!border-gray-300 focus-visible:!ring-0 focus-visible:!ring-offset-0"
+                    className="cursor-pointer bg-transparent border-gray-300 text-gray-500 px-3 py-1 rounded-md text-xs font-medium hover:text-red-500 hover:border-red-300 hover:bg-red-50 hover:cursor-pointer active:bg-red-100 active:cursor-pointer focus:outline-none focus:ring-0 focus:border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors duration-200"
                   >
-                    Reset
+                    <RefreshCw className="w-3 h-3 mr-1" />
+                    Reset All
                   </Button>
                 </div>
                 <select
@@ -1020,9 +1062,56 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                     <table className="w-full table-fixed">
                       <thead>
                         <tr id="financial-data-year-headers" className="border-b">
-                          <th id="financial-metric-column" className="py-3 px-4 text-left font-bold text-gray-900 text-sm uppercase tracking-wider w-[200px]">METRIC</th>
-                          <th id={`year-${currentYear}-column`} className="py-3 px-4 text-center font-bold text-gray-900 text-sm w-[120px] align-top">
-                            <div className="text-gray-900">{currentYear}</div>
+                          <th id="financial-metric-column" className="py-3 px-4 text-left font-bold text-gray-900 text-sm uppercase tracking-wider w-[200px]">
+                            <div className="inline-flex items-center gap-1.5">
+                              <span>METRIC</span>
+                              <button
+                                ref={metricButtonRef}
+                                onClick={handleMetricTooltipClick}
+                                onKeyDown={handleMetricTooltipKeyDown}
+                                onMouseEnter={handleMetricTooltipMouseEnter}
+                                onMouseLeave={handleMetricTooltipMouseLeave}
+                                className="inline-flex items-center justify-center w-4 h-4 text-gray-500 opacity-70 hover:opacity-100 transition-opacity duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 rounded"
+                                aria-label="Information about data periods"
+                                aria-describedby="metric-tooltip"
+                                tabIndex={0}
+                              >
+                                <Info className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </th>
+                          {showMetricTooltip && typeof document !== 'undefined' && createPortal(
+                            <div
+                              id="metric-tooltip"
+                              className="fixed z-[9999] bg-gray-800 text-white text-xs px-4 py-3 rounded-md shadow-lg pointer-events-none"
+                              role="tooltip"
+                              aria-live="polite"
+                              style={{
+                                top: `${metricTooltipCoords.top}px`,
+                                left: `${metricTooltipCoords.left}px`,
+                                transform: 'translate(-50%, -100%)',
+                                opacity: showMetricTooltip ? 1 : 0,
+                                transition: 'opacity 200ms ease-in-out',
+                                maxWidth: '340px',
+                                lineHeight: '1.5'
+                              }}
+                            >
+                              <p>{currentYear} figures combine actual results with estimates</p>
+                              <div 
+                                className="absolute left-1/2 transform -translate-x-1/2 w-2 h-2 bg-gray-800 rotate-45"
+                                style={{
+                                  top: '100%',
+                                  marginTop: '-4px'
+                                }}
+                              ></div>
+                            </div>,
+                            document.body
+                          )}
+                          <th id={`year-${currentYear}-column`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
+                            <div className="text-blue-600">{currentYear}</div>
+                            <div className="h-4 flex items-center justify-center">
+                              <span className="text-xs text-blue-600 font-semibold">EST</span>
+                            </div>
                           </th>
                           <th id={`year-${projectionYears[0]}-column`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
                             <div className="text-blue-600">{projectionYears[0]}</div>
@@ -1339,6 +1428,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
           </div>
         </div>
       </main>
+
 
     </>
   );

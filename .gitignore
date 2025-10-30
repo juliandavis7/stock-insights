@@ -7,6 +7,9 @@
 
 .env
 
+# Vercel
+.vercel
+
 # IDEs
 .vscode/
 .idea/
