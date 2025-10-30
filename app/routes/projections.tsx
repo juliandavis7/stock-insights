@@ -10,7 +10,7 @@ import { useProjectionsState, useStockActions, useGlobalTicker, useStockInfo } f
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { redirect } from "react-router";
-import { RotateCcw, Info } from "lucide-react";
+import { RotateCcw, Info, RefreshCw } from "lucide-react";
 import type { Route } from "./+types/projections";
 
 export function meta({}: Route.MetaArgs) {
@@ -521,8 +521,8 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     });
   };
 
-  const handleResetProjections = () => {
-    // Clear all user inputs for active scenario only
+  const handleResetAllProjections = () => {
+    // Clear all user inputs for ALL scenarios
     const clearedInputs = {
       revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
       netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
@@ -541,10 +541,13 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       cagrHigh: {}
     };
 
-    updateScenarioData({
-      projectionInputs: clearedInputs,
-      calculatedProjections: clearedCalculations
+    // Reset all three scenarios
+    setScenarioData({
+      base: { projectionInputs: clearedInputs, calculatedProjections: clearedCalculations },
+      bull: { projectionInputs: clearedInputs, calculatedProjections: clearedCalculations },
+      bear: { projectionInputs: clearedInputs, calculatedProjections: clearedCalculations }
     });
+    setActiveScenario('base');
 
     // Clear cache for current ticker when resetting
     if (stockSymbol) {
@@ -945,7 +948,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     <>
       <style dangerouslySetInnerHTML={{ __html: cursorStyles }} />
       <Navbar loaderData={loaderData} />
-      <main className="min-h-screen pt-20 bg-background">
+      <main className="min-h-screen pt-20 bg-page-background">
         <div className="container mx-auto px-6 py-8">
           <div className="w-full max-w-6xl mx-auto">
             
@@ -991,28 +994,20 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                               : { backgroundColor: '#D32F2F', borderBottomColor: 'transparent' } // Red
                           ) : {}}
                         >
-                          <div className="flex items-center gap-2">
-                            <span>{scenario.label}</span>
-                            {activeScenario === scenario.key && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleResetProjections();
-                                }}
-                                className="p-1 rounded-full hover:bg-opacity-50 transition-colors"
-                                style={{
-                                  backgroundColor: 'rgba(255, 255, 255, 0.1)'
-                                }}
-                                aria-label="Reset to default values"
-                              >
-                                <RotateCcw className="w-4 h-4 text-white" />
-                              </button>
-                            )}
-                          </div>
+                          <span>{scenario.label}</span>
                         </button>
                       ))}
                     </nav>
                     
+                    {/* Reset All Button */}
+                    <Button
+                      onClick={handleResetAllProjections}
+                      variant="outline"
+                      className="cursor-pointer mb-3 bg-transparent border-gray-300 text-gray-500 px-6 py-3 rounded-md text-sm font-medium hover:text-red-500 hover:border-red-300 hover:bg-red-50 hover:cursor-pointer active:bg-red-100 active:cursor-pointer focus:outline-none focus:ring-0 focus:border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors duration-200"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Reset All
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -1024,12 +1019,13 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                     Scenario
                   </label>
                   <Button 
-                    onClick={handleResetProjections}
-                    variant="ghost"
+                    onClick={handleResetAllProjections}
+                    variant="outline"
                     size="sm"
-                    className="cursor-pointer !bg-transparent !border !border-gray-300 !text-gray-500 px-3 py-1 rounded-md text-xs font-medium hover:!border-gray-400 hover:!text-gray-700 hover:!bg-gray-50 hover:cursor-pointer active:!bg-gray-100 active:cursor-pointer focus:!outline-none focus:!ring-0 focus:!border-gray-300 focus-visible:!ring-0 focus-visible:!ring-offset-0"
+                    className="cursor-pointer bg-transparent border-gray-300 text-gray-500 px-3 py-1 rounded-md text-xs font-medium hover:text-red-500 hover:border-red-300 hover:bg-red-50 hover:cursor-pointer active:bg-red-100 active:cursor-pointer focus:outline-none focus:ring-0 focus:border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors duration-200"
                   >
-                    Reset
+                    <RefreshCw className="w-3 h-3 mr-1" />
+                    Reset All
                   </Button>
                 </div>
                 <select
@@ -1432,6 +1428,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
           </div>
         </div>
       </main>
+
 
     </>
   );

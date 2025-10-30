@@ -167,13 +167,13 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
   return (
     <>
       <Navbar loaderData={loaderData} />
-      <main className="min-h-screen pt-20 bg-background">
+      <main className="min-h-screen pt-20 bg-page-background">
         <div className="container mx-auto px-6 py-8">
           <div className="w-full max-w-6xl mx-auto">
             
             {/* Stock Selection Form */}
             <div className="mb-4">
-              <div className="flex flex-col items-center gap-3 py-2">
+              <div className="flex flex-col items-center gap-6 py-2">
                 {/* Compare Button - moved to top */}
                 <Button 
                   id="compare-stocks-submit-button" 

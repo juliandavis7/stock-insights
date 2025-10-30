@@ -133,13 +133,13 @@ const MetricRow = ({ metricName, data, allYears, getHistoricalValue, getEstimate
         }
         
         return (
-          <td key={year} className="py-2 px-4 text-left w-[120px]">
-            <div className="flex items-center gap-2">
-              <div className="font-medium text-gray-900 text-sm text-right flex-1">
+          <td key={year} className="py-2 px-4 w-[120px]">
+            <div className="flex items-center justify-start gap-2">
+              <div className="font-medium text-gray-900 text-sm text-center min-w-[70px]">
                 {formatter(value)}
               </div>
               {growth && growth.text && (
-                <div className={`text-xs ${growth.color} whitespace-nowrap ml-1`}>
+                <div className={`text-xs ${growth.color} whitespace-nowrap`}>
                   {growth.text}
                 </div>
               )}
@@ -281,7 +281,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
   return (
     <>
       <Navbar loaderData={loaderData} />
-      <main className="min-h-screen pt-20 bg-background">
+      <main className="min-h-screen pt-20 bg-page-background">
         <div className="container mx-auto px-6 py-8">
           <div className="w-full max-w-7xl mx-auto">
             
@@ -325,8 +325,8 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
               </Card>
             ) : data && (
               /* Financial Metrics Table */
-              <Card>
-                <CardContent className="pt-6 pb-5">
+              <Card className="mt-18">
+                <CardContent className="pt-2 pb-5">
                   <div id="financials-metrics-table" className="overflow-x-auto">
                     <table className="w-full table-fixed">
                       {/* Table Header */}
@@ -383,14 +383,16 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                             </div>
                           </th>
                           {allYears.map(year => (
-                            <th key={year} id={`year-${year}`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
-                              <div className={estimateYears.includes(year) ? "text-blue-600" : "text-gray-900"}>
-                                {year}
-                              </div>
-                              <div className="h-4 flex items-center justify-center">
-                                {estimateYears.includes(year) && (
-                                  <span className="text-xs text-blue-600 font-semibold">EST</span>
-                                )}
+                            <th key={year} id={`year-${year}`} className="py-3 px-4 text-left font-bold text-sm w-[120px] align-top">
+                              <div className="flex items-center justify-start">
+                                <div className={`text-center min-w-[70px] ${estimateYears.includes(year) ? "text-blue-600" : "text-gray-900"}`}>
+                                  <div>{year}</div>
+                                  <div className="h-4 flex items-center justify-center">
+                                    {estimateYears.includes(year) && (
+                                      <span className="text-xs text-blue-600 font-semibold">EST</span>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             </th>
                           ))}
@@ -399,7 +401,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                       <tbody id="financials-table-sections">
                         {/* Revenue & Profitability Section */}
                         <tr className="bg-gray-50">
-                          <td colSpan={allYears.length + 1} className="py-2 px-4 font-semibold text-gray-900 text-xs uppercase tracking-wider">
+                          <td colSpan={allYears.length + 1} className="py-4 px-4 font-semibold text-gray-900 text-xs uppercase tracking-wider">
                             REVENUE & PROFITABILITY
                           </td>
                         </tr>
@@ -433,7 +435,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
 
                         {/* Operating Expenses (OPEX) Section */}
                         <tr className="bg-gray-50">
-                          <td colSpan={allYears.length + 1} className="py-2 px-4 font-semibold text-gray-900 text-xs uppercase tracking-wider">
+                          <td colSpan={allYears.length + 1} className="py-4 px-4 font-semibold text-gray-900 text-xs uppercase tracking-wider">
                             OPERATING EXPENSES (OPEX)
                           </td>
                         </tr>
@@ -476,7 +478,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
 
                         {/* Net Income & EPS Section */}
                         <tr className="bg-gray-50">
-                          <td colSpan={allYears.length + 1} className="py-2 px-4 font-semibold text-gray-900 text-xs uppercase tracking-wider">
+                          <td colSpan={allYears.length + 1} className="py-4 px-4 font-semibold text-gray-900 text-xs uppercase tracking-wider">
                             NET INCOME & EPS
                           </td>
                         </tr>
