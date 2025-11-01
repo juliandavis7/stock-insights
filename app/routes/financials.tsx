@@ -9,6 +9,7 @@ import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { redirect } from "react-router";
 import { Info } from "lucide-react";
+import { cn } from "~/lib/utils";
 import type { Route } from "./+types/financials";
 
 export function meta({}: Route.MetaArgs) {
@@ -63,6 +64,12 @@ interface FinancialsData {
   estimates: EstimateData[];
 }
 
+// Color configuration - uses CSS variables defined in app.css
+const GROWTH_COLORS = {
+  positive: "text-bull",  // Uses --bull-color from app.css (#15803d)
+  negative: "text-bear",  // Uses --bear-color from app.css (#b91c1c)
+  fontWeight: "font-medium",
+};
 // Utility functions as per documentation
 const formatLargeNumber = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value)) return "";
@@ -91,13 +98,13 @@ const formatNumber = (value: number | null | undefined): string => {
   return value.toLocaleString();
 };
 
-const calculateYoYGrowth = (current: number | null, previous: number | null): { text: string; color: string } => {
-  if (!current || !previous || previous === 0) return { text: "", color: "" };
+const calculateYoYGrowth = (current: number | null, previous: number | null): { text: string; isPositive: boolean } | null => {
+  if (!current || !previous || previous === 0) return null;
   const growth = ((current - previous) / Math.abs(previous)) * 100;
-  const isPositive = growth > 0;
+  const isPositive = growth >= 0;
   return {
-    text: `${growth > 0 ? '+' : ''}${growth.toFixed(1)}%`,
-    color: isPositive ? "text-green-600" : "text-red-600"
+    text: isPositive ? `+${growth.toFixed(1)}%` : `-${Math.abs(growth).toFixed(1)}%`,
+    isPositive
   };
 };
 
@@ -138,8 +145,12 @@ const MetricRow = ({ metricName, data, allYears, getHistoricalValue, getEstimate
               <div className="font-medium text-gray-900 text-sm text-center min-w-[70px]">
                 {formatter(value)}
               </div>
-              {growth && growth.text && (
-                <div className={`text-xs ${growth.color} whitespace-nowrap`}>
+              {growth && (
+                <div className={cn(
+                  "text-xs whitespace-nowrap",
+                  GROWTH_COLORS.fontWeight,
+                  growth.isPositive ? GROWTH_COLORS.positive : GROWTH_COLORS.negative
+                )}>
                   {growth.text}
                 </div>
               )}

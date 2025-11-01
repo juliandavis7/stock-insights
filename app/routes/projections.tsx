@@ -1021,10 +1021,10 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                           }`}
                           style={activeScenario === scenario.key ? (
                             scenario.key === 'base' 
-                              ? { backgroundColor: '#1976D2', borderBottomColor: 'transparent' } // Neutral Blue
+                              ? { backgroundColor: 'var(--base-case-color)', borderBottomColor: 'transparent' }
                               : scenario.key === 'bull'
-                              ? { backgroundColor: '#388E3C', borderBottomColor: 'transparent' } // Green
-                              : { backgroundColor: '#D32F2F', borderBottomColor: 'transparent' } // Red
+                              ? { backgroundColor: 'var(--bull-color)', borderBottomColor: 'transparent' }
+                              : { backgroundColor: 'var(--bear-color)', borderBottomColor: 'transparent' }
                           ) : {}}
                         >
                           <span>{scenario.label}</span>

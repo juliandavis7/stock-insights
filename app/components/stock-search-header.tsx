@@ -49,7 +49,7 @@ export function StockSearchHeader({
       {/* Search Section */}
       <div className="flex justify-center mb-4">
         <div className="flex gap-2">
-          <div className="w-32">
+          <div className="w-24">
             <Label htmlFor="stock-symbol" className="sr-only">
               Stock Symbol
             </Label>
