@@ -39,6 +39,9 @@
     --color-popover: var(--popover);
     --color-card-foreground: var(--card-foreground);
     --color-card: var(--card);
+    --color-bull: var(--bull-color);
+    --color-bear: var(--bear-color);
+    --color-base-case: var(--base-case-color);
     --radius-sm: 8px;
     --radius-md: 10px;
     --radius-lg: 12px;
@@ -81,6 +84,14 @@
     --sidebar-accent-foreground: #1d1d1f;
     --sidebar-border: #e2e2e7; /* Lighter border */
     --sidebar-ring: #0071e3;
+    
+    /* Bull/Bear Case & Growth Colors */
+    /* These colors are used across financials and projections pages for consistency */
+    --bull-color: #15803d; /* green-700 - Used for positive growth and bull case */
+    --bear-color: #b91c1c; /* red-700 - Used for negative growth and bear case */
+    --base-case-color: #1976D2; /* blue-600 - Used for base case */
+    
+    /* Usage: text-bull, bg-bull, text-bear, bg-bear, text-base-case, bg-base-case */
     /* Apple Fonts */
     --font-apple-system:
         -apple-system, BlinkMacSystemFont, "San Francisco", "Helvetica Neue",
