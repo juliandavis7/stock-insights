@@ -42,7 +42,7 @@ interface FeatureTileProps {
 const imageCropping: Record<string, { objectPosition: string; scale: number }> = {
   search: { objectPosition: 'center -4px', scale: 1.3 },
   compare: { objectPosition: 'center -4px', scale: 1.3 },
-  projections: { objectPosition: 'center -15px', scale: 1.3 }, // Larger image, less zoom
+  projections: { objectPosition: 'center -70px', scale: 1.1 }, // Larger image, less zoom
   financials: { objectPosition: 'center -4px', scale: 1.3 },
   charts: { objectPosition: 'center -4px', scale: 1.3 }
 };
@@ -51,7 +51,7 @@ const imageCropping: Record<string, { objectPosition: string; scale: number }> =
 const imageAspectRatio: Record<string, string> = {
   search: '4/3',
   compare: '4/3',
-  projections: '4/5', // Taller ratio to show more vertical content
+  projections: '4/3', // Taller ratio to show more vertical content
   financials: '4/3',
   charts: '4/3'
 };
@@ -60,7 +60,7 @@ const imageAspectRatio: Record<string, string> = {
 const imageMaxHeight: Record<string, string> = {
   search: '550px',
   compare: '550px',
-  projections: '850px', // Taller to show full projections table
+  projections: '1000px', // Taller to show full projections table
   financials: '550px',
   charts: '550px'
 };
