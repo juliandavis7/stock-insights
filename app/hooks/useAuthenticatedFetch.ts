@@ -26,7 +26,7 @@ export function useAuthenticatedFetch() {
     const token = await getToken();
     if (!token) throw new Error("Failed to obtain authentication token");
     
-    return fetch(url, {
+    const response = await fetch(url, {
       ...options,
       headers: {
         ...options.headers,
@@ -34,6 +34,35 @@ export function useAuthenticatedFetch() {
         'Content-Type': 'application/json',
       },
     });
+    
+    // Check for 403 trial expiration error
+    if (response.status === 403) {
+      try {
+        // Clone the response so we can read it and still return the original
+        const clonedResponse = response.clone();
+        const errorData = await clonedResponse.json();
+        
+        // Check if this is a trial expiration error
+        if (errorData.detail?.toLowerCase().includes('trial has expired') || 
+            errorData.detail?.toLowerCase().includes('upgrade to continue')) {
+          // Prevent redirect if already on pricing page
+          if (typeof window !== 'undefined' && !window.location.pathname.includes('/pricing')) {
+            console.log('Trial expired - redirecting to pricing page');
+            window.location.href = '/pricing?expired=true';
+          }
+          throw new Error('Trial expired');
+        }
+      } catch (error) {
+        // If error is "Trial expired", rethrow it
+        if (error instanceof Error && error.message === 'Trial expired') {
+          throw error;
+        }
+        // If JSON parsing fails or other error, continue with normal error handling
+        // Fall through to return the original response
+      }
+    }
+    
+    return response;
   }, [getToken, isSignedIn]);
   
   return { 
