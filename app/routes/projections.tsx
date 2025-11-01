@@ -439,7 +439,23 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
         actions.setProjectionsBaseData(projectionsPromise.value);
       } else {
         console.error("Error fetching projections:", projectionsPromise.reason);
-        actions.setProjectionsError(projectionsPromise.reason instanceof Error ? projectionsPromise.reason.message : "Error fetching projections");
+        const errorMessage = projectionsPromise.reason instanceof Error ? projectionsPromise.reason.message : "Error fetching projections";
+        actions.setProjectionsError(errorMessage);
+        
+        // If ticker not found, clear the projections data
+        if (errorMessage.toLowerCase().includes('not found') || 
+            errorMessage.toLowerCase().includes('404') ||
+            errorMessage.toLowerCase().includes('does not exist') ||
+            errorMessage.toLowerCase().includes('failed to fetch data for')) {
+          actions.setProjectionsBaseData({
+            ticker: stockSymbol,
+            revenue: 0,
+            net_income: 0,
+            eps: 0,
+            net_income_margin: 0,
+            data_year: new Date().getFullYear()
+          });
+        }
       }
       
       // Stock info is automatically handled by the fetchStockInfo action
@@ -862,7 +878,23 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
             actions.setProjectionsBaseData(projectionsPromise.value);
           } else {
             console.error("Error fetching projections:", projectionsPromise.reason);
-            actions.setProjectionsError(projectionsPromise.reason instanceof Error ? projectionsPromise.reason.message : "Error fetching projections");
+            const errorMessage = projectionsPromise.reason instanceof Error ? projectionsPromise.reason.message : "Error fetching projections";
+            actions.setProjectionsError(errorMessage);
+            
+            // If ticker not found, clear the projections data
+            if (errorMessage.toLowerCase().includes('not found') || 
+                errorMessage.toLowerCase().includes('404') ||
+                errorMessage.toLowerCase().includes('does not exist') ||
+                errorMessage.toLowerCase().includes('failed to fetch data for')) {
+              actions.setProjectionsBaseData({
+                ticker: tickerToLoad,
+                revenue: 0,
+                net_income: 0,
+                eps: 0,
+                net_income_margin: 0,
+                data_year: new Date().getFullYear()
+              });
+            }
           }
           
           // Stock info is automatically handled by the fetchStockInfo action
@@ -964,6 +996,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
               showSharesOutstanding={true}
               formatCurrency={formatCurrency}
               formatNumber={formatNumber}
+              error={stockInfo.error}
             />
 
             {/* Scenario Tabs */}
@@ -1041,13 +1074,31 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
               </div>
             </div>
 
-            {/* Error State */}
-            {(projectionsState?.error || stockInfo.error) && (
+            {/* Error State - Only show non-404 errors */}
+            {((projectionsState?.error && !(
+              projectionsState.error.toLowerCase().includes('not found') || 
+              projectionsState.error.toLowerCase().includes('404') ||
+              projectionsState.error.toLowerCase().includes('does not exist') ||
+              projectionsState.error.toLowerCase().includes('failed to fetch data for')
+            )) || (stockInfo.error && !(
+              stockInfo.error.toLowerCase().includes('not found') || 
+              stockInfo.error.toLowerCase().includes('404') ||
+              stockInfo.error.toLowerCase().includes('does not exist')
+            ))) && (
               <Card>
                 <CardContent>
                   <div className="text-red-600 text-center bg-red-50 p-3 rounded-md border border-red-200">
-                    {projectionsState?.error && <div>{projectionsState.error}</div>}
-                    {stockInfo.error && <div>{stockInfo.error}</div>}
+                    {projectionsState?.error && !(
+                      projectionsState.error.toLowerCase().includes('not found') || 
+                      projectionsState.error.toLowerCase().includes('404') ||
+                      projectionsState.error.toLowerCase().includes('does not exist') ||
+                      projectionsState.error.toLowerCase().includes('failed to fetch data for')
+                    ) && <div>{projectionsState.error}</div>}
+                    {stockInfo.error && !(
+                      stockInfo.error.toLowerCase().includes('not found') || 
+                      stockInfo.error.toLowerCase().includes('404') ||
+                      stockInfo.error.toLowerCase().includes('does not exist')
+                    ) && <div>{stockInfo.error}</div>}
                   </div>
                 </CardContent>
               </Card>

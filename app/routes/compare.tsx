@@ -4,7 +4,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { BarChart3 } from "lucide-react";
+import { Search } from "lucide-react";
 import { Navbar } from "~/components/homepage/navbar";
 import { useCompareState, useStockActions } from "~/store/stockStore";
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
@@ -87,8 +87,8 @@ const MetricRow = ({ metric, ticker1, ticker2, ticker3, data1, data2, data3, met
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50" id={`compare-metric-row-${metricKey.toLowerCase().replace(/_/g, '-')}`}>
       <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">{metric}</td>
-      <td className="py-2 px-4 w-[360px]">
-        <div className="grid grid-cols-3 gap-4">
+      <td className="py-2 px-4 w-[300px]">
+        <div className="grid grid-cols-3 gap-0">
           <span className="text-center font-medium text-sm" style={{ color: '#D97706' }}>{formatter(getMetricValue(data1, metricKey))}</span>
           <span className="text-center font-medium text-sm">{formatter(getMetricValue(data2, metricKey))}</span>
           <span className="text-center font-medium text-sm" style={{ color: '#0369A1' }}>{formatter(getMetricValue(data3, metricKey))}</span>
@@ -141,6 +141,10 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
     inputTickers.forEach((ticker, index) => {
       if (ticker.trim()) {
         fetchMetrics(ticker.trim(), index);
+      } else {
+        // Clear the ticker and data for empty inputs
+        actions.setCompareTicker(index, '');
+        actions.setCompareError(index, null);
       }
     });
   };
@@ -169,11 +173,11 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
       <Navbar loaderData={loaderData} />
       <main className="min-h-screen pt-20 bg-page-background">
         <div className="container mx-auto px-6 py-8">
-          <div className="w-full max-w-6xl mx-auto">
+          <div className="w-full max-w-4xl mx-auto">
             
             {/* Stock Selection Form */}
-            <div className="mb-4">
-              <div className="flex flex-col items-center gap-6 py-2">
+            <div className="mb-10">
+              <div className="flex flex-col items-center gap-5 py-2">
                 {/* Compare Button - moved to top */}
                 <Button 
                   id="compare-stocks-submit-button" 
@@ -182,7 +186,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                   onClick={handleCompare}
                   className="flex-shrink-0"
                 >
-                  <BarChart3 className="h-4 w-4 mr-2" />
+                  <Search className="h-4 w-4 mr-0" />
                   Compare
                 </Button>
                 
@@ -193,7 +197,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                       id="compare-stock-input-1"
                       value={inputTickers[0]}
                       onChange={(e) => handleTickerChange(0, e.target.value)}
-                      className="text-center border-2 focus:border-amber-200 focus:ring-amber-200 w-20"
+                      className="text-center border-2 focus:border-amber-200 focus:ring-amber-200 w-24"
                       style={{ borderColor: '#FED7AA' }}
                       placeholder="Stock 1"
                     />
@@ -203,7 +207,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                       id="compare-stock-input-2"
                       value={inputTickers[1]}
                       onChange={(e) => handleTickerChange(1, e.target.value)}
-                      className="text-center w-20"
+                      className="text-center w-24"
                       placeholder="Stock 2"
                     />
                   </div>
@@ -212,7 +216,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                       id="compare-stock-input-3"
                       value={inputTickers[2]}
                       onChange={(e) => handleTickerChange(2, e.target.value)}
-                      className="text-center border-2 focus:border-blue-200 focus:ring-blue-200 w-20"
+                      className="text-center border-2 focus:border-blue-200 focus:ring-blue-200 w-24"
                       style={{ borderColor: '#BFDBFE' }}
                       placeholder="Stock 3"
                     />
