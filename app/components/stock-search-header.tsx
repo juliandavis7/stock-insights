@@ -2,6 +2,8 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Search } from "lucide-react";
+import { TickerNotFound } from "~/components/ticker-not-found";
+import { useGlobalTicker } from "~/store/stockStore";
 
 interface StockSearchHeaderProps {
   stockSymbol: string;
@@ -15,6 +17,7 @@ interface StockSearchHeaderProps {
   showSharesOutstanding?: boolean;
   formatCurrency: (value: number | null | undefined) => string;
   formatNumber: (value: number | null | undefined) => string;
+  error?: string | null;
 }
 
 export function StockSearchHeader({
@@ -28,9 +31,18 @@ export function StockSearchHeader({
   sharesOutstanding,
   showSharesOutstanding = false,
   formatCurrency,
-  formatNumber
+  formatNumber,
+  error
 }: StockSearchHeaderProps) {
+  const globalTicker = useGlobalTicker();
   const hasStockData = ticker || stockPrice || marketCap;
+  
+  // Check if error is a "not found" type error
+  const isNotFoundError = error && (
+    error.toLowerCase().includes('not found') || 
+    error.toLowerCase().includes('404') ||
+    error.toLowerCase().includes('does not exist')
+  );
 
   return (
     <div className="pt-4 mb-4">
@@ -54,31 +66,33 @@ export function StockSearchHeader({
         </div>
       </div>
 
-      {/* Stock Info Header */}
-      {hasStockData && (
-        <div className="mb-3">  
-          <div className="flex justify-center">
-            <div className="text-center">
-              <h1 className="text-xl font-bold text-gray-900 mb-1">
-                {ticker || stockSymbol}
-              </h1>
-              <div className="space-x-6 text-sm text-gray-600">
+      {/* Stock Info Header or Not Found State - Fixed height container */}
+      <div className="mb-3 h-16 flex items-center justify-center">
+        {isNotFoundError ? (
+          <TickerNotFound 
+            ticker={globalTicker.currentTicker?.toUpperCase() || stockSymbol.toUpperCase()}
+          />
+        ) : hasStockData && (
+          <div className="text-center">
+            <h1 className="text-xl font-bold text-gray-900 mb-1">
+              {ticker || stockSymbol}
+            </h1>
+            <div className="space-x-6 text-sm text-gray-600">
+              <span>
+                STOCK PRICE: {formatCurrency(stockPrice)}
+              </span>
+              <span>
+                MKT.CAP: {formatCurrency(marketCap)}
+              </span>
+              {showSharesOutstanding && (
                 <span>
-                  STOCK PRICE: {formatCurrency(stockPrice)}
+                  SHARES OUTSTANDING: {formatNumber(sharesOutstanding)}
                 </span>
-                <span>
-                  MKT.CAP: {formatCurrency(marketCap)}
-                </span>
-                {showSharesOutstanding && (
-                  <span>
-                    SHARES OUTSTANDING: {formatNumber(sharesOutstanding)}
-                  </span>
-                )}
-              </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

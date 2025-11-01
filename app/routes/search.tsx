@@ -97,7 +97,7 @@ interface MetricRowProps {
 const MetricRow = ({ metric, value, benchmark }: MetricRowProps) => (
   <tr className="border-b border-gray-100 hover:bg-gray-50">
     <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">{metric}</td>
-    <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{value}</td>
+    <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[300px]">{value}</td>
     <td className="py-2 px-4 text-muted-foreground text-sm w-[200px]">{benchmark}</td>
   </tr>
 );
@@ -218,15 +218,24 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
             marketCap={stockInfo.data?.market_cap}
             formatCurrency={formatCurrency}
             formatNumber={formatNumber}
+            error={stockInfo.error}
           />
 
-          {/* Error State */}
-          {(searchState.error || stockInfo.error) && (
+          {/* Error State - Only show non-404 errors */}
+          {(searchState.error || (stockInfo.error && !(
+            stockInfo.error.toLowerCase().includes('not found') || 
+            stockInfo.error.toLowerCase().includes('404') ||
+            stockInfo.error.toLowerCase().includes('does not exist')
+          ))) && (
             <Card className="mb-4">
               <CardContent className="pt-6">
                 <div className="text-red-600 text-center">
                   {searchState.error && <div>{searchState.error}</div>}
-                  {stockInfo.error && <div>{stockInfo.error}</div>}
+                  {stockInfo.error && !(
+                    stockInfo.error.toLowerCase().includes('not found') || 
+                    stockInfo.error.toLowerCase().includes('404') ||
+                    stockInfo.error.toLowerCase().includes('does not exist')
+                  ) && <div>{stockInfo.error}</div>}
                 </div>
               </CardContent>
             </Card>

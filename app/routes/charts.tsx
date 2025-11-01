@@ -80,7 +80,26 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
           actions.setChartsData(chartsPromise.value);
         } else {
           console.error("Error fetching charts:", chartsPromise.reason);
-          actions.setChartsError(chartsPromise.reason instanceof Error ? chartsPromise.reason.message : "An error occurred");
+          const errorMessage = chartsPromise.reason instanceof Error ? chartsPromise.reason.message : "An error occurred";
+          actions.setChartsError(errorMessage);
+          
+          // If ticker not found, set empty chart data to show axes without bars
+          if (errorMessage.toLowerCase().includes('not found') || 
+              errorMessage.toLowerCase().includes('404') ||
+              errorMessage.toLowerCase().includes('does not exist') ||
+              errorMessage.toLowerCase().includes('failed to fetch charts for')) {
+            actions.setChartsData({
+              ticker: upperTicker,
+              quarters: [],
+              revenue: [],
+              eps: [],
+              gross_margin: [],
+              net_margin: [],
+              operating_income: [],
+              free_cash_flow: [],
+              operating_cash_flow: []
+            });
+          }
         }
         
         // Stock info is automatically handled by the fetchStockInfo action
@@ -163,6 +182,30 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
 
   // Format data for Recharts with simplified quarter labels
   const formatChartData = (data: any) => {
+    // If no quarters data, return placeholder data to show empty chart with axes
+    if (!data || !data.quarters || data.quarters.length === 0) {
+      // Create placeholder data for 5 years of quarters
+      const currentYear = new Date().getFullYear();
+      const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+      const placeholderData: any[] = [];
+      
+      years.forEach(year => {
+        for (let q = 1; q <= 4; q++) {
+          placeholderData.push({
+            quarter: `Q${q}`,
+            fullQuarter: `${year} Q${q}`,
+            revenue: null,
+            eps: null,
+            isLastActual: false,
+            isFuture: false,
+            hasFutureData: false,
+          });
+        }
+      });
+      
+      return placeholderData;
+    }
+    
     const mostRecentActualIndex = getMostRecentActualQuarterIndex(data);
     const hasFutureData = chartHasFutureData(data);
     
@@ -185,6 +228,28 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
 
   // Format margin data for line chart (keep all quarters, null values create gaps)
   const formatMarginData = (data: any) => {
+    // If no quarters data, return placeholder data to show empty chart with axes
+    if (!data || !data.quarters || data.quarters.length === 0) {
+      // Create placeholder data for 5 years of quarters
+      const currentYear = new Date().getFullYear();
+      const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+      const placeholderData: any[] = [];
+      
+      years.forEach(year => {
+        for (let q = 1; q <= 4; q++) {
+          placeholderData.push({
+            quarter: `Q${q}`,
+            fullQuarter: `${year} Q${q}`,
+            grossMargin: null,
+            netMargin: null,
+            isLastActual: false,
+          });
+        }
+      });
+      
+      return placeholderData;
+    }
+    
     const mostRecentActualIndex = getMostRecentActualQuarterIndex(data);
     
     return data.quarters.map((quarter: string, index: number) => {
@@ -204,6 +269,27 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
 
   // Format operating income data for bar chart (keep all quarters, null values won't render bars)
   const formatOperatingIncomeData = (data: any) => {
+    // If no quarters data, return placeholder data to show empty chart with axes
+    if (!data || !data.quarters || data.quarters.length === 0) {
+      // Create placeholder data for 5 years of quarters
+      const currentYear = new Date().getFullYear();
+      const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+      const placeholderData: any[] = [];
+      
+      years.forEach(year => {
+        for (let q = 1; q <= 4; q++) {
+          placeholderData.push({
+            quarter: `Q${q}`,
+            fullQuarter: `${year} Q${q}`,
+            operatingIncome: null,
+            isLastActual: false,
+          });
+        }
+      });
+      
+      return placeholderData;
+    }
+    
     const mostRecentActualIndex = getMostRecentActualQuarterIndex(data);
     
     return data.quarters.map((quarter: string, index: number) => {
@@ -221,6 +307,27 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
 
   // Format free cash flow data for bar chart (keep all quarters, null values won't render bars)
   const formatFreeCashFlowData = (data: any) => {
+    // If no quarters data, return placeholder data to show empty chart with axes
+    if (!data || !data.quarters || data.quarters.length === 0) {
+      // Create placeholder data for 5 years of quarters
+      const currentYear = new Date().getFullYear();
+      const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+      const placeholderData: any[] = [];
+      
+      years.forEach(year => {
+        for (let q = 1; q <= 4; q++) {
+          placeholderData.push({
+            quarter: `Q${q}`,
+            fullQuarter: `${year} Q${q}`,
+            freeCashFlow: null,
+            isLastActual: false,
+          });
+        }
+      });
+      
+      return placeholderData;
+    }
+    
     const mostRecentActualIndex = getMostRecentActualQuarterIndex(data);
     
     return data.quarters.map((quarter: string, index: number) => {
@@ -238,6 +345,27 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
 
   // Format operating cash flow data for bar chart (keep all quarters, null values won't render bars)
   const formatOperatingCashFlowData = (data: any) => {
+    // If no quarters data, return placeholder data to show empty chart with axes
+    if (!data || !data.quarters || data.quarters.length === 0) {
+      // Create placeholder data for 5 years of quarters
+      const currentYear = new Date().getFullYear();
+      const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+      const placeholderData: any[] = [];
+      
+      years.forEach(year => {
+        for (let q = 1; q <= 4; q++) {
+          placeholderData.push({
+            quarter: `Q${q}`,
+            fullQuarter: `${year} Q${q}`,
+            operatingCashFlow: null,
+            isLastActual: false,
+          });
+        }
+      });
+      
+      return placeholderData;
+    }
+    
     const mostRecentActualIndex = getMostRecentActualQuarterIndex(data);
     
     return data.quarters.map((quarter: string, index: number) => {
@@ -290,7 +418,26 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
         actions.setChartsData(chartsPromise.value);
       } else {
         console.error("Error fetching charts:", chartsPromise.reason);
-        actions.setChartsError(chartsPromise.reason instanceof Error ? chartsPromise.reason.message : "An error occurred");
+        const errorMessage = chartsPromise.reason instanceof Error ? chartsPromise.reason.message : "An error occurred";
+        actions.setChartsError(errorMessage);
+        
+        // If ticker not found, set empty chart data to show axes without bars
+        if (errorMessage.toLowerCase().includes('not found') || 
+            errorMessage.toLowerCase().includes('404') ||
+            errorMessage.toLowerCase().includes('does not exist') ||
+            errorMessage.toLowerCase().includes('failed to fetch charts for')) {
+          actions.setChartsData({
+            ticker: upperTicker,
+            quarters: [],
+            revenue: [],
+            eps: [],
+            gross_margin: [],
+            net_margin: [],
+            operating_income: [],
+            free_cash_flow: [],
+            operating_cash_flow: []
+          });
+        }
       }
       
       // Stock info is automatically handled by the fetchStockInfo action
@@ -414,12 +561,32 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                 marketCap={stockInfo.data?.market_cap}
                 formatCurrency={formatCurrency}
                 formatNumber={formatNumber}
+                error={stockInfo.error}
               />
               
-              {(charts.error || stockInfo.error) && (
+              {/* Error State - Only show non-404 errors */}
+              {((charts.error && !(
+                charts.error.toLowerCase().includes('not found') || 
+                charts.error.toLowerCase().includes('404') ||
+                charts.error.toLowerCase().includes('does not exist') ||
+                charts.error.toLowerCase().includes('failed to fetch charts for')
+              )) || (stockInfo.error && !(
+                stockInfo.error.toLowerCase().includes('not found') || 
+                stockInfo.error.toLowerCase().includes('404') ||
+                stockInfo.error.toLowerCase().includes('does not exist')
+              ))) && (
                 <div className="text-red-500 text-center mt-4 p-4 bg-red-50 rounded-lg max-w-md mx-auto">
-                  {charts.error && <div>{charts.error}</div>}
-                  {stockInfo.error && <div>{stockInfo.error}</div>}
+                  {charts.error && !(
+                    charts.error.toLowerCase().includes('not found') || 
+                    charts.error.toLowerCase().includes('404') ||
+                    charts.error.toLowerCase().includes('does not exist') ||
+                    charts.error.toLowerCase().includes('failed to fetch charts for')
+                  ) && <div>{charts.error}</div>}
+                  {stockInfo.error && !(
+                    stockInfo.error.toLowerCase().includes('not found') || 
+                    stockInfo.error.toLowerCase().includes('404') ||
+                    stockInfo.error.toLowerCase().includes('does not exist')
+                  ) && <div>{stockInfo.error}</div>}
                 </div>
               )}
 
@@ -446,6 +613,18 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                   <div className="w-full max-w-6xl mx-auto px-6">
                     <div className="flex justify-between items-center">
                       {(() => {
+                        // If no quarters data, show default year range
+                        if (!charts.data.quarters || charts.data.quarters.length === 0) {
+                          const yearRange = getYearRange();
+                          return yearRange.map((year) => (
+                            <div key={year} className="flex-1 text-center">
+                              <div className="text-lg font-semibold text-gray-700">
+                                {year}
+                              </div>
+                            </div>
+                          ));
+                        }
+                        
                         const yearGroups: { [year: string]: number } = {};
                         charts.data.quarters.forEach(quarter => {
                           const year = quarter.split(' ')[0];
@@ -520,6 +699,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                           tick={{ fontSize: 12 }}
                           tickFormatter={(value) => formatNumberInteger(value)}
                           label={{ value: 'Revenue', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
+                          domain={[0, (dataMax: number) => dataMax > 0 ? dataMax : 100]}
                         />
                         <ChartTooltip 
                           content={<ChartTooltipContent />}
@@ -626,6 +806,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                           tick={{ fontSize: 12 }}
                           tickFormatter={(value) => `${value}%`}
                           label={{ value: 'Margin %', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
+                          domain={[0, (dataMax: number) => dataMax > 0 ? dataMax : 100]}
                         />
                         <ChartTooltip 
                           content={<ChartTooltipContent />}
@@ -707,6 +888,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                           tick={{ fontSize: 12 }}
                           tickFormatter={(value) => `$${value.toFixed(2)}`}
                           label={{ value: 'EPS', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
+                          domain={[0, (dataMax: number) => dataMax > 0 ? dataMax : 10]}
                         />
                         <ChartTooltip 
                           content={<ChartTooltipContent />}
@@ -812,6 +994,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                           tick={{ fontSize: 12 }}
                           tickFormatter={(value) => formatNumberInteger(value)}
                           label={{ value: 'Free Cash Flow', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
+                          domain={[0, (dataMax: number) => dataMax > 0 ? dataMax : 100]}
                         />
                         <ChartTooltip 
                           content={<ChartTooltipContent />}
@@ -854,6 +1037,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                           tick={{ fontSize: 12 }}
                           tickFormatter={(value) => formatNumberInteger(value)}
                           label={{ value: 'Operating Cash Flow', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
+                          domain={[0, (dataMax: number) => dataMax > 0 ? dataMax : 100]}
                         />
                         <ChartTooltip 
                           content={<ChartTooltipContent />}
@@ -896,6 +1080,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                           tick={{ fontSize: 12 }}
                           tickFormatter={(value) => formatNumberInteger(value)}
                           label={{ value: 'Operating Income', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
+                          domain={[0, (dataMax: number) => dataMax > 0 ? dataMax : 100]}
                         />
                         <ChartTooltip 
                           content={<ChartTooltipContent />}

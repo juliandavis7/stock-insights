@@ -103,7 +103,7 @@ const calculateYoYGrowth = (current: number | null, previous: number | null): { 
 
 interface MetricRowProps {
   metricName: string;
-  data: FinancialsData;
+  data: FinancialsData | null;
   allYears: string[];
   getHistoricalValue: (year: string) => number | null;
   getEstimateValue: (year: string) => number | null;
@@ -115,16 +115,16 @@ const MetricRow = ({ metricName, data, allYears, getHistoricalValue, getEstimate
     <tr className="border-b border-gray-100 hover:bg-gray-50">
       <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">{metricName}</td>
       {allYears.map((year, index) => {
-        const historical = data.historical.find(h => h.fiscalYear === year);
-        const estimate = data.estimates.find(e => e.fiscalYear === year);
+        const historical = data?.historical?.find(h => h.fiscalYear === year);
+        const estimate = data?.estimates?.find(e => e.fiscalYear === year);
         const value = getHistoricalValue(year) ?? getEstimateValue(year);
         
         // Calculate growth rate compared to previous year
         let growth = null;
         if (index > 0) {
           const prevYear = allYears[index - 1];
-          const prevHistorical = data.historical.find(h => h.fiscalYear === prevYear);
-          const prevEstimate = data.estimates.find(e => e.fiscalYear === prevYear);
+          const prevHistorical = data?.historical?.find(h => h.fiscalYear === prevYear);
+          const prevEstimate = data?.estimates?.find(e => e.fiscalYear === prevYear);
           const prevValue = getHistoricalValue(prevYear) ?? getEstimateValue(prevYear);
           
           if (value && prevValue) {
@@ -187,7 +187,20 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
         actions.setFinancialsData(financialsPromise.value);
       } else {
         console.error("Error fetching financials:", financialsPromise.reason);
-        actions.setFinancialsError(financialsPromise.reason instanceof Error ? financialsPromise.reason.message : "Error fetching financial data");
+        const errorMessage = financialsPromise.reason instanceof Error ? financialsPromise.reason.message : "Error fetching financial data";
+        actions.setFinancialsError(errorMessage);
+        
+        // If ticker not found, clear the financials data
+        if (errorMessage.toLowerCase().includes('not found') || 
+            errorMessage.toLowerCase().includes('404') ||
+            errorMessage.toLowerCase().includes('does not exist') ||
+            errorMessage.toLowerCase().includes('failed to fetch financials for')) {
+          actions.setFinancialsData({
+            ticker: symbol,
+            historical: [],
+            estimates: []
+          });
+        }
       }
       
       // Stock info is automatically handled by the fetchStockInfo action
@@ -208,6 +221,13 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    if (stockSymbol.trim()) {
+      fetchFinancials(stockSymbol.trim().toUpperCase());
+    }
+  };
+
+  // Handle search click (no event parameter)
+  const handleSearchClick = () => {
     if (stockSymbol.trim()) {
       fetchFinancials(stockSymbol.trim().toUpperCase());
     }
@@ -275,8 +295,16 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
 
   // Get years for table headers (2022-2027) - sorted chronologically
   const historicalYears = data?.historical?.map(h => h.fiscalYear).filter(year => parseInt(year) >= 2022).sort() || [];
-  const estimateYears = data?.estimates?.map(e => e.fiscalYear).filter(year => parseInt(year) >= 2022).sort() || [];
-  const allYears = [...historicalYears, ...estimateYears].filter((year, index, arr) => arr.indexOf(year) === index).sort();
+  let estimateYears = data?.estimates?.map(e => e.fiscalYear).filter(year => parseInt(year) >= 2022).sort() || [];
+  let allYears = [...historicalYears, ...estimateYears].filter((year, index, arr) => arr.indexOf(year) === index).sort();
+  
+  // If no years available (e.g., ticker not found), show default range
+  if (allYears.length === 0) {
+    const currentYear = new Date().getFullYear();
+    allYears = Array.from({ length: 6 }, (_, i) => (currentYear - 3 + i).toString());
+    // Mark future years as estimates
+    estimateYears = allYears.filter(year => parseInt(year) >= currentYear);
+  }
 
   return (
     <>
@@ -288,22 +316,41 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
             <StockSearchHeader
               stockSymbol={stockSymbol}
               onStockSymbolChange={(value) => setStockSymbol(value.toUpperCase())}
-              onSearch={handleSearch}
+              onSearch={handleSearchClick}
               loading={loading}
               ticker={stockInfo.data?.ticker || data?.ticker}
               stockPrice={stockInfo.data?.price || data?.price}
               marketCap={stockInfo.data?.market_cap || data?.market_cap}
               formatCurrency={formatLargeNumber}
               formatNumber={formatNumber}
+              error={stockInfo.error}
             />
 
-            {/* Error State */}
-            {(error || stockInfo.error) && (
+            {/* Error State - Only show non-404 errors */}
+            {((error && !(
+              error.toLowerCase().includes('not found') || 
+              error.toLowerCase().includes('404') ||
+              error.toLowerCase().includes('does not exist') ||
+              error.toLowerCase().includes('failed to fetch financials for')
+            )) || (stockInfo.error && !(
+              stockInfo.error.toLowerCase().includes('not found') || 
+              stockInfo.error.toLowerCase().includes('404') ||
+              stockInfo.error.toLowerCase().includes('does not exist')
+            ))) && (
               <Card className="mb-4">
                 <CardContent className="pt-6">
                   <div className="text-red-600 text-center">
-                    {error && <div>{error}</div>}
-                    {stockInfo.error && <div>{stockInfo.error}</div>}
+                    {error && !(
+                      error.toLowerCase().includes('not found') || 
+                      error.toLowerCase().includes('404') ||
+                      error.toLowerCase().includes('does not exist') ||
+                      error.toLowerCase().includes('failed to fetch financials for')
+                    ) && <div>{error}</div>}
+                    {stockInfo.error && !(
+                      stockInfo.error.toLowerCase().includes('not found') || 
+                      stockInfo.error.toLowerCase().includes('404') ||
+                      stockInfo.error.toLowerCase().includes('does not exist')
+                    ) && <div>{stockInfo.error}</div>}
                   </div>
                 </CardContent>
               </Card>
@@ -311,7 +358,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
 
             {/* Loading State */}
             {loading ? (
-              <Card>
+              <Card className="mt-8">
                 <CardContent className="pt-6">
                   <div className="space-y-4">
                     <Skeleton className="h-8 w-full" />
@@ -323,9 +370,9 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                   </div>
                 </CardContent>
               </Card>
-            ) : data && (
+            ) : (
               /* Financial Metrics Table */
-              <Card className="mt-18">
+              <Card className="mt-8">
                 <CardContent className="pt-2 pb-5">
                   <div id="financials-metrics-table" className="overflow-x-auto">
                     <table className="w-full table-fixed">
@@ -410,8 +457,8 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           metricName="Total Revenue"
                           data={data}
                           allYears={allYears}
-                          getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.totalRevenue || null}
-                          getEstimateValue={(year) => data.estimates.find(e => e.fiscalYear === year)?.totalRevenue || null}
+                          getHistoricalValue={(year) => data?.historical?.find(h => h.fiscalYear === year)?.totalRevenue || null}
+                          getEstimateValue={(year) => data?.estimates?.find(e => e.fiscalYear === year)?.totalRevenue || null}
                           formatter={formatLargeNumber}
                         />
 
@@ -419,7 +466,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           metricName="Cost of Revenue"
                           data={data}
                           allYears={allYears}
-                          getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.costOfRevenue || null}
+                          getHistoricalValue={(year) => data?.historical?.find(h => h.fiscalYear === year)?.costOfRevenue || null}
                           getEstimateValue={() => null}
                           formatter={formatLargeNumber}
                         />
@@ -428,7 +475,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           metricName="Gross Profit"
                           data={data}
                           allYears={allYears}
-                          getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.grossProfit || null}
+                          getHistoricalValue={(year) => data?.historical?.find(h => h.fiscalYear === year)?.grossProfit || null}
                           getEstimateValue={() => null}
                           formatter={formatLargeNumber}
                         />
@@ -444,7 +491,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           metricName="SG&A"
                           data={data}
                           allYears={allYears}
-                          getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.sellingGeneralAndAdministrative || null}
+                          getHistoricalValue={(year) => data?.historical?.find(h => h.fiscalYear === year)?.sellingGeneralAndAdministrative || null}
                           getEstimateValue={() => null}
                           formatter={formatLargeNumber}
                         />
@@ -453,7 +500,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           metricName="R&D"
                           data={data}
                           allYears={allYears}
-                          getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.researchAndDevelopment || null}
+                          getHistoricalValue={(year) => data?.historical?.find(h => h.fiscalYear === year)?.researchAndDevelopment || null}
                           getEstimateValue={() => null}
                           formatter={formatLargeNumber}
                         />
@@ -462,7 +509,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           metricName="Total OpEx"
                           data={data}
                           allYears={allYears}
-                          getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.operatingExpenses || null}
+                          getHistoricalValue={(year) => data?.historical?.find(h => h.fiscalYear === year)?.operatingExpenses || null}
                           getEstimateValue={() => null}
                           formatter={formatLargeNumber}
                         />
@@ -471,7 +518,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           metricName="Operating Income"
                           data={data}
                           allYears={allYears}
-                          getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.operatingIncome || null}
+                          getHistoricalValue={(year) => data?.historical?.find(h => h.fiscalYear === year)?.operatingIncome || null}
                           getEstimateValue={() => null}
                           formatter={formatLargeNumber}
                         />
@@ -487,8 +534,8 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           metricName="Net Income"
                           data={data}
                           allYears={allYears}
-                          getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.netIncome || null}
-                          getEstimateValue={(year) => data.estimates.find(e => e.fiscalYear === year)?.netIncome || null}
+                          getHistoricalValue={(year) => data?.historical?.find(h => h.fiscalYear === year)?.netIncome || null}
+                          getEstimateValue={(year) => data?.estimates?.find(e => e.fiscalYear === year)?.netIncome || null}
                           formatter={formatLargeNumber}
                         />
 
@@ -496,8 +543,8 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           metricName="Basic EPS"
                           data={data}
                           allYears={allYears}
-                          getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.eps || null}
-                          getEstimateValue={(year) => data.estimates.find(e => e.fiscalYear === year)?.eps || null}
+                          getHistoricalValue={(year) => data?.historical?.find(h => h.fiscalYear === year)?.eps || null}
+                          getEstimateValue={(year) => data?.estimates?.find(e => e.fiscalYear === year)?.eps || null}
                           formatter={formatEPS}
                         />
 
@@ -505,8 +552,8 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           metricName="Diluted EPS"
                           data={data}
                           allYears={allYears}
-                          getHistoricalValue={(year) => data.historical.find(h => h.fiscalYear === year)?.dilutedEps || null}
-                          getEstimateValue={(year) => data.estimates.find(e => e.fiscalYear === year)?.dilutedEps || null}
+                          getHistoricalValue={(year) => data?.historical?.find(h => h.fiscalYear === year)?.dilutedEps || null}
+                          getEstimateValue={(year) => data?.estimates?.find(e => e.fiscalYear === year)?.dilutedEps || null}
                           formatter={formatEPS}
                         />
                       </tbody>
