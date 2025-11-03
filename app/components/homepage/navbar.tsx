@@ -1,9 +1,10 @@
 import { UserButton } from "@clerk/react-router";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Settings } from "lucide-react";
 import React, { useCallback } from "react";
 import { Link, useLocation } from "react-router";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
+import { BrandLogo } from "~/components/logos";
 
 const menuItems = [
   { name: "Search", href: "/search" },
@@ -60,7 +61,7 @@ export const Navbar = ({
                 className="flex items-center space-x-2 font-semibold text-xl"
                 prefetch="viewport"
               >
-                <img src="/rsk.png" alt="RSK Logo" className="h-12 w-12" />
+                <BrandLogo size="80px" scale={1.5} margin="0px 0px 0px 0px" />
               </Link>
 
               <button
@@ -122,15 +123,36 @@ export const Navbar = ({
               <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
                 {loaderData?.isSignedIn ? (
                   <div className="flex items-center gap-3">
-                    <UserButton />
+                    <UserButton 
+                      afterSignOutUrl="/"
+                      appearance={{
+                        elements: {
+                          userButtonPopoverActionButton__manageAccount: {
+                            display: "none"
+                          }
+                        }
+                      }}
+                    >
+                      <UserButton.MenuItems>
+                        <UserButton.Link
+                          label="Manage account"
+                          labelIcon={<Settings size={16} />}
+                          href="/account"
+                        />
+                        <UserButton.Link
+                          label="Subscription"
+                          labelIcon={<span>💳</span>}
+                          href="/subscription"
+                        />
+                      </UserButton.MenuItems>
+                    </UserButton>
                   </div>
                 ) : (
                   <>
                     <Button
                       asChild
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      className={cn(isScrolled && "lg:hidden")}
                     >
                       <Link to="/sign-in" prefetch="viewport">
                         <span>Login</span>
@@ -139,16 +161,6 @@ export const Navbar = ({
                     <Button
                       asChild
                       size="sm"
-                      className={cn(isScrolled && "lg:hidden")}
-                    >
-                      <Link to="/sign-up" prefetch="viewport">
-                        <span>Sign Up</span>
-                      </Link>
-                    </Button>
-                    <Button
-                      asChild
-                      size="sm"
-                      className={cn(isScrolled ? "lg:inline-flex" : "hidden")}
                     >
                       <Link to="/sign-up" prefetch="viewport">
                         <span>Start Free Trial</span>

@@ -1,11 +1,12 @@
 import { Link } from "react-router";
+import { BrandLogo } from "~/components/logos";
 
 export default function FooterSection() {
   return (
     <footer className="py-16 md:py-32">
       <div className="mx-auto max-w-5xl px-6">
         <Link to="/" aria-label="go home" className="mx-auto block size-fit">
-          <img src="/rsk.png" alt="RSK Logo" className="h-12 w-12" />
+          <BrandLogo size="48px" scale={1.5} margin="0px 0px 0px 0px" />
         </Link>
         <div className="my-8 flex flex-wrap justify-center gap-6 text-sm">
           <Link
