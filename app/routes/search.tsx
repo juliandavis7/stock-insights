@@ -8,10 +8,11 @@ import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { redirect } from "react-router";
 import type { Route } from "./+types/search";
+import { BRAND_NAME } from "~/config/brand";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "Stock Search - Stock Insights" },
+    { title: `Stock Search - ${BRAND_NAME}` },
     { name: "description", content: "Search for stocks and view key financial metrics" },
   ];
 }

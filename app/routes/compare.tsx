@@ -11,10 +11,11 @@ import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { redirect } from "react-router";
 import type { Route } from "./+types/compare";
+import { BRAND_NAME } from "~/config/brand";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "Compare Stocks - Stock Insights" },
+    { title: `Compare Stocks - ${BRAND_NAME}` },
     { name: "description", content: "Compare multiple stocks side-by-side" },
   ];
 }

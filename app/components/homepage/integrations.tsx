@@ -8,6 +8,8 @@ import {
   TailwindIcon,
   Typescript,
 } from "~/components/logos";
+import { BRAND_NAME, BRAND_NAME_TEXT } from "~/config/brand";
+import { BrandLogo } from "~/components/logos";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { Navbar } from "./navbar";
@@ -59,8 +61,9 @@ export default function IntegrationsSection({
               </div>
             </div>
             <div className="mx-auto mt-6 max-w-lg space-y-6 text-center sm:mt-0 sm:text-left">
-              <h2 className="text-balance text-3xl font-semibold md:text-4xl">
-                Stock Insights Platform
+              <h2 className="text-balance text-3xl font-semibold md:text-4xl flex items-center justify-center sm:justify-start gap-0">
+                <span>{BRAND_NAME_TEXT}</span>
+                <BrandLogo size="5rem" scale={3} margin="0px -8px -10px -8px" />
               </h2>
               <p className="text-muted-foreground">
                 Advanced financial analytics platform with Method 1C GAAP-adjusted 
