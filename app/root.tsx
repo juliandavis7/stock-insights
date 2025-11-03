@@ -39,9 +39,9 @@ export const links: Route.LinksFunction = () => [
   // Preload critical assets
   {
     rel: "preload",
-    href: "/rsk.png",
+    href: "/logo.svg",
     as: "image",
-    type: "image/png",
+    type: "image/svg+xml",
   },
   {
     rel: "preload",

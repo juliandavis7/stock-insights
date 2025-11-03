@@ -12,10 +12,11 @@ import { getAuth } from "@clerk/react-router/ssr.server";
 import { redirect } from "react-router";
 import { RotateCcw, Info, RefreshCw } from "lucide-react";
 import type { Route } from "./+types/projections";
+import { BRAND_NAME } from "~/config/brand";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "Financial Projections - Stock Insights" },
+    { title: `Financial Projections - ${BRAND_NAME}` },
     { name: "description", content: "Create custom financial projections for stocks" },
   ];
 }

@@ -11,10 +11,11 @@ import { redirect } from "react-router";
 import { Info } from "lucide-react";
 import { cn } from "~/lib/utils";
 import type { Route } from "./+types/financials";
+import { BRAND_NAME } from "~/config/brand";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "Financial Statements - Stock Insights" },
+    { title: `Financial Statements - ${BRAND_NAME}` },
     { name: "description", content: "View detailed financial statements and ratios" },
   ];
 }

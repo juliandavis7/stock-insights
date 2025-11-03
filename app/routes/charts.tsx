@@ -11,10 +11,11 @@ import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { redirect } from "react-router";
 import type { Route } from "./+types/charts";
+import { BRAND_NAME } from "~/config/brand";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "Charts - Stock Insights" },
+    { title: `Charts - ${BRAND_NAME}` },
     { name: "description", content: "Financial charts and visualizations" },
   ];
 }

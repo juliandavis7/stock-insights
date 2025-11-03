@@ -45,10 +45,10 @@ export function useAuthenticatedFetch() {
         // Check if this is a trial expiration error
         if (errorData.detail?.toLowerCase().includes('trial has expired') || 
             errorData.detail?.toLowerCase().includes('upgrade to continue')) {
-          // Prevent redirect if already on pricing page
-          if (typeof window !== 'undefined' && !window.location.pathname.includes('/pricing')) {
-            console.log('Trial expired - redirecting to pricing page');
-            window.location.href = '/pricing?expired=true';
+          // Prevent redirect if already on subscription page
+          if (typeof window !== 'undefined' && !window.location.pathname.includes('/subscription')) {
+            console.log('Trial expired - redirecting to subscription page');
+            window.location.href = '/subscription?expired=true';
           }
           throw new Error('Trial expired');
         }

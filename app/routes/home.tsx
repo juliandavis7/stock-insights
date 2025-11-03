@@ -6,9 +6,11 @@ import { featureModules } from "~/constants/homeModules";
 import { useEffect } from "react";
 import { ArrowRight, Check } from "lucide-react";
 import type { Route } from "./+types/home";
+import { BRAND_NAME, BRAND_TAGLINE } from "~/config/brand";
+import { BrandNameAndLogo } from "~/components/logos";
 
 export function meta({}: Route.MetaArgs) {
-  const title = "Stock Insights - Financial Analysis Platform";
+  const title = `${BRAND_NAME} - Financial Analysis Platform`;
   const description = "A comprehensive stock analysis platform with real-time data and projections.";
 
   return [
@@ -220,39 +222,22 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         }}
       >
         <div className="text-center px-4">
-          <h1 
-            style={{ 
-              fontSize: '56px', 
-              lineHeight: 1.1,
-              marginBottom: '24px'
-            }}
-          >
-            <span style={{ 
-                fontWeight: 700,
-                color: '#1F2937'
-              }}>
-                Invest Smarter,
-              </span>{' '}
-              <span style={{ 
-                fontWeight: 700,
-                color: '#2463EB'
-              }}>
-                Not Harder
-              </span>
+          <h1 style={{ marginBottom: '24px' }}>
+            <BrandNameAndLogo size="hero" />
           </h1>
           <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Made by investors, for investors
+            {BRAND_TAGLINE}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
-              href="/search"
+              href="/sign-up"
               className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors duration-200"
             >
               Start Free Trial
             </a>
             <a
-              href="/compare"
-              className="border border-gray-300 hover:border-gray-400 text-gray-700 px-8 py-3 rounded-lg font-semibold transition-colors duration-200"
+              href="#features"
+              className="border border-gray-300 hover:border-gray-400 bg-white text-gray-700 px-8 py-3 rounded-lg font-semibold transition-colors duration-200"
             >
               View Features
             </a>
@@ -262,6 +247,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
       {/* Bento Box Feature Grid */}
       <main 
+        id="features"
         className="py-24 bg-page-background"
         style={{
           marginTop: '0',
@@ -300,7 +286,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             Join thousands of investors making data-driven decisions
           </p>
           <a
-            href="/search"
+            href="/sign-up"
             className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors duration-200"
           >
             Start Free Trial
