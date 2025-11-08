@@ -1,13 +1,13 @@
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { createClerkClient } from "@clerk/react-router/api.server";
-import { Navbar } from "~/components/homepage/navbar";
-import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
-import { featureModules } from "~/constants/homeModules";
-import { useEffect } from "react";
-import { ArrowRight, Check } from "lucide-react";
+import { redirect, Link } from "react-router";
+import { Check } from "lucide-react";
 import type { Route } from "./+types/home";
-import { BRAND_NAME, BRAND_TAGLINE } from "~/config/brand";
+import { BRAND_NAME, BRAND_TAGLINE, BRAND_COLOR, ACCENT_BACKGROUND_STYLE } from "~/config/brand";
 import { BrandNameAndLogo } from "~/components/logos";
+import { MarketingLayout } from "~/components/marketing/marketing-layout";
+import { FAQSection } from "~/components/marketing/faq-section";
+import { featureModules } from "~/constants/homeModules";
 
 export function meta({}: Route.MetaArgs) {
   const title = `${BRAND_NAME} - Financial Analysis Platform`;
@@ -22,277 +22,210 @@ export function meta({}: Route.MetaArgs) {
 export async function loader(args: Route.LoaderArgs) {
   const { userId } = await getAuth(args);
 
+  // Redirect logged-in users to the app
   if (userId) {
-    // Get real user details from Clerk
-    const user = await createClerkClient({
-      secretKey: process.env.CLERK_SECRET_KEY,
-    }).users.getUser(userId);
+    throw redirect("/search");
   }
   
-  return {
-    isSignedIn: !!userId,
-    hasActiveSubscription: !!userId, // Simplified for development
-  };
+  return { user: null };
 }
 
-interface FeatureTileProps {
-  module: typeof featureModules[0];
-  isProjections?: boolean;
-}
+// Feature tiles configuration
+const defaultLeftRightCrop = '-3.5rem';
+const defaultTopCrop = '-3.5rem';
+const defaultTransformOrigin = 'center top';
+const defaultCropping = { objectPosition: `${defaultLeftRightCrop} ${defaultTopCrop}`, scale: 1.4, transformOrigin: defaultTransformOrigin };
+const defaultAspectRatio = '4/3';
+const defaultMaxHeight = '35rem';
 
-// Cropping configuration for each tile's screenshot
-const imageCropping: Record<string, { objectPosition: string; scale: number }> = {
-  search: { objectPosition: 'center -4px', scale: 1.3 },
-  compare: { objectPosition: 'center -4px', scale: 1.3 },
-  projections: { objectPosition: 'center -70px', scale: 1.1 }, // Larger image, less zoom
-  financials: { objectPosition: 'center -4px', scale: 1.3 },
-  charts: { objectPosition: 'center -4px', scale: 1.3 }
-};
+const projectionsLeftRightCrop = '-1rem';
+const projectionsTopCrop = '-10rem';
+const projectionsTransformOrigin = 'center top';
+const projectionsCropping = { objectPosition: `${projectionsLeftRightCrop} ${projectionsTopCrop}`, scale: 1.2, transformOrigin: projectionsTransformOrigin };
+const projectionsAspectRatio = '16/9';
+const projectionsMaxHeight = '45rem';
 
-// Aspect ratio configuration for each tile's screenshot container
-const imageAspectRatio: Record<string, string> = {
-  search: '4/3',
-  compare: '4/3',
-  projections: '4/3', // Taller ratio to show more vertical content
-  financials: '4/3',
-  charts: '4/3'
-};
-
-// Max height configuration for each tile's screenshot container
-const imageMaxHeight: Record<string, string> = {
-  search: '550px',
-  compare: '550px',
-  projections: '1000px', // Taller to show full projections table
-  financials: '550px',
-  charts: '550px'
-};
-
-// Max width configuration for each tile's screenshot container
-const imageMaxWidth: Record<string, string | undefined> = {
-  search: undefined,
-  compare: undefined,
-  projections: undefined, // Narrower to reduce excess white space
-  financials: undefined,
-  charts: undefined
-};
-
-// Border configuration for screenshots (set to false for seamless look)
 const showImageBorder = true;
 
-function FeatureTile({ module, isProjections = false }: FeatureTileProps) {
-  const cropSettings = imageCropping[module.id] || { objectPosition: 'center -3px', scale: 1.3 };
-  const aspectRatio = imageAspectRatio[module.id] || '4/3';
-  const maxHeight = imageMaxHeight[module.id] || '550px';
-  const maxWidth = imageMaxWidth[module.id];
+function FeatureTile({ module, isProjections = false }: { module: typeof featureModules[0]; isProjections?: boolean }) {
+  const cropSettings = module.id === 'projections' ? projectionsCropping : defaultCropping;
+  const aspectRatio = module.id === 'projections' ? projectionsAspectRatio : defaultAspectRatio;
+  const maxHeight = module.id === 'projections' ? projectionsMaxHeight : defaultMaxHeight;
+  
   return (
     <div 
       className="
         bg-white border border-gray-200
         rounded-xl 
         pt-6 pb-10 px-6 md:pt-6 md:pb-10 md:px-10
-        hover:-translate-y-2
-        hover:border-blue-600
         transition-all duration-300 ease-out
         flex flex-col h-full
-        cursor-pointer
       "
       style={{ 
         justifyContent: 'space-between',
         backgroundColor: '#ffffff',
         boxShadow: '0 2px 4px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.05)'
       }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12), 0 3px 6px rgba(0,0,0,0.08)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.05)';
-      }}
-      id={`feature-tile-${module.id}`}
     >
-      {/* Header */}
       <div>
-        <h3 
-          className="font-bold text-gray-900"
+        {/* Title and Subtitle */}
+        <div className="mb-6">
+          <h3 className="text-3xl font-bold text-gray-900 mb-2">
+            {module.headline}
+          </h3>
+          <p className="text-lg text-gray-600 leading-relaxed">
+            {module.description}
+          </p>
+        </div>
+        
+        <ul className="space-y-3 mb-8">
+          {module.features.map((feature, index) => (
+            <li key={index} className="flex items-start gap-3">
+              <Check className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <span className="text-gray-700 leading-relaxed">{feature}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div>
+        <div 
+          className="w-full overflow-hidden"
           style={{ 
-            fontSize: '24px',
-            lineHeight: '1.2'
+            aspectRatio,
+            maxHeight,
+            position: 'relative',
+            border: showImageBorder ? '1px solid #e5e7eb' : 'none',
+            borderRadius: '8px'
           }}
         >
-          {module.header}
-        </h3>
-      </div>
-      
-      {/* Screenshot */}
-      <div 
-        className={`relative overflow-hidden rounded-lg bg-gray-100 ${showImageBorder ? 'border border-gray-200' : ''}`}
-        style={{ 
-          maxHeight: maxHeight,
-          maxWidth: maxWidth,
-          minHeight: '300px',
-          width: maxWidth || '100%',
-          flex: '1 1 auto',
-          aspectRatio: aspectRatio,
-          marginTop: '24px',
-          marginBottom: '24px',
-          marginLeft: maxWidth ? 'auto' : '0',
-          marginRight: maxWidth ? 'auto' : '0'
-        }}
-      >
-        <img 
-          src={module.image.src}
-          alt={module.image.alt}
-          className="absolute inset-0 w-full h-full"
-          style={{
-            objectPosition: cropSettings.objectPosition,
-            objectFit: 'cover',
-            transform: `scale(${cropSettings.scale})`
-          }}
-          loading="lazy"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.src = `https://via.placeholder.com/800x600/f3f4f6/6b7280?text=${module.header}`;
-            target.style.objectPosition = 'center';
-          }}
-        />
-      </div>
-      
-      {/* Feature Bullets */}
-      <ul className="space-y-3 mb-6">
-        {module.features.slice(0, 2).map((feature, index) => (
-          <li key={index} className="flex items-center gap-3">
-            <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-              <Check className="w-3 h-3 text-white stroke-[2.5]" />
-            </div>
-            <span 
-              className="text-gray-700" 
-              style={{ fontSize: '14px', lineHeight: '1.5' }}
-            >
-              {feature}
-            </span>
-          </li>
-        ))}
-      </ul>
-      
-      {/* CTA Button */}
-      <div>
-        <a 
-          href={module.ctaLink}
-          className="inline-flex items-center gap-2 border border-blue-600 text-blue-600 hover:bg-blue-50 hover:border-blue-700 transition-all duration-300 ease-out group"
-          style={{
-            padding: '10px 20px',
-            borderRadius: '6px',
-            fontSize: '16px',
-            fontWeight: '600',
-            backgroundColor: 'transparent'
-          }}
-        >
-          {module.ctaText}
-          <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
-        </a>
+          <img 
+            src={module.image.src} 
+            alt={module.image.alt}
+            className="w-full h-full"
+            style={{ 
+              objectFit: 'cover',
+              objectPosition: cropSettings.objectPosition,
+              transform: `scale(${cropSettings.scale})`,
+              transformOrigin: cropSettings.transformOrigin
+            }}
+            loading="lazy"
+          />
+        </div>
       </div>
     </div>
   );
 }
 
-export default function Home({ loaderData }: Route.ComponentProps) {
-  const { getAuthToken, isSignedIn } = useAuthenticatedFetch();
-
-  useEffect(() => {
-    if (isSignedIn) {
-      getAuthToken();
-    }
-  }, [isSignedIn, getAuthToken]);
-
-  // Get modules in the correct order for Bento Box layout
-  const searchModule = featureModules.find(m => m.id === 'search')!;
-  const compareModule = featureModules.find(m => m.id === 'compare')!;
-  const projectionsModule = featureModules.find(m => m.id === 'projections')!;
-  const financialsModule = featureModules.find(m => m.id === 'financials')!;
-  const chartsModule = featureModules.find(m => m.id === 'charts')!;
-
+export default function Home() {
   return (
-    <>
-      <Navbar loaderData={loaderData} />
-      
-      {/* Hero Section */}
-      <section 
-        className="min-h-screen flex items-center justify-center"
-        style={{
-          background: 'radial-gradient(ellipse, #f8fafc, #c7d2fe)'
-        }}
-      >
-        <div className="text-center px-4">
-          <h1 style={{ marginBottom: '24px' }}>
-            <BrandNameAndLogo size="hero" />
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            {BRAND_TAGLINE}
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              href="/sign-up"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors duration-200"
-            >
-              Start Free Trial
-            </a>
-            <a
-              href="#features"
-              className="border border-gray-300 hover:border-gray-400 bg-white text-gray-700 px-8 py-3 rounded-lg font-semibold transition-colors duration-200"
-            >
-              View Features
-            </a>
+    <MarketingLayout>
+      {/* Hero Section - Two Column Layout */}
+      <section id="top" className="min-h-screen flex items-center justify-center py-16 px-4" style={ACCENT_BACKGROUND_STYLE}>
+        <div className="w-full max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+            {/* Left Column - Content */}
+            <div className="lg:pr-8">
+              {/* Headline */}
+              <h1 className="text-6xl md:text-6xl font-bold text-gray-900 mb-4 text-center">
+                Find your next <br />winning stock
+              </h1>
+
+              {/* Subheadline */}
+              <p className="text-lg md:text-xl text-[#6B7280] mb-8 text-center">
+                Made by investors, for investors.
+              </p>
+
+              {/* Primary CTA Button */}
+              <div className="flex justify-center">
+                <Link to="/sign-up">
+                  <button className="bg-[#2463EB] hover:bg-[#1d4fd8] text-white text-lg font-medium px-12 py-3 rounded-lg transition-all duration-200 hover:shadow-lg hover:translate-y-[-2px]">
+                    Get {BRAND_NAME} free
+                  </button>
+                </Link>
+              </div>
+
+              {/* Trial Details - Single Line with Dots */}
+              <div className="mt-6 flex justify-center">
+                <p className="text-base text-gray-700 text-center">
+                  7-day free trial <span className="text-[#2463EB] mx-2">•</span> No credit card required <span className="text-[#2463EB] mx-2">•</span> Full access to all features
+                </p>
+              </div>
+
+              {/* Login Link */}
+              <p className="text-base text-gray-600 mt-6 text-center">
+                Already have an account?{' '}
+                <Link to="/sign-in" className="text-[#2463EB] hover:text-[#1d4fd8] hover:underline font-medium">
+                  Login
+                </Link>
+              </p>
+            </div>
+
+            {/* Right Column - Hero SVG */}
+            <div className="flex items-center justify-center lg:justify-start lg:ml-60">
+              <div className="w-full" style={{ transform: 'scale(1.75)' }}>
+                <img 
+                  src="/hero.svg" 
+                  alt="Stock Analytics Illustration"
+                  className="w-full h-auto"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Bento Box Feature Grid */}
-      <main 
+      {/* Features Section */}
+      <section 
         id="features"
         className="py-24 bg-page-background"
-        style={{
-          marginTop: '0',
-          paddingTop: '96px'
-        }}
       >
         <div className="mx-auto px-4 md:px-6" style={{ maxWidth: '1400px' }}>
+          <h2 className="text-5xl font-bold text-center mb-4">
+            Powerful Features
+          </h2>
+          <p className="text-xl text-gray-600 text-center mb-16">
+            Everything you need to make informed investment decisions
+          </p>
+          
           <div className="grid gap-8">
-            
             {/* Row 1: Search and Compare (50/50) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-              <FeatureTile module={searchModule} />
-              <FeatureTile module={compareModule} />
+              <FeatureTile module={featureModules.find(m => m.id === 'search')!} />
+              <FeatureTile module={featureModules.find(m => m.id === 'compare')!} />
             </div>
             
             {/* Row 2: Projections (Full width) */}
             <div className="grid grid-cols-1">
-              <FeatureTile module={projectionsModule} isProjections={true} />
+              <FeatureTile module={featureModules.find(m => m.id === 'projections')!} isProjections={true} />
             </div>
             
             {/* Row 3: Financials and Charts (50/50) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-              <FeatureTile module={financialsModule} />
-              <FeatureTile module={chartsModule} />
+              <FeatureTile module={featureModules.find(m => m.id === 'financials')!} />
+              <FeatureTile module={featureModules.find(m => m.id === 'charts')!} />
             </div>
-            
           </div>
         </div>
-      </main>
+      </section>
+
+      {/* FAQ Section */}
+      <FAQSection />
 
       {/* Footer */}
-      <footer className="bg-footer-background text-white py-16">
+      <footer className="bg-gray-900 text-white py-16">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-2xl font-bold mb-4">Start Making Smarter Investment Decisions</h2>
+          <h2 className="text-2xl font-bold mb-4">Ready to Get Started?</h2>
           <p className="text-gray-400 mb-8">
-            Join thousands of investors making data-driven decisions
+            Join investors making smarter decisions with {BRAND_NAME}
           </p>
-          <a
-            href="/sign-up"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors duration-200"
-          >
-            Start Free Trial
-          </a>
+          <Link to="/sign-up">
+            <button className="bg-white hover:bg-gray-100 text-gray-900 px-8 py-4 rounded-xl font-semibold transition-colors duration-200 shadow-lg">
+              Get {BRAND_NAME} free
+            </button>
+          </Link>
         </div>
       </footer>
-    </>
+    </MarketingLayout>
   );
 }

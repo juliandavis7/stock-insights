@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Card, CardContent } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
-import { Navbar } from "~/components/homepage/navbar";
+import { AppLayout } from "~/components/app-layout";
 import { StockSearchHeader } from "~/components/stock-search-header";
 import { useFinancialsState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { getAuth } from "@clerk/react-router/ssr.server";
+import { createClerkClient } from "@clerk/react-router/api.server";
 import { redirect } from "react-router";
 import { Info } from "lucide-react";
 import { cn } from "~/lib/utils";
@@ -23,16 +24,17 @@ export function meta({}: Route.MetaArgs) {
 export async function loader(args: Route.LoaderArgs) {
   const { userId } = await getAuth(args);
   
-  // Redirect to sign-in if not authenticated
+  // Redirect to homepage if not authenticated
   if (!userId) {
-    throw redirect("/sign-in");
+    throw redirect("/");
   }
 
-  return {
-    isSignedIn: true,
-    hasActiveSubscription: true, // You can add subscription check logic here
-    userId
-  };
+  // Get user details from Clerk
+  const user = await createClerkClient({
+    secretKey: process.env.CLERK_SECRET_KEY,
+  }).users.getUser(userId);
+
+  return { user };
 }
 
 interface HistoricalData {
@@ -319,9 +321,8 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
   }
 
   return (
-    <>
-      <Navbar loaderData={loaderData} />
-      <main className="min-h-screen pt-20 bg-page-background">
+    <AppLayout user={loaderData.user}>
+      <main className="min-h-screen bg-page-background">
         <div className="container mx-auto px-6 py-8">
           <div className="w-full max-w-7xl mx-auto">
             
@@ -577,6 +578,6 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
           </div>
         </div>
       </main>
-    </>
+    </AppLayout>
   );
 }
