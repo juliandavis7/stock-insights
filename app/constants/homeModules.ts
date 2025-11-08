@@ -54,7 +54,7 @@ export const featureModules: FeatureModule[] = [
     headline: 'Projections',
     description: 'See the Future Before You Invest',
     features: [
-      'Create custom 5-year projections with your assumptions',
+      'Create custom 5-year projections with your assumption',
       'Build bear, base, and bull case scenarios'
     ],
     ctaText: 'Build Projections',
