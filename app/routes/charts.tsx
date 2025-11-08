@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
-import { Navbar } from "~/components/homepage/navbar";
+import { AppLayout } from "~/components/app-layout";
 import { StockSearchHeader } from "~/components/stock-search-header";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "~/components/ui/chart";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ReferenceLine, Legend, Cell } from "recharts";
 import { useChartsState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { getAuth } from "@clerk/react-router/ssr.server";
+import { createClerkClient } from "@clerk/react-router/api.server";
 import { redirect } from "react-router";
 import type { Route } from "./+types/charts";
 import { BRAND_NAME } from "~/config/brand";
@@ -23,16 +24,17 @@ export function meta({}: Route.MetaArgs) {
 export async function loader(args: Route.LoaderArgs) {
   const { userId } = await getAuth(args);
   
-  // Redirect to sign-in if not authenticated
+  // Redirect to homepage if not authenticated
   if (!userId) {
-    throw redirect("/sign-in");
+    throw redirect("/");
   }
 
-  return {
-    isSignedIn: true,
-    hasActiveSubscription: true, // You can add subscription check logic here
-    userId
-  };
+  // Get user details from Clerk
+  const user = await createClerkClient({
+    secretKey: process.env.CLERK_SECRET_KEY,
+  }).users.getUser(userId);
+
+  return { user };
 }
 
 export default function ChartsPage({ loaderData }: Route.ComponentProps) {
@@ -544,13 +546,12 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
   const yearRange = getYearRange();
 
   return (
-    <>
-      <Navbar loaderData={loaderData} />
-      <main className="min-h-screen pt-20 bg-page-background">
+    <AppLayout user={loaderData.user}>
+      <main className="min-h-screen bg-page-background">
         <div className="container mx-auto px-6 py-8">
           <div className="w-full max-w-6xl mx-auto">
             {/* Sticky Header Section */}
-            <div className="sticky top-22 z-50 bg-page-background pb-4">
+            <div className="sticky z-50 bg-page-background">
               {/* Stock Search Header */}
               <StockSearchHeader
                 stockSymbol={ticker}
@@ -1120,6 +1121,6 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
           </div>
         </div>
       </main>
-    </>
+    </AppLayout>
   );
 }

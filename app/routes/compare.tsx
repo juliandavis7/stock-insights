@@ -5,10 +5,11 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Search } from "lucide-react";
-import { Navbar } from "~/components/homepage/navbar";
+import { AppLayout } from "~/components/app-layout";
 import { useCompareState, useStockActions } from "~/store/stockStore";
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { getAuth } from "@clerk/react-router/ssr.server";
+import { createClerkClient } from "@clerk/react-router/api.server";
 import { redirect } from "react-router";
 import type { Route } from "./+types/compare";
 import { BRAND_NAME } from "~/config/brand";
@@ -23,16 +24,17 @@ export function meta({}: Route.MetaArgs) {
 export async function loader(args: Route.LoaderArgs) {
   const { userId } = await getAuth(args);
   
-  // Redirect to sign-in if not authenticated
+  // Redirect to homepage if not authenticated
   if (!userId) {
-    throw redirect("/sign-in");
+    throw redirect("/");
   }
 
-  return {
-    isSignedIn: true,
-    hasActiveSubscription: true, // You can add subscription check logic here
-    userId
-  };
+  // Get user details from Clerk
+  const user = await createClerkClient({
+    secretKey: process.env.CLERK_SECRET_KEY,
+  }).users.getUser(userId);
+
+  return { user };
 }
 
 interface FinancialMetrics {
@@ -170,14 +172,13 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
   const isLoading = compareState?.loading ? Object.values(compareState.loading).some(loading => loading) : false;
 
   return (
-    <>
-      <Navbar loaderData={loaderData} />
-      <main className="min-h-screen pt-20 bg-page-background">
+    <AppLayout user={loaderData.user}>
+      <main className="min-h-screen bg-page-background">
         <div className="container mx-auto px-6 py-8">
           <div className="w-full max-w-4xl mx-auto">
             
             {/* Stock Selection Form */}
-            <div className="mb-10">
+            <div className="pt-4 mb-4">
               <div className="flex flex-col items-center gap-5 py-2">
                 {/* Compare Button - moved to top */}
                 <Button 
@@ -475,6 +476,6 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
           </div>
         </div>
       </main>
-    </>
+    </AppLayout>
   );
 }

@@ -16,6 +16,11 @@ export default [
   route("sign-up/*", "routes/sign-up.tsx"),
   route("pricing", "routes/pricing.tsx"),
   route("subscription", "routes/subscription.tsx"),
+  route("settings", "routes/settings.tsx", [
+    index("routes/settings._index.tsx"),
+    route("account", "routes/settings.account.tsx"),
+    route("billing", "routes/settings.billing.tsx"),
+  ]),
   route("account/*", "routes/account.tsx"),
   route("success", "routes/success.tsx"),
   route("subscription-required", "routes/subscription-required.tsx"),

@@ -1,6 +1,5 @@
 import React from 'react';
-import { BrandLogo } from './index';
-import { BRAND_NAME_TEXT, BRAND_COLOR } from '~/config/brand';
+import { BRAND_NAME, BRAND_COLOR } from '~/config/brand';
 
 interface BrandNameAndLogoProps {
   size?: 'hero' | 'large' | 'medium' | 'small'; // Preset sizes
@@ -19,33 +18,21 @@ const BrandNameAndLogo: React.FC<BrandNameAndLogoProps> = ({
   const sizeConfig = {
     hero: {
       fontSize: '56px',
-      logoSize: '100px',
-      logoScale: 1.3,
-      logoMargin: '0px 8px 4px -25px',
       fontWeight: 700,
       lineHeight: 1.1
     },
     large: {
       fontSize: '48px',
-      logoSize: '85px',
-      logoScale: 1.3,
-      logoMargin: '0px 8px 4px -20px',
       fontWeight: 700,
       lineHeight: 1.1
     },
     medium: {
       fontSize: '30px',
-      logoSize: '55px',
-      logoScale: 1.3,
-      logoMargin: '0px 4px 2px -15px',
       fontWeight: 700,
       lineHeight: 1.2
     },
     small: {
       fontSize: '24px',
-      logoSize: '45px',
-      logoScale: 1.3,
-      logoMargin: '0px 4px 2px -12px',
       fontWeight: 600,
       lineHeight: 1.2
     }
@@ -55,7 +42,7 @@ const BrandNameAndLogo: React.FC<BrandNameAndLogoProps> = ({
 
   return (
     <div 
-      className={`flex items-center justify-center gap-0 ${className}`}
+      className={`flex items-center justify-center ${className}`}
       style={{ 
         fontSize: config.fontSize,
         lineHeight: config.lineHeight,
@@ -65,12 +52,7 @@ const BrandNameAndLogo: React.FC<BrandNameAndLogoProps> = ({
         ...(marginLeft && { marginLeft })
       }}
     >
-      <span>{BRAND_NAME_TEXT}</span>
-      <BrandLogo 
-        size={config.logoSize} 
-        scale={config.logoScale} 
-        margin={config.logoMargin} 
-      />
+      <span>{BRAND_NAME}</span>
     </div>
   );
 };
