@@ -9,10 +9,6 @@ export function useAuthenticatedFetch() {
     
     try {
       const token = await getToken();
-      // Only log token in local environment
-      if (import.meta.env.VITE_ENV === 'local') {
-        console.log(`Token: ${token}`);
-      }
       return token;
     } catch (error) {
       console.error("Failed to get auth token:", error);
