@@ -8,6 +8,7 @@ import { Search } from "lucide-react";
 import { AppLayout } from "~/components/app-layout";
 import { useCompareState, useStockActions } from "~/store/stockStore";
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
+import { useSubscriptionCheck } from "~/hooks/useSubscriptionCheck";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { createClerkClient } from "@clerk/react-router/api.server";
 import { redirect } from "react-router";
@@ -22,19 +23,8 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export async function loader(args: Route.LoaderArgs) {
-  const { userId } = await getAuth(args);
-  
-  // Redirect to homepage if not authenticated
-  if (!userId) {
-    throw redirect("/");
-  }
-
-  // Get user details from Clerk
-  const user = await createClerkClient({
-    secretKey: process.env.CLERK_SECRET_KEY,
-  }).users.getUser(userId);
-
-  return { user };
+  const { protectedRouteLoader } = await import("~/lib/routeProtection");
+  return protectedRouteLoader(args);
 }
 
 interface FinancialMetrics {
@@ -103,6 +93,9 @@ const MetricRow = ({ metric, ticker1, ticker2, ticker3, data1, data2, data3, met
 };
 
 export default function Compare({ loaderData }: Route.ComponentProps) {
+  // Check subscription status and redirect if expired
+  useSubscriptionCheck();
+  
   const compareState = useCompareState();
   const actions = useStockActions();
   const { authenticatedFetch } = useAuthenticatedFetch();

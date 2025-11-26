@@ -5,7 +5,6 @@ import {
   TrendingUp,
   DollarSign,
   BarChart3,
-  Settings,
   CreditCard,
   LogOut,
 } from "lucide-react";
@@ -170,12 +169,6 @@ export function AppSidebar({ user }: { user: any }) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link to="/settings" className="cursor-pointer">
-                      <Settings className="mr-2 h-4 w-4" />
-                      Settings
-                    </Link>
-                  </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link to="/subscription" className="cursor-pointer">
                       <CreditCard className="mr-2 h-4 w-4" />

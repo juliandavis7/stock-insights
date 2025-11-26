@@ -5,6 +5,7 @@ import { AppLayout } from "~/components/app-layout";
 import { StockSearchHeader } from "~/components/stock-search-header";
 import { useSearchState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
+import { useSubscriptionCheck } from "~/hooks/useSubscriptionCheck";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { createClerkClient } from "@clerk/react-router/api.server";
 import { redirect } from "react-router";
@@ -19,19 +20,8 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export async function loader(args: Route.LoaderArgs) {
-  const { userId } = await getAuth(args);
-  
-  // Redirect to homepage if not authenticated
-  if (!userId) {
-    throw redirect("/");
-  }
-
-  // Get user details from Clerk
-  const user = await createClerkClient({
-    secretKey: process.env.CLERK_SECRET_KEY,
-  }).users.getUser(userId);
-
-  return { user };
+  const { protectedRouteLoader } = await import("~/lib/routeProtection");
+  return protectedRouteLoader(args);
 }
 
 interface FinancialMetrics {
@@ -106,6 +96,9 @@ const MetricRow = ({ metric, value, benchmark }: MetricRowProps) => (
 );
 
 export default function SearchPage({ loaderData }: Route.ComponentProps) {
+  // Check subscription status and redirect if expired
+  useSubscriptionCheck();
+  
   const searchState = useSearchState();
   const globalTicker = useGlobalTicker();
   const stockInfo = useStockInfo();
