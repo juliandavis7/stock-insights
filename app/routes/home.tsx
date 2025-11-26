@@ -1,7 +1,12 @@
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { createClerkClient } from "@clerk/react-router/api.server";
-import { redirect, Link } from "react-router";
+import { useAuth } from "@clerk/react-router";
+import { redirect, Link, useNavigate } from "react-router";
 import { Check } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
+import { API_BASE_URL } from "~/config/subscription";
+import { isSubscriptionExpired } from "~/lib/routeProtection";
 import type { Route } from "./+types/home";
 import { BRAND_NAME, BRAND_TAGLINE, BRAND_COLOR, ACCENT_BACKGROUND_STYLE } from "~/config/brand";
 import { BrandNameAndLogo } from "~/components/logos";
@@ -22,12 +27,9 @@ export function meta({}: Route.MetaArgs) {
 export async function loader(args: Route.LoaderArgs) {
   const { userId } = await getAuth(args);
 
-  // Redirect logged-in users to the app
-  if (userId) {
-    throw redirect("/search");
-  }
-  
-  return { user: null };
+  // Allow access to landing page for all users (including expired subscriptions)
+  // Expired users will be redirected from CTAs, not from the page itself
+  return { user: userId ? { id: userId } : null };
 }
 
 // Feature tiles configuration
@@ -117,7 +119,51 @@ function FeatureTile({ module, isProjections = false }: { module: typeof feature
   );
 }
 
-export default function Home() {
+export default function Home({ loaderData }: Route.ComponentProps) {
+  const { isSignedIn, getToken } = useAuth();
+  const navigate = useNavigate();
+  const [subscriptionStatus, setSubscriptionStatus] = useState<{ subscription_status: string; subscription_ends_at: number | null } | null>(null);
+
+  // Check subscription status for logged-in users
+  useEffect(() => {
+    const checkSubscription = async () => {
+      if (!isSignedIn) return;
+
+      try {
+        const token = await getToken();
+        if (!token) return;
+
+        const response = await fetch(`${API_BASE_URL}/users/me`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setSubscriptionStatus({
+            subscription_status: data.user?.subscription_status || 'expired',
+            subscription_ends_at: data.user?.subscription_ends_at || null,
+          });
+        }
+      } catch (error) {
+        // Silently fail
+        console.error('Failed to check subscription status:', error);
+      }
+    };
+
+    checkSubscription();
+  }, [isSignedIn, getToken]);
+
+  // Handle CTA clicks - redirect expired users to subscription page
+  const handleCTAClick = (e: React.MouseEvent) => {
+    if (isSignedIn && subscriptionStatus && isSubscriptionExpired(subscriptionStatus)) {
+      e.preventDefault();
+      navigate('/subscription');
+    }
+  };
+
   return (
     <MarketingLayout>
       {/* Hero Section - Two Column Layout */}
@@ -138,7 +184,10 @@ export default function Home() {
 
               {/* Primary CTA Button */}
               <div className="flex justify-center">
-                <Link to="/sign-up">
+                <Link 
+                  to={isSignedIn && subscriptionStatus && isSubscriptionExpired(subscriptionStatus) ? "/subscription" : "/sign-up"}
+                  onClick={handleCTAClick}
+                >
                   <button className="bg-[#2463EB] hover:bg-[#1d4fd8] text-white text-lg font-medium px-12 py-3 rounded-lg transition-all duration-200 hover:shadow-lg hover:translate-y-[-2px]">
                     Get {BRAND_NAME} free
                   </button>
@@ -219,7 +268,10 @@ export default function Home() {
           <p className="text-gray-400 mb-8">
             Join investors making smarter decisions with {BRAND_NAME}
           </p>
-          <Link to="/sign-up">
+          <Link 
+            to={isSignedIn && subscriptionStatus && isSubscriptionExpired(subscriptionStatus) ? "/subscription" : "/sign-up"}
+            onClick={handleCTAClick}
+          >
             <button className="bg-white hover:bg-gray-100 text-gray-900 px-8 py-4 rounded-xl font-semibold transition-colors duration-200 shadow-lg">
               Get {BRAND_NAME} free
             </button>

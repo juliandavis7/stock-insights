@@ -1,5 +1,5 @@
 import { useAuth } from "@clerk/react-router";
-import { Info, Loader2, ArrowLeft, CheckCircle } from "lucide-react";
+import { Loader2, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router";
 import { Button } from "~/components/ui/button";
@@ -8,6 +8,8 @@ import { SUBSCRIPTION_PLAN, API_BASE_URL } from "~/config/subscription";
 import { BRAND_COLOR } from "~/config/brand";
 import { BlueCheck, BrandNameAndLogo } from "~/components/logos";
 import { getAuth } from "@clerk/react-router/ssr.server";
+import { createCheckoutSession, createPortalSession } from "~/lib/paymentService";
+import { getSubscriptionState, getSubscriptionStatusText } from "~/lib/subscriptionUtils";
 import type { Route } from "./+types/subscription";
 
 export async function loader(args: Route.LoaderArgs) {
@@ -21,37 +23,69 @@ export async function loader(args: Route.LoaderArgs) {
 }
 
 export default function SubscriptionPage({ loaderData }: Route.ComponentProps) {
-  const { isSignedIn, userId } = useAuth();
+  const { isSignedIn, userId, getToken } = useAuth();
   const { authenticatedFetch } = useAuthenticatedFetch();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   
   const [loading, setLoading] = useState(false);
+  const [loadingManage, setLoadingManage] = useState(false);
   const [loadingUserData, setLoadingUserData] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userData, setUserData] = useState<any>(null);
-  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
-  const [justSubscribed, setJustSubscribed] = useState(false);
 
-  // Check for successful checkout redirect
+  // Handle checkout success redirect - refetch user data and clean URL
   useEffect(() => {
     const checkoutParam = searchParams.get('checkout');
     if (checkoutParam === 'success') {
-      setShowSuccessBanner(true);
-      setJustSubscribed(true);
       // Clean up the URL
-      searchParams.delete('checkout');
-      searchParams.delete('customer_session_token');
-      setSearchParams(searchParams, { replace: true });
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('checkout');
+      newSearchParams.delete('customer_session_token');
+      setSearchParams(newSearchParams, { replace: true });
       
-      // Auto-hide banner after 10 seconds
-      const timer = setTimeout(() => {
-        setShowSuccessBanner(false);
-      }, 10000);
-      
-      return () => clearTimeout(timer);
+      // Refetch user data to get updated subscription status
+      const fetchUserData = async () => {
+        if (!isSignedIn) return;
+        try {
+          const response = await authenticatedFetch(`${API_BASE_URL}/users/me`);
+          if (response.ok) {
+            const data = await response.json();
+            setUserData(data.user);
+          }
+        } catch (err) {
+          console.error('Failed to fetch user data:', err);
+        }
+      };
+      fetchUserData();
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, isSignedIn, authenticatedFetch]);
+
+  // Handle expired subscription redirect (after cancellation) - refetch user data and clean URL
+  useEffect(() => {
+    const expiredParam = searchParams.get('expired');
+    if (expiredParam === 'true') {
+      // Clean up the URL
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('expired');
+      setSearchParams(newSearchParams, { replace: true });
+      
+      // Refetch user data to get updated subscription status
+      const fetchUserData = async () => {
+        if (!isSignedIn) return;
+        try {
+          const response = await authenticatedFetch(`${API_BASE_URL}/users/me`);
+          if (response.ok) {
+            const data = await response.json();
+            setUserData(data.user);
+          }
+        } catch (err) {
+          console.error('Failed to fetch user data:', err);
+        }
+      };
+      fetchUserData();
+    }
+  }, [searchParams, setSearchParams, isSignedIn, authenticatedFetch]);
 
   // Fetch user subscription status
   useEffect(() => {
@@ -69,6 +103,8 @@ export default function SubscriptionPage({ loaderData }: Route.ComponentProps) {
         }
       } catch (err) {
         console.error('Failed to fetch user data:', err);
+        // Don't show error for connection issues - user might not have backend running
+        // Just silently fail and let user proceed
       } finally {
         setLoadingUserData(false);
       }
@@ -78,12 +114,16 @@ export default function SubscriptionPage({ loaderData }: Route.ComponentProps) {
   }, [isSignedIn, authenticatedFetch]);
 
   const handleBackClick = () => {
-    // If user just subscribed, navigate to home to avoid the redirect loop
-    if (justSubscribed) {
-      navigate('/');
+    // Check subscription status to determine where to navigate
+    const subscriptionState = getSubscriptionState(userData);
+    const { isActive, isExpired } = subscriptionState;
+    
+    if (isActive) {
+      // Active subscription: navigate to main app
+      navigate('/search');
     } else {
-      // Otherwise, use normal browser back navigation
-      window.history.back();
+      // Expired/canceled: navigate to landing page
+      navigate('/');
     }
   };
 
@@ -97,28 +137,56 @@ export default function SubscriptionPage({ loaderData }: Route.ComponentProps) {
     setError(null);
 
     try {
-      const response = await authenticatedFetch(`${API_BASE_URL}/payments/checkout`, {
-        method: 'POST',
-        body: JSON.stringify({
-          product_id: SUBSCRIPTION_PLAN.polarProductId
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create checkout session');
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Not authenticated');
       }
 
-      const data = await response.json();
-
-      if (data.checkout_url) {
-        window.location.href = data.checkout_url;
-      } else {
-        throw new Error('No checkout URL received');
-      }
+      const checkoutUrl = await createCheckoutSession(token);
+      
+      // Redirect to Stripe Checkout
+      window.location.href = checkoutUrl;
     } catch (err) {
       console.error('Checkout error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to start checkout');
-      setLoading(false);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start checkout';
+      
+      // Handle specific error cases
+      if (errorMessage.includes('already have an active subscription')) {
+        // User is already subscribed, show manage button
+        setError(null);
+      } else {
+        setError(errorMessage);
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    if (!isSignedIn) {
+      window.location.href = "/sign-in";
+      return;
+    }
+
+    setLoadingManage(true);
+    setError(null);
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+
+      // Set return URL to subscription page with expired=true query param
+      const returnUrl = `${window.location.origin}/subscription?expired=true`;
+      const portalUrl = await createPortalSession(token, returnUrl);
+      
+      // Redirect to Stripe Customer Portal
+      window.location.href = portalUrl;
+    } catch (err) {
+      console.error('Portal error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to open subscription portal';
+      setError(errorMessage);
+      setLoadingManage(false);
     }
   };
 
@@ -131,25 +199,12 @@ export default function SubscriptionPage({ loaderData }: Route.ComponentProps) {
     );
   }
 
-  const isSubscribed = userData?.subscription_status === 'active';
-  const isExpired = userData?.subscription_status === 'expired';
-  const isOnTrial = userData?.subscription_status === 'trial';
+  // Get subscription state using utility function
+  const subscriptionState = getSubscriptionState(userData);
+  const { isActive: isSubscribed, isExpired, isTrial: isOnTrial, isCanceled } = subscriptionState;
   
-  // Format trial end date
-  const formatTrialEndDate = (dateString: string | null) => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return '';
-    }
-  };
+  // Get subscription status text using utility function
+  const subscriptionStatusText = getSubscriptionStatusText(userData);
 
   return (
     <section className="relative flex flex-col items-center justify-center min-h-screen px-4 py-12 bg-page-background">
@@ -163,48 +218,6 @@ export default function SubscriptionPage({ loaderData }: Route.ComponentProps) {
       </button>
 
       <div className="w-full" style={{ maxWidth: '700px' }}>
-        {/* Success Banner */}
-        {showSuccessBanner && (
-          <div 
-            className="flex items-center justify-center gap-3 mb-3"
-            style={{
-              backgroundColor: '#F0FDF4',
-              border: '1px solid #86EFAC',
-              borderRadius: '8px',
-              padding: '16px 24px',
-              color: '#166534',
-              fontSize: '15px',
-              fontWeight: 500
-            }}
-          >
-            <CheckCircle className="flex-shrink-0" style={{ color: '#22C55E' }} size={20} />
-            <span>
-              Subscription activated successfully! You now have access to all features.
-            </span>
-          </div>
-        )}
-
-        {/* Trial Banner - Only show if success banner is not showing */}
-        {!showSuccessBanner && (isExpired || isOnTrial) && userData?.trial_ends_at && (
-          <div 
-            className="flex items-center justify-center gap-3 mb-3"
-            style={{
-              backgroundColor: '#EFF6FF',
-              border: '1px solid #BFDBFE',
-              borderRadius: '8px',
-              padding: '16px 24px',
-              color: '#1E40AF',
-              fontSize: '15px',
-              fontWeight: 500
-            }}
-          >
-            <Info className="flex-shrink-0" style={{ color: '#3B82F6' }} size={20} />
-            <span>
-              Your 7-day free trial {isExpired ? 'ended' : 'ends'} on {formatTrialEndDate(userData.trial_ends_at)}
-            </span>
-          </div>
-        )}
-
         {/* Content - Card Container (matching home page style) */}
         <div 
           className="bg-white border border-gray-200 rounded-xl text-center"
@@ -220,10 +233,21 @@ export default function SubscriptionPage({ loaderData }: Route.ComponentProps) {
               <BrandNameAndLogo size="large" marginLeft="1rem" />
             </h1>
             
-            {isSubscribed && (
+            {/* Status text below brand name - shown for all subscription states */}
+            {userData && (
               <div className="flex items-center justify-center gap-2">
-                <CheckCircle className="w-4 h-4" style={{ color: BRAND_COLOR }} />
-                <p className="text-sm" style={{ color: BRAND_COLOR }}>Active Subscription</p>
+                {isExpired ? (
+                  <AlertCircle className="w-4 h-4" style={{ color: '#EA580C' }} />
+                ) : (isSubscribed || isOnTrial) && (
+                  <CheckCircle className="w-4 h-4" style={{ color: BRAND_COLOR }} />
+                )}
+                <p className={`text-sm ${
+                  isExpired 
+                    ? 'text-red-600 font-medium' 
+                    : ''
+                }`} style={!isExpired ? { color: BRAND_COLOR } : undefined}>
+                  {subscriptionStatusText}
+                </p>
               </div>
             )}
           </div>
@@ -237,11 +261,6 @@ export default function SubscriptionPage({ loaderData }: Route.ComponentProps) {
             {!isSubscribed && (
               <p className="text-sm text-muted-foreground">
                 Full access to all features. Cancel anytime.
-              </p>
-            )}
-            {isSubscribed && userData?.trial_ends_at && (
-              <p className="text-base font-large text-muted-foreground">
-                Renews {new Date(userData.trial_ends_at).toLocaleDateString()}
               </p>
             )}
           </div>
@@ -269,17 +288,25 @@ export default function SubscriptionPage({ loaderData }: Route.ComponentProps) {
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  You'll be redirected to Polar for secure payment processing
+                  You'll be redirected to Stripe for secure payment processing
                 </p>
               </div>
             ) : (
               <Button 
-                onClick={() => window.location.href = '/account/billing'}
+                onClick={handleManageSubscription}
+                disabled={loadingManage}
                 variant="outline"
                 size="lg"
                 className="w-full text-base h-12 hover:bg-gray-50 hover:text-gray-900"
               >
-                Manage Billing
+                {loadingManage ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Opening portal...
+                  </>
+                ) : (
+                  'Manage Subscription'
+                )}
               </Button>
             )}
           </div>

@@ -3,9 +3,11 @@ import { CreditCard, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { API_BASE_URL } from "~/config/subscription";
+import { createPortalSession } from "~/lib/paymentService";
+import { getSubscriptionState, formatSubscriptionEndDate } from "~/lib/subscriptionUtils";
 
 export function BillingTab() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, getToken } = useAuth();
   const { authenticatedFetch } = useAuthenticatedFetch();
   
   const [loading, setLoading] = useState(false);
@@ -36,37 +38,53 @@ export function BillingTab() {
     fetchUserData();
   }, [isSignedIn, authenticatedFetch]);
 
-  const handleCancelSubscription = () => {
-    // TODO: Integrate with Polar cancellation API
-    const confirmed = window.confirm(
-      "Are you sure you want to cancel your subscription? You'll lose access to all pro features."
-    );
-    if (confirmed) {
-      alert('Cancellation feature coming soon. Please contact support to cancel your subscription.');
+  const handleManageSubscription = async () => {
+    if (!isSignedIn) {
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+      
+      const portalUrl = await createPortalSession(token);
+      
+      // Redirect to Stripe Customer Portal
+      window.location.href = portalUrl;
+    } catch (err) {
+      console.error('Failed to open portal:', err);
+      alert('Failed to open billing portal. Please try again.');
+      setLoading(false);
     }
   };
 
-  const handleUpdatePayment = () => {
-    // TODO: Integrate with Polar payment method API
-    alert('Payment update feature coming soon.');
-  };
 
-  // Mock invoice data
-  // TODO: Fetch invoices from Polar API
-  const mockInvoices = [
-    { date: '2025-10-30', total: 20.00, status: 'Paid', invoiceUrl: '#' },
-    { date: '2025-09-30', total: 20.00, status: 'Paid', invoiceUrl: '#' },
-    { date: '2025-08-30', total: 20.00, status: 'Paid', invoiceUrl: '#' }
-  ];
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  const calculateNextBilling = (trialEndsAt: string | null) => {
-    if (!trialEndsAt) return 'N/A';
-    const date = new Date(trialEndsAt);
+  // Get subscription state using utility function
+  const subscriptionState = getSubscriptionState(userData);
+  const { isActive, isCanceled, isTrial } = subscriptionState;
+  const subscriptionEndsAt = userData?.subscription_ends_at;
+  
+  const calculateNextBilling = (endsAt: number | null) => {
+    if (!endsAt) {
+      // Active subscription without end date - calculate next month
+      if (isActive && !isCanceled) {
+        const nextMonth = new Date();
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        return nextMonth.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      }
+      return 'N/A';
+    }
+    // Convert Unix timestamp (seconds) to Date
+    const date = new Date(endsAt * 1000);
+    // For canceled subscriptions, show the cancellation date
+    if (isCanceled) {
+      return formatSubscriptionEndDate(endsAt);
+    }
+    // For trial, calculate next billing (one month after end)
     date.setMonth(date.getMonth() + 1);
     return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   };
@@ -94,7 +112,10 @@ export function BillingTab() {
         <div className="flex-1">
           <p className="text-sm font-light">Monthly</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Auto-renews on {calculateNextBilling(userData?.trial_ends_at)}
+            {isCanceled 
+              ? `Cancels on ${calculateNextBilling(subscriptionEndsAt)}`
+              : `Auto-renews on ${calculateNextBilling(subscriptionEndsAt)}`
+            }
           </p>
         </div>
       </div>
@@ -107,13 +128,14 @@ export function BillingTab() {
         <div className="flex-1 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <CreditCard className="w-5 h-5 text-muted-foreground" />
-            <span className="text-sm">Visa •••• 0668</span>
+            <span className="text-sm">Manage in Stripe Portal</span>
           </div>
           <button 
-            onClick={handleUpdatePayment}
-            className="text-sm hover:bg-gray-100 px-2 py-1 rounded-sm transition-colors"
+            onClick={handleManageSubscription}
+            disabled={loading}
+            className="text-sm hover:bg-gray-100 px-2 py-1 rounded-sm transition-colors disabled:opacity-50"
           >
-            Update
+            {loading ? 'Loading...' : 'Manage'}
           </button>
         </div>
       </div>
@@ -124,57 +146,35 @@ export function BillingTab() {
           <h2 className="text-sm font-normal">Invoices</h2>
         </div>
         <div className="flex-1">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 text-xs font-medium text-muted-foreground">Date</th>
-                  <th className="text-left py-2 text-xs font-medium text-muted-foreground">Total</th>
-                  <th className="text-left py-2 text-xs font-medium text-muted-foreground">Status</th>
-                  <th className="text-right py-2 text-xs font-medium text-muted-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mockInvoices.map((invoice, index) => (
-                  <tr key={index} className="border-b last:border-0">
-                    <td className="py-3 text-sm">{formatDate(invoice.date)}</td>
-                    <td className="py-3 text-sm">${invoice.total.toFixed(2)}</td>
-                    <td className="py-3 text-sm">
-                      <span className="inline-flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                        <span>Paid</span>
-                      </span>
-                    </td>
-                    <td className="py-3 text-sm text-right">
-                      <a 
-                        href={invoice.invoiceUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-sm hover:bg-gray-100 px-2 py-1 rounded-sm transition-colors inline-block"
-                      >
-                        View
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            View and download invoices from the Stripe Customer Portal.
+          </p>
+          <button 
+            onClick={handleManageSubscription}
+            disabled={loading}
+            className="mt-2 text-sm text-primary hover:underline disabled:opacity-50"
+          >
+            {loading ? 'Loading...' : 'View Invoices →'}
+          </button>
         </div>
       </div>
 
-      {/* 4. Cancellation Section */}
+      {/* 4. Manage Subscription Section */}
       <div className="flex items-center justify-between py-6">
         <div className="w-48 flex-shrink-0">
-          <h2 className="text-sm font-normal">Cancel subscription</h2>
+          <h2 className="text-sm font-normal">Manage subscription</h2>
         </div>
         <div className="flex-1">
           <button 
-            onClick={handleCancelSubscription}
-            className="text-sm text-destructive hover:bg-red-50 px-2 py-1 rounded-sm transition-colors"
+            onClick={handleManageSubscription}
+            disabled={loading}
+            className="text-sm text-primary hover:bg-gray-100 px-2 py-1 rounded-sm transition-colors disabled:opacity-50"
           >
-            Cancel
+            {loading ? 'Loading...' : 'Open Stripe Portal'}
           </button>
+          <p className="text-xs text-muted-foreground mt-1">
+            Update payment method, view invoices, or cancel subscription
+          </p>
         </div>
       </div>
     </>
