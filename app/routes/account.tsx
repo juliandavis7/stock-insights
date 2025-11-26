@@ -10,8 +10,8 @@ export async function loader(args: Route.LoaderArgs) {
     throw redirect("/sign-in");
   }
   
-  // Redirect to new settings page
-  throw redirect("/settings/account");
+  // Redirect to subscription page
+  throw redirect("/subscription");
 }
 
 export default function AccountPage() {

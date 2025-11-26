@@ -216,7 +216,7 @@ export default function Pricing({ loaderData }: { loaderData: any }) {
 
         {userSubscription &&
           !loaderData.plans?.items.some(
-            (plan: any) => plan.prices[0].id === userSubscription.polarPriceId
+            (plan: any) => plan.prices[0].id === userSubscription.stripePriceId
           ) && (
             <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-md max-w-md mx-auto">
               <p className="text-amber-800 text-center text-sm">

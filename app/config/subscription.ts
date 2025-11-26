@@ -3,8 +3,8 @@ import { BRAND_NAME } from './brand';
 // Single subscription plan configuration
 export const SUBSCRIPTION_PLAN = {
   name: BRAND_NAME,
-  // This is your internal product UUID that maps to your Polar product
-  polarProductId: import.meta.env.VITE_PRODUCT_ID || '',
+  // Stripe price ID for the subscription
+  stripePriceId: import.meta.env.VITE_STRIPE_PRICE_ID || '',
   price: 10,
   interval: 'month',
   features: [
@@ -21,5 +21,5 @@ export const SUBSCRIPTION_PLAN = {
 } as const;
 
 // API configuration
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080';
 

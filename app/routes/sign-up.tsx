@@ -6,9 +6,9 @@ import type { Route } from "./+types/sign-up";
 export async function loader(args: Route.LoaderArgs) {
   const { userId } = await getAuth(args);
   
-  // If already signed in, go to app
+  // If already signed in, redirect to auth-redirect to check subscription status
   if (userId) {
-    throw redirect("/search");
+    throw redirect("/auth-redirect");
   }
   
   return null;
@@ -21,7 +21,7 @@ export default function SignUpPage() {
         routing="path"
         path="/sign-up"
         signInUrl="/sign-in"
-        afterSignUpUrl="/search"
+        afterSignUpUrl="/auth-redirect"
       />
     </div>
   );
