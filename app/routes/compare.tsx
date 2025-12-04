@@ -41,6 +41,24 @@ interface FinancialMetrics {
   net_margin: number | null;
   ttm_ps_ratio: number | null;
   forward_ps_ratio: number | null;
+  // Advanced EPS Metrics
+  last_year_eps_growth: number | null;
+  ttm_vs_ntm_eps_growth: number | null;
+  current_quarter_eps_growth_vs_previous_year: number | null;
+  two_year_stack_exp_eps_growth: number | null;
+  // Advanced Revenue Metrics
+  last_year_revenue_growth: number | null;
+  ttm_vs_ntm_revenue_growth: number | null;
+  current_quarter_revenue_growth_vs_previous_year: number | null;
+  two_year_stack_exp_revenue_growth: number | null;
+  // Advanced Valuation Metrics
+  peg_ratio: number | null;
+  return_on_equity: number | null;
+  price_to_book: number | null;
+  price_to_free_cash_flow: number | null;
+  free_cash_flow_yield: number | null;
+  dividend_yield: number | null;
+  dividend_payout_ratio: number | null;
   // Stock info fields from expanded metrics endpoint
   ticker: string | null;
   price: number | null;
@@ -458,6 +476,222 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                             formatter={formatRatio}
                             benchmark="Many stocks trade at 1.8-2.6"
                             higherIsBetter={false}
+                          />
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Advanced EPS Metrics Group */}
+                <Card>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table id="compare-advanced-eps-metrics-table" className="w-full table-fixed">
+                        <tbody>
+                          <MetricRow
+                            metric="Last Year EPS Growth"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="last_year_eps_growth"
+                            formatter={formatPercentage}
+                            benchmark="Many stocks trade at 8-12%"
+                          />
+                          <MetricRow
+                            metric="TTM vs NTM EPS Growth"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="ttm_vs_ntm_eps_growth"
+                            formatter={formatPercentage}
+                            benchmark="Many stocks trade at 8-12%"
+                          />
+                          <MetricRow
+                            metric="Latest Quarter EPS Growth (YoY)"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="current_quarter_eps_growth_vs_previous_year"
+                            formatter={formatPercentage}
+                            benchmark="Many stocks trade at 8-12%"
+                          />
+                          <MetricRow
+                            metric="2 Year Stack EPS Growth"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="two_year_stack_exp_eps_growth"
+                            formatter={formatPercentage}
+                            benchmark="Many stocks trade at 16-25%"
+                          />
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Advanced Revenue Metrics Group */}
+                <Card>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table id="compare-advanced-revenue-metrics-table" className="w-full table-fixed">
+                        <tbody>
+                          <MetricRow
+                            metric="Last Year Rev Growth"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="last_year_revenue_growth"
+                            formatter={formatPercentage}
+                            benchmark="Many stocks trade at 4.5-6.5%"
+                          />
+                          <MetricRow
+                            metric="TTM vs NTM Rev Growth"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="ttm_vs_ntm_revenue_growth"
+                            formatter={formatPercentage}
+                            benchmark="Many stocks trade at 4.5-6.5%"
+                          />
+                          <MetricRow
+                            metric="Latest Quarter Revenue Growth (YoY)"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="current_quarter_revenue_growth_vs_previous_year"
+                            formatter={formatPercentage}
+                            benchmark="Many stocks trade at 4.5-6.5%"
+                          />
+                          <MetricRow
+                            metric="2 Year Stack Rev Growth"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="two_year_stack_exp_revenue_growth"
+                            formatter={formatPercentage}
+                            benchmark="Many stocks trade at 9-13%"
+                          />
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Advanced Valuation Metrics Group */}
+                <Card>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table id="compare-advanced-valuation-metrics-table" className="w-full table-fixed">
+                        <tbody>
+                          <MetricRow
+                            metric="PEG Ratio"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="peg_ratio"
+                            formatter={formatRatio}
+                            benchmark="Many stocks trade at 1-1.5"
+                          />
+                          <MetricRow
+                            metric="Return on Equity"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="return_on_equity"
+                            formatter={formatPercentage}
+                            benchmark="Many stocks trade at 15-21%"
+                          />
+                          <MetricRow
+                            metric="Price to Book"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="price_to_book"
+                            formatter={formatRatio}
+                            benchmark="Many stocks trade at 3-4"
+                          />
+                          <MetricRow
+                            metric="Price to Free Cash Flow"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="price_to_free_cash_flow"
+                            formatter={formatRatio}
+                            benchmark="Many stocks trade at 20-25"
+                          />
+                          <MetricRow
+                            metric="Free Cash Flow Yield"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="free_cash_flow_yield"
+                            formatter={formatPercentage}
+                            benchmark="Many stocks trade at 3-6%"
+                          />
+                          <MetricRow
+                            metric="Dividend Yield"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="dividend_yield"
+                            formatter={formatPercentage}
+                            benchmark="Many stocks trade at 1.5-2.1%"
+                          />
+                          <MetricRow
+                            metric="Dividend Payout Ratio"
+                            ticker1={compareState?.tickers?.[0] || ''}
+                            ticker2={compareState?.tickers?.[1] || ''}
+                            ticker3={compareState?.tickers?.[2] || ''}
+                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                            metricKey="dividend_payout_ratio"
+                            formatter={formatPercentage}
+                            benchmark="Many stocks trade at 32-42%"
                           />
                         </tbody>
                       </table>
