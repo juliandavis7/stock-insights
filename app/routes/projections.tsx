@@ -74,11 +74,12 @@ interface CalculatedProjections {
 
 const formatCurrency = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value) || value === 0) return "$0";
-  if (value >= 1e12) {
+  const absValue = Math.abs(value);
+  if (absValue >= 1e12) {
     return `$${(value / 1e12).toFixed(2)}T`;
-  } else if (value >= 1e9) {
+  } else if (absValue >= 1e9) {
     return `$${(value / 1e9).toFixed(2)}B`;
-  } else if (value >= 1e6) {
+  } else if (absValue >= 1e6) {
     return `$${(value / 1e6).toFixed(2)}M`;
   }
   return `$${value.toFixed(2)}`;
@@ -97,11 +98,12 @@ const formatMarginPercentage = (value: number | null | undefined): string => {
 const formatRoundedCurrency = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value) || value === 0) return "$0";
   const roundedValue = Math.round(value);
-  if (roundedValue >= 1e12) {
+  const absRoundedValue = Math.abs(roundedValue);
+  if (absRoundedValue >= 1e12) {
     return `$${Math.round(roundedValue / 1e12)}T`;
-  } else if (roundedValue >= 1e9) {
+  } else if (absRoundedValue >= 1e9) {
     return `$${Math.round(roundedValue / 1e9)}B`;
-  } else if (roundedValue >= 1e6) {
+  } else if (absRoundedValue >= 1e6) {
     return `$${Math.round(roundedValue / 1e6)}M`;
   }
   return `$${roundedValue}`;
@@ -176,6 +178,12 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     [aria-disabled="true"],
     .cursor-not-allowed {
       cursor: not-allowed !important;
+    }
+    
+    /* Right-align placeholder text */
+    input[type="text"]::placeholder,
+    input[type="number"]::placeholder {
+      text-align: right;
     }
   `;
 
@@ -1152,33 +1160,33 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                             </div>,
                             document.body
                           )}
-                          <th id={`year-${currentYear}-column`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
-                            <div className="text-blue-600">{currentYear}</div>
-                            <div className="h-4 flex items-center justify-center">
+                          <th id={`year-${currentYear}-column`} className="py-3 px-4 text-right font-bold text-sm w-[120px] align-top">
+                            <div className="inline-flex flex-col items-center ml-auto">
+                              <span className="font-bold text-blue-600">{currentYear}</span>
                               <span className="text-xs text-blue-600 font-semibold">EST</span>
                             </div>
                           </th>
-                          <th id={`year-${projectionYears[0]}-column`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
-                            <div className="text-blue-600">{projectionYears[0]}</div>
-                            <div className="h-4 flex items-center justify-center">
+                          <th id={`year-${projectionYears[0]}-column`} className="py-3 px-4 text-right font-bold text-sm w-[120px] align-top">
+                            <div className="inline-flex flex-col items-center ml-auto">
+                              <span className="font-bold text-blue-600">{projectionYears[0]}</span>
                               <span className="text-xs text-blue-600 font-semibold">EST</span>
                             </div>
                           </th>
-                          <th id={`year-${projectionYears[1]}-column`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
-                            <div className="text-blue-600">{projectionYears[1]}</div>
-                            <div className="h-4 flex items-center justify-center">
+                          <th id={`year-${projectionYears[1]}-column`} className="py-3 px-4 text-right font-bold text-sm w-[120px] align-top">
+                            <div className="inline-flex flex-col items-center ml-auto">
+                              <span className="font-bold text-blue-600">{projectionYears[1]}</span>
                               <span className="text-xs text-blue-600 font-semibold">EST</span>
                             </div>
                           </th>
-                          <th id={`year-${projectionYears[2]}-column`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
-                            <div className="text-blue-600">{projectionYears[2]}</div>
-                            <div className="h-4 flex items-center justify-center">
+                          <th id={`year-${projectionYears[2]}-column`} className="py-3 px-4 text-right font-bold text-sm w-[120px] align-top">
+                            <div className="inline-flex flex-col items-center ml-auto">
+                              <span className="font-bold text-blue-600">{projectionYears[2]}</span>
                               <span className="text-xs text-blue-600 font-semibold">EST</span>
                             </div>
                           </th>
-                          <th id={`year-${projectionYears[3]}-column`} className="py-3 px-4 text-center font-bold text-sm w-[120px] align-top">
-                            <div className="text-blue-600">{projectionYears[3]}</div>
-                            <div className="h-4 flex items-center justify-center">
+                          <th id={`year-${projectionYears[3]}-column`} className="py-3 px-4 text-right font-bold text-sm w-[120px] align-top">
+                            <div className="inline-flex flex-col items-center ml-auto">
+                              <span className="font-bold text-blue-600">{projectionYears[3]}</span>
                               <span className="text-xs text-blue-600 font-semibold">EST</span>
                             </div>
                           </th>
@@ -1186,20 +1194,20 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                       </thead>
                       <tbody id="financial-data-rows">
                         {/* Revenue Section */}
-                        <tr id="revenue-data-row" className="border-b border-gray-100 hover:bg-gray-50">
+                        <tr id="revenue-data-row" className="border-b border-gray-100">
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">Revenue</td>
-                          <td id={`revenue-${currentYear}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState.baseData?.revenue)}</td>
-                          <td id={`revenue-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.revenue[projectionYears[0]])}</td>
-                          <td id={`revenue-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.revenue[projectionYears[1]])}</td>
-                          <td id={`revenue-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.revenue[projectionYears[2]])}</td>
-                          <td id={`revenue-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.revenue[projectionYears[3]])}</td>
+                          <td id={`revenue-${currentYear}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState.baseData?.revenue)}</td>
+                          <td id={`revenue-${projectionYears[0]}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.revenue[projectionYears[0]])}</td>
+                          <td id={`revenue-${projectionYears[1]}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.revenue[projectionYears[1]])}</td>
+                          <td id={`revenue-${projectionYears[2]}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.revenue[projectionYears[2]])}</td>
+                          <td id={`revenue-${projectionYears[3]}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.revenue[projectionYears[3]])}</td>
                         </tr>
-                        <tr id="revenue-growth-input-row" className="border-b border-gray-100 hover:bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
+                        <tr id="revenue-growth-input-row" className="border-b border-gray-100" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">Revenue Growth</td>
-                          <td className="py-2 px-4 text-center w-[120px]"></td>
+                          <td className="py-2 px-4 text-right w-[120px]"></td>
                           {projectionYears.map((year, index) => (
-                            <td key={year} className="py-2 px-4 text-center w-[120px] relative">
-                              <div className="flex justify-center">
+                            <td key={year} className="py-2 px-4 text-right w-[120px] relative overflow-visible">
+                              <div className="relative w-16 ml-auto">
                               <Input
                                 id={`revenue-growth-${year}`}
                                 type="text"
@@ -1212,40 +1220,40 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                                   onFocus={() => handleInputFocus('revenue-growth', year)}
                                   onBlur={() => handleInputBlur('revenue-growth', year)}
                                 onKeyDown={(e) => handleKeyDown(e, 'revenue-growth', year)}
-                                  className={`text-center h-8 w-16 ${appliedCells[`revenueGrowth-${year}`] ? 'bg-blue-50 border-blue-200' : ''}`}
-                                style={inputStyle}
+                                  className={`bg-transparent border-0 border-b-2 border-gray-300 rounded-none shadow-none outline-none focus:ring-0 focus-visible:ring-0 focus:border-blue-500 text-right px-0 h-8 w-full ${appliedCells[`revenueGrowth-${year}`] ? '!border-blue-500' : ''}`}
+                                style={{...inputStyle, textAlign: 'right'}}
                                 placeholder="0%"
                               />
-                              </div>
                               {showForwardButton[`revenue-growth-${year}`] && index < projectionYears.length - 1 && (
                                 <button
                                   onClick={() => handleForwardApply('revenueGrowth', year)}
                                   onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`revenue-growth-${year}`]: true }))}
-                                  className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1"
+                                  className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1 z-10"
                                   title="Apply to all future years"
                                 >
                                   →
                                 </button>
                               )}
+                              </div>
                             </td>
                           ))}
                         </tr>
 
                         {/* Net Income Section */}
-                        <tr id="net-income-data-row" className="border-b border-gray-100 hover:bg-gray-50">
+                        <tr id="net-income-data-row" className="border-b border-gray-100">
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">Net Income</td>
-                          <td id={`net-income-${currentYear}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState.baseData?.net_income)}</td>
-                          <td id={`net-income-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.netIncome[projectionYears[0]])}</td>
-                          <td id={`net-income-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.netIncome[projectionYears[1]])}</td>
-                          <td id={`net-income-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.netIncome[projectionYears[2]])}</td>
-                          <td id={`net-income-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.netIncome[projectionYears[3]])}</td>
+                          <td id={`net-income-${currentYear}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(projectionsState.baseData?.net_income)}</td>
+                          <td id={`net-income-${projectionYears[0]}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.netIncome[projectionYears[0]])}</td>
+                          <td id={`net-income-${projectionYears[1]}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.netIncome[projectionYears[1]])}</td>
+                          <td id={`net-income-${projectionYears[2]}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.netIncome[projectionYears[2]])}</td>
+                          <td id={`net-income-${projectionYears[3]}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm w-[120px]">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.netIncome[projectionYears[3]])}</td>
                         </tr>
-                        <tr id="net-income-growth-input-row" className="border-b border-gray-100 hover:bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
+                        <tr id="net-income-growth-input-row" className="border-b border-gray-100" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Net Inc Growth</td>
-                          <td className="py-2 px-4 text-center"></td>
+                          <td className="py-2 px-4 text-right"></td>
                           {projectionYears.map((year, index) => (
-                            <td key={year} className="py-2 px-4 text-center w-[120px] relative">
-                              <div className="flex justify-center">
+                            <td key={year} className="py-2 px-4 text-right w-[120px] relative overflow-visible">
+                              <div className="relative w-16 ml-auto">
                               <Input
                                 id={`net-income-growth-${year}`}
                                 type="text"
@@ -1258,21 +1266,21 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                                   onFocus={() => handleInputFocus('net-income-growth', year)}
                                   onBlur={() => handleInputBlur('net-income-growth', year)}
                                 onKeyDown={(e) => handleKeyDown(e, 'net-income-growth', year)}
-                                  className={`text-center h-8 w-16 ${appliedCells[`netIncomeGrowth-${year}`] ? 'bg-blue-50 border-blue-200' : ''}`}
-                                style={inputStyle}
+                                  className={`bg-transparent border-0 border-b-2 border-gray-300 rounded-none shadow-none outline-none focus:ring-0 focus-visible:ring-0 focus:border-blue-500 text-right px-0 h-8 w-full ${appliedCells[`netIncomeGrowth-${year}`] ? '!border-blue-500' : ''}`}
+                                style={{...inputStyle, textAlign: 'right'}}
                                 placeholder="0%"
                               />
-                              </div>
                               {showForwardButton[`net-income-growth-${year}`] && index < projectionYears.length - 1 && (
                                 <button
                                   onClick={() => handleForwardApply('netIncomeGrowth', year)}
                                   onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`net-income-growth-${year}`]: true }))}
-                                  className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1"
+                                  className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1 z-10"
                                   title="Apply to all future years"
                                 >
                                   →
                                 </button>
                               )}
+                              </div>
                             </td>
                           ))}
                         </tr>
@@ -1280,26 +1288,26 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         {/* Net Income Margins Section - Calculated Field */}
                         <tr id="net-income-margin-row" className="bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Net Inc Margins</td>
-                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(projectionsState.baseData?.net_income_margin)}</td>
-                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(getActiveScenarioData()?.calculatedProjections?.netIncomeMargin[projectionYears[0]])}</td>
-                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(getActiveScenarioData()?.calculatedProjections?.netIncomeMargin[projectionYears[1]])}</td>
-                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(getActiveScenarioData()?.calculatedProjections?.netIncomeMargin[projectionYears[2]])}</td>
-                          <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatMarginPercentage(getActiveScenarioData()?.calculatedProjections?.netIncomeMargin[projectionYears[3]])}</td>
+                          <td className="py-2 px-4 text-right font-medium text-gray-900 text-sm">{formatMarginPercentage(projectionsState.baseData?.net_income_margin)}</td>
+                          <td className="py-2 px-4 text-right font-medium text-gray-900 text-sm">{formatMarginPercentage(getActiveScenarioData()?.calculatedProjections?.netIncomeMargin[projectionYears[0]])}</td>
+                          <td className="py-2 px-4 text-right font-medium text-gray-900 text-sm">{formatMarginPercentage(getActiveScenarioData()?.calculatedProjections?.netIncomeMargin[projectionYears[1]])}</td>
+                          <td className="py-2 px-4 text-right font-medium text-gray-900 text-sm">{formatMarginPercentage(getActiveScenarioData()?.calculatedProjections?.netIncomeMargin[projectionYears[2]])}</td>
+                          <td className="py-2 px-4 text-right font-medium text-gray-900 text-sm">{formatMarginPercentage(getActiveScenarioData()?.calculatedProjections?.netIncomeMargin[projectionYears[3]])}</td>
                         </tr>
 
                         {/* EPS Section */}
                         <tr id="eps-data-row" className="border-b bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">EPS</td>
-                          <td id={`eps-${currentYear}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(projectionsState.baseData?.eps)}</td>
-                          <td id={`eps-${projectionYears[0]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.eps[projectionYears[0]])}</td>
-                          <td id={`eps-${projectionYears[1]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.eps[projectionYears[1]])}</td>
-                          <td id={`eps-${projectionYears[2]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.eps[projectionYears[2]])}</td>
-                          <td id={`eps-${projectionYears[3]}`} className="py-2 px-4 text-center font-medium text-gray-900 text-sm">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.eps[projectionYears[3]])}</td>
+                          <td id={`eps-${currentYear}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm">{formatCurrency(projectionsState.baseData?.eps)}</td>
+                          <td id={`eps-${projectionYears[0]}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.eps[projectionYears[0]])}</td>
+                          <td id={`eps-${projectionYears[1]}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.eps[projectionYears[1]])}</td>
+                          <td id={`eps-${projectionYears[2]}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.eps[projectionYears[2]])}</td>
+                          <td id={`eps-${projectionYears[3]}`} className="py-2 px-4 text-right font-medium text-gray-900 text-sm">{formatCurrency(getActiveScenarioData()?.calculatedProjections?.eps[projectionYears[3]])}</td>
                         </tr>
                         <tr id="pe-low-input-row" className="border-b bg-white">
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">PE Low Est</td>
-                          <td className="py-2 px-4 text-center relative">
-                            <div className="flex justify-center">
+                          <td className="py-2 px-4 text-right relative w-[120px] overflow-visible">
+                            <div className="relative w-16 ml-auto">
                             <Input
                               id={`pe-low-${currentYear}`}
                               type="text"
@@ -1315,25 +1323,25 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                                   if (nextInput) nextInput.focus();
                                 }
                               }}
-                                className={`text-center h-8 w-16 ${appliedCells[`peLow-${currentYear}`] ? 'bg-blue-50 border-blue-200' : ''}`}
-                              style={inputStyle}
+                                className={`bg-transparent border-0 border-b-2 border-gray-300 rounded-none shadow-none outline-none focus:ring-0 focus-visible:ring-0 focus:border-blue-500 text-right px-0 h-8 w-full ${appliedCells[`peLow-${currentYear}`] ? '!border-blue-500' : ''}`}
+                              style={{...inputStyle, textAlign: 'right'}}
                               placeholder="0"
                             />
-                            </div>
                             {showForwardButton[`pe-low-${currentYear}`] && (
                               <button
                                 onClick={() => handleForwardApply('peLow', currentYear.toString())}
                                 onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`pe-low-${currentYear}`]: true }))}
-                                className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1"
+                                className="absolute -right-6 top-1/2 -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1 z-10"
                                 title="Apply to all future years"
                               >
                                 →
                               </button>
                             )}
+                            </div>
                           </td>
                           {projectionYears.map((year, index) => (
-                            <td key={year} className="py-2 px-4 text-center w-[120px] relative">
-                              <div className="flex justify-center">
+                            <td key={year} className="py-2 px-4 text-right w-[120px] relative overflow-visible">
+                              <div className="relative w-16 ml-auto">
                               <Input
                                 id={`pe-low-${year}`}
                                 type="text"
@@ -1343,28 +1351,28 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                                   onFocus={() => handleInputFocus('pe-low', year)}
                                   onBlur={() => handleInputBlur('pe-low', year)}
                                 onKeyDown={(e) => handleKeyDown(e, 'pe-low', year)}
-                                  className={`text-center h-8 w-16 ${appliedCells[`peLow-${year}`] ? 'bg-blue-50 border-blue-200' : ''}`}
-                                style={inputStyle}
+                                  className={`bg-transparent border-0 border-b-2 border-gray-300 rounded-none shadow-none outline-none focus:ring-0 focus-visible:ring-0 focus:border-blue-500 text-right px-0 h-8 w-full ${appliedCells[`peLow-${year}`] ? '!border-blue-500' : ''}`}
+                                style={{...inputStyle, textAlign: 'right'}}
                                 placeholder="0"
                               />
-                              </div>
                               {showForwardButton[`pe-low-${year}`] && index < projectionYears.length - 1 && (
                                 <button
                                   onClick={() => handleForwardApply('peLow', year)}
                                   onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`pe-low-${year}`]: true }))}
-                                  className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1"
+                                  className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1 z-10"
                                   title="Apply to all future years"
                                 >
                                   →
                                 </button>
                               )}
+                              </div>
                             </td>
                           ))}
                         </tr>
                         <tr id="pe-high-input-row" className="bg-white" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">PE High Est</td>
-                          <td className="py-2 px-4 text-center relative">
-                            <div className="flex justify-center">
+                          <td className="py-2 px-4 text-right relative w-[120px] overflow-visible">
+                            <div className="relative w-16 ml-auto">
                             <Input
                               id={`pe-high-${currentYear}`}
                               type="text"
@@ -1380,25 +1388,25 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                                   if (nextInput) nextInput.focus();
                                 }
                               }}
-                                className={`text-center h-8 w-16 ${appliedCells[`peHigh-${currentYear}`] ? 'bg-blue-50 border-blue-200' : ''}`}
-                              style={inputStyle}
+                                className={`bg-transparent border-0 border-b-2 border-gray-300 rounded-none shadow-none outline-none focus:ring-0 focus-visible:ring-0 focus:border-blue-500 text-right px-0 h-8 w-full ${appliedCells[`peHigh-${currentYear}`] ? '!border-blue-500' : ''}`}
+                              style={{...inputStyle, textAlign: 'right'}}
                               placeholder="0"
                             />
-                            </div>
                             {showForwardButton[`pe-high-${currentYear}`] && (
                               <button
                                 onClick={() => handleForwardApply('peHigh', currentYear.toString())}
                                 onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`pe-high-${currentYear}`]: true }))}
-                                className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1"
+                                className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1 z-10"
                                 title="Apply to all future years"
                               >
                                 →
                               </button>
                             )}
+                            </div>
                           </td>
                           {projectionYears.map((year, index) => (
-                            <td key={year} className="py-2 px-4 text-center w-[120px] relative">
-                              <div className="flex justify-center">
+                            <td key={year} className="py-2 px-4 text-right w-[120px] relative overflow-visible">
+                              <div className="relative w-16 ml-auto">
                               <Input
                                 id={`pe-high-${year}`}
                                 type="text"
@@ -1408,21 +1416,21 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                                   onFocus={() => handleInputFocus('pe-high', year)}
                                   onBlur={() => handleInputBlur('pe-high', year)}
                                 onKeyDown={(e) => handleKeyDown(e, 'pe-high', year)}
-                                  className={`text-center h-8 w-16 ${appliedCells[`peHigh-${year}`] ? 'bg-blue-50 border-blue-200' : ''}`}
-                                style={inputStyle}
+                                  className={`bg-transparent border-0 border-b-2 border-gray-300 rounded-none shadow-none outline-none focus:ring-0 focus-visible:ring-0 focus:border-blue-500 text-right px-0 h-8 w-full ${appliedCells[`peHigh-${year}`] ? '!border-blue-500' : ''}`}
+                                style={{...inputStyle, textAlign: 'right'}}
                                 placeholder="0"
                               />
-                              </div>
                               {showForwardButton[`pe-high-${year}`] && index < projectionYears.length - 1 && (
                                 <button
                                   onClick={() => handleForwardApply('peHigh', year)}
                                   onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`pe-high-${year}`]: true }))}
-                                  className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1"
+                                  className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1 z-10"
                                   title="Apply to all future years"
                                 >
                                   →
                                 </button>
                               )}
+                              </div>
                             </td>
                           ))}
                         </tr>
@@ -1430,19 +1438,19 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                         {/* Share Price Section */}
                         <tr id="share-price-low-data-row" className="border-b bg-gray-50">
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Share Price Low</td>
-                          <td id={`share-price-low-${currentYear}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[currentYear])}</td>
-                          <td id={`share-price-low-${projectionYears[0]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[projectionYears[0]])}</td>
-                          <td id={`share-price-low-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[projectionYears[1]])}</td>
-                          <td id={`share-price-low-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[projectionYears[2]])}</td>
-                          <td id={`share-price-low-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[projectionYears[3]])}</td>
+                          <td id={`share-price-low-${currentYear}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[currentYear])}</td>
+                          <td id={`share-price-low-${projectionYears[0]}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[projectionYears[0]])}</td>
+                          <td id={`share-price-low-${projectionYears[1]}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[projectionYears[1]])}</td>
+                          <td id={`share-price-low-${projectionYears[2]}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[projectionYears[2]])}</td>
+                          <td id={`share-price-low-${projectionYears[3]}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceLow[projectionYears[3]])}</td>
                         </tr>
                         <tr id="share-price-high-data-row" className="bg-gray-50" style={{borderBottom: '4px solid #e5e7eb'}}>
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">Share Price High</td>
-                          <td id={`share-price-high-${currentYear}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[currentYear])}</td>
-                          <td id={`share-price-high-${projectionYears[0]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[projectionYears[0]])}</td>
-                          <td id={`share-price-high-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[projectionYears[1]])}</td>
-                          <td id={`share-price-high-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[projectionYears[2]])}</td>
-                          <td id={`share-price-high-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[projectionYears[3]])}</td>
+                          <td id={`share-price-high-${currentYear}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[currentYear])}</td>
+                          <td id={`share-price-high-${projectionYears[0]}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[projectionYears[0]])}</td>
+                          <td id={`share-price-high-${projectionYears[1]}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[projectionYears[1]])}</td>
+                          <td id={`share-price-high-${projectionYears[2]}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[projectionYears[2]])}</td>
+                          <td id={`share-price-high-${projectionYears[3]}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedCurrency(getActiveScenarioData()?.calculatedProjections?.sharePriceHigh[projectionYears[3]])}</td>
                         </tr>
 
                         {/* CAGR Section */}
@@ -1450,17 +1458,17 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">CAGR Low</td>
                           <td id={`cagr-low-${currentYear}`} className="py-2 px-4 text-center"></td>
                           <td id={`cagr-low-${projectionYears[0]}`} className="py-2 px-4 text-center"></td>
-                          <td id={`cagr-low-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrLow[projectionYears[1]])}</td>
-                          <td id={`cagr-low-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrLow[projectionYears[2]])}</td>
-                          <td id={`cagr-low-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrLow[projectionYears[3]])}</td>
+                          <td id={`cagr-low-${projectionYears[1]}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrLow[projectionYears[1]])}</td>
+                          <td id={`cagr-low-${projectionYears[2]}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrLow[projectionYears[2]])}</td>
+                          <td id={`cagr-low-${projectionYears[3]}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrLow[projectionYears[3]])}</td>
                         </tr>
                         <tr id="cagr-high-data-row" className="bg-gray-50">
                           <td className="py-2 px-4 font-semibold text-gray-900 text-sm">CAGR High</td>
                           <td id={`cagr-high-${currentYear}`} className="py-2 px-4 text-center"></td>
                           <td id={`cagr-high-${projectionYears[0]}`} className="py-2 px-4 text-center"></td>
-                          <td id={`cagr-high-${projectionYears[1]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrHigh[projectionYears[1]])}</td>
-                          <td id={`cagr-high-${projectionYears[2]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrHigh[projectionYears[2]])}</td>
-                          <td id={`cagr-high-${projectionYears[3]}`} className="py-2 px-4 text-center bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrHigh[projectionYears[3]])}</td>
+                          <td id={`cagr-high-${projectionYears[1]}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrHigh[projectionYears[1]])}</td>
+                          <td id={`cagr-high-${projectionYears[2]}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrHigh[projectionYears[2]])}</td>
+                          <td id={`cagr-high-${projectionYears[3]}`} className="py-2 px-4 text-right bg-orange-100 font-medium text-gray-900 text-sm">{formatRoundedPercentage(getActiveScenarioData()?.calculatedProjections?.cagrHigh[projectionYears[3]])}</td>
                         </tr>
                       </tbody>
                     </table>

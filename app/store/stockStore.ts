@@ -16,6 +16,24 @@ interface FinancialMetrics {
   net_margin: number | null;
   ttm_ps_ratio: number | null;
   forward_ps_ratio: number | null;
+  // Advanced EPS Metrics
+  last_year_eps_growth: number | null;
+  ttm_vs_ntm_eps_growth: number | null;
+  current_quarter_eps_growth_vs_previous_year: number | null;
+  two_year_stack_exp_eps_growth: number | null;
+  // Advanced Revenue Metrics
+  last_year_revenue_growth: number | null;
+  ttm_vs_ntm_revenue_growth: number | null;
+  current_quarter_revenue_growth_vs_previous_year: number | null;
+  two_year_stack_exp_revenue_growth: number | null;
+  // Advanced Valuation Metrics
+  peg_ratio: number | null;
+  return_on_equity: number | null;
+  price_to_book: number | null;
+  price_to_free_cash_flow: number | null;
+  free_cash_flow_yield: number | null;
+  dividend_yield: number | null;
+  dividend_payout_ratio: number | null;
   ticker: string | null;
   // Stock info fields removed - use centralized stockInfo state instead
 }
@@ -68,6 +86,23 @@ interface EstimateData {
   netIncome: number | null;
   eps: number | null;
   dilutedEps: number | null;
+}
+
+// New API response format
+interface FinancialsApiResponse {
+  years: number[];
+  metrics: {
+    total_revenue: (number | null)[];
+    cost_of_revenue: (number | null)[];
+    gross_profit: (number | null)[];
+    sga: (number | null)[];
+    rnd: (number | null)[];
+    total_opex: (number | null)[];
+    operating_income: (number | null)[];
+    net_income: (number | null)[];
+    basic_eps: (number | null)[];
+    diluted_eps: (number | null)[];
+  };
 }
 
 interface FinancialsData {
@@ -736,7 +771,64 @@ export const useStockStore = create<StockStore>()(
             throw new Error(errorData.detail?.error || `Failed to fetch financials for ${ticker}`);
           }
           
-          const data: FinancialsData = await response.json();
+          const apiData: FinancialsApiResponse = await response.json();
+          
+          // Transform new API format to expected format
+          // Note: API returns financial values in millions, convert to raw format for formatter
+          const MILLIONS_TO_RAW = 1e6;
+          const currentYear = new Date().getFullYear();
+          const historical: HistoricalData[] = [];
+          const estimates: EstimateData[] = [];
+          
+          apiData.years.forEach((year, index) => {
+            const yearStr = year.toString();
+            // Treat 2025 and later as estimates (since we're likely in 2024 or early 2025)
+            const isEstimate = year >= 2025;
+            
+            // Get metric values for this year index and convert from millions to raw format
+            const getMetricValue = (metricKey: keyof FinancialsApiResponse['metrics'], isEPS: boolean = false): number | null => {
+              const metricArray = apiData.metrics[metricKey];
+              if (!metricArray || index >= metricArray.length) return null;
+              const value = metricArray[index];
+              if (value === null || value === undefined) return null;
+              // EPS values are not in millions, return as-is
+              if (isEPS) return value;
+              // Convert financial values from millions to raw format
+              return value * MILLIONS_TO_RAW;
+            };
+            
+            if (isEstimate) {
+              // Estimates only have limited fields
+              estimates.push({
+                fiscalYear: yearStr,
+                totalRevenue: getMetricValue('total_revenue', false),
+                netIncome: getMetricValue('net_income', false),
+                eps: getMetricValue('basic_eps', true),
+                dilutedEps: getMetricValue('diluted_eps', true),
+              });
+            } else {
+              // Historical data has all fields
+              historical.push({
+                fiscalYear: yearStr,
+                totalRevenue: getMetricValue('total_revenue', false),
+                costOfRevenue: getMetricValue('cost_of_revenue', false),
+                grossProfit: getMetricValue('gross_profit', false),
+                sellingGeneralAndAdministrative: getMetricValue('sga', false),
+                researchAndDevelopment: getMetricValue('rnd', false),
+                operatingExpenses: getMetricValue('total_opex', false),
+                operatingIncome: getMetricValue('operating_income', false),
+                netIncome: getMetricValue('net_income', false),
+                eps: getMetricValue('basic_eps', true),
+                dilutedEps: getMetricValue('diluted_eps', true),
+              });
+            }
+          });
+          
+          const data: FinancialsData = {
+            ticker: ticker.toUpperCase(),
+            historical,
+            estimates,
+          };
           
           // Cache the data
           set((state) => ({

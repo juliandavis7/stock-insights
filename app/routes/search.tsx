@@ -38,17 +38,36 @@ interface FinancialMetrics {
   net_margin: number | null;
   ttm_ps_ratio: number | null;
   forward_ps_ratio: number | null;
+  // Advanced EPS Metrics
+  last_year_eps_growth: number | null;
+  ttm_vs_ntm_eps_growth: number | null;
+  current_quarter_eps_growth_vs_previous_year: number | null;
+  two_year_stack_exp_eps_growth: number | null;
+  // Advanced Revenue Metrics
+  last_year_revenue_growth: number | null;
+  ttm_vs_ntm_revenue_growth: number | null;
+  current_quarter_revenue_growth_vs_previous_year: number | null;
+  two_year_stack_exp_revenue_growth: number | null;
+  // Advanced Valuation Metrics
+  peg_ratio: number | null;
+  return_on_equity: number | null;
+  price_to_book: number | null;
+  price_to_free_cash_flow: number | null;
+  free_cash_flow_yield: number | null;
+  dividend_yield: number | null;
+  dividend_payout_ratio: number | null;
   // Stock info fields removed - use centralized stockInfo state instead
   ticker: string | null;
 }
 
 const formatCurrency = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value)) return "$0";
-  if (value >= 1e12) {
+  const absValue = Math.abs(value);
+  if (absValue >= 1e12) {
     return `$${(value / 1e12).toFixed(2)}T`;
-  } else if (value >= 1e9) {
+  } else if (absValue >= 1e9) {
     return `$${(value / 1e9).toFixed(2)}B`;
-  } else if (value >= 1e6) {
+  } else if (absValue >= 1e6) {
     return `$${(value / 1e6).toFixed(2)}M`;
   }
   return `$${value.toFixed(2)}`;
@@ -62,9 +81,10 @@ const formatNumber = (value: number | null | undefined): string => {
 const formatLargeNumber = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value)) return "-";
   
-  if (value >= 1e9) {
+  const absValue = Math.abs(value);
+  if (absValue >= 1e9) {
     return `${(value / 1e9).toFixed(2)}B`;
-  } else if (value >= 1e6) {
+  } else if (absValue >= 1e6) {
     return `${(value / 1e6).toFixed(2)}M`;
   }
   
@@ -358,6 +378,117 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
                           metric="Forward P/S Ratio"
                           value={formatRatio(searchState.data?.forward_ps_ratio)}
                           benchmark="Many stocks trade at 1.8-2.6"
+                        />
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Advanced EPS Metrics Group */}
+              <Card>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table id="search-advanced-eps-metrics-table" className="w-full table-fixed">
+                      <tbody>
+                        <MetricRow
+                          metric="Last Year EPS Growth"
+                          value={formatPercentage(searchState.data?.last_year_eps_growth)}
+                          benchmark="Many stocks trade at 8-12%"
+                        />
+                        <MetricRow
+                          metric="TTM vs NTM EPS Growth"
+                          value={formatPercentage(searchState.data?.ttm_vs_ntm_eps_growth)}
+                          benchmark="Many stocks trade at 8-12%"
+                        />
+                        <MetricRow
+                          metric="Latest Quarter EPS Growth (YoY)"
+                          value={formatPercentage(searchState.data?.current_quarter_eps_growth_vs_previous_year)}
+                          benchmark="Many stocks trade at 8-12%"
+                        />
+                        <MetricRow
+                          metric="2 Year Stack EPS Growth"
+                          value={formatPercentage(searchState.data?.two_year_stack_exp_eps_growth)}
+                          benchmark="Many stocks trade at 16-25%"
+                        />
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Advanced Revenue Metrics Group */}
+              <Card>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table id="search-advanced-revenue-metrics-table" className="w-full table-fixed">
+                      <tbody>
+                        <MetricRow
+                          metric="Last Year Rev Growth"
+                          value={formatPercentage(searchState.data?.last_year_revenue_growth)}
+                          benchmark="Many stocks trade at 4.5-6.5%"
+                        />
+                        <MetricRow
+                          metric="TTM vs NTM Rev Growth"
+                          value={formatPercentage(searchState.data?.ttm_vs_ntm_revenue_growth)}
+                          benchmark="Many stocks trade at 4.5-6.5%"
+                        />
+                        <MetricRow
+                          metric="Latest Quarter Revenue Growth (YoY)"
+                          value={formatPercentage(searchState.data?.current_quarter_revenue_growth_vs_previous_year)}
+                          benchmark="Many stocks trade at 4.5-6.5%"
+                        />
+                        <MetricRow
+                          metric="2 Year Stack Rev Growth"
+                          value={formatPercentage(searchState.data?.two_year_stack_exp_revenue_growth)}
+                          benchmark="Many stocks trade at 9-13%"
+                        />
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Advanced Valuation Metrics Group */}
+              <Card>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table id="search-advanced-valuation-metrics-table" className="w-full table-fixed">
+                      <tbody>
+                        <MetricRow
+                          metric="PEG Ratio"
+                          value={formatRatio(searchState.data?.peg_ratio)}
+                          benchmark="Many stocks trade at 1-1.5"
+                        />
+                        <MetricRow
+                          metric="Return on Equity"
+                          value={formatPercentage(searchState.data?.return_on_equity)}
+                          benchmark="Many stocks trade at 15-21%"
+                        />
+                        <MetricRow
+                          metric="Price to Book"
+                          value={formatRatio(searchState.data?.price_to_book)}
+                          benchmark="Many stocks trade at 3-4"
+                        />
+                        <MetricRow
+                          metric="Price to Free Cash Flow"
+                          value={formatRatio(searchState.data?.price_to_free_cash_flow)}
+                          benchmark="Many stocks trade at 20-25"
+                        />
+                        <MetricRow
+                          metric="Free Cash Flow Yield"
+                          value={formatPercentage(searchState.data?.free_cash_flow_yield)}
+                          benchmark="Many stocks trade at 3-6%"
+                        />
+                        <MetricRow
+                          metric="Dividend Yield"
+                          value={formatPercentage(searchState.data?.dividend_yield)}
+                          benchmark="Many stocks trade at 1.5-2.1%"
+                        />
+                        <MetricRow
+                          metric="Dividend Payout Ratio"
+                          value={formatPercentage(searchState.data?.dividend_payout_ratio)}
+                          benchmark="Many stocks trade at 32-42%"
                         />
                       </tbody>
                     </table>

@@ -4,7 +4,6 @@ import {
   GitCompare,
   TrendingUp,
   DollarSign,
-  BarChart3,
   CreditCard,
   LogOut,
 } from "lucide-react";
@@ -53,11 +52,6 @@ const navItems = [
     title: "Financials",
     url: "/financials",
     icon: DollarSign,
-  },
-  {
-    title: "Charts",
-    url: "/charts",
-    icon: BarChart3,
   },
 ];
 

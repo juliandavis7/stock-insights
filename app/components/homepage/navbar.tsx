@@ -11,7 +11,6 @@ const menuItems = [
   { name: "Compare", href: "/compare" },
   { name: "Projections", href: "/projections" },
   { name: "Financials", href: "/financials" },
-  { name: "Charts", href: "/charts" },
 ];
 
 type MenuItem = {
