@@ -72,22 +72,32 @@ interface CalculatedProjections {
   cagrHigh: { [year: string]: number };
 }
 
+// Helper function to format number - only remove .00 for 0 and 100
+const formatNumberValue = (num: number): string => {
+  const rounded = parseFloat(num.toFixed(2));
+  // Only remove .00 for exactly 0 or 100
+  if (rounded === 0 || rounded === 100) {
+    return rounded.toString();
+  }
+  return num.toFixed(2);
+};
+
 const formatCurrency = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value) || value === 0) return "$0";
   const absValue = Math.abs(value);
   if (absValue >= 1e12) {
-    return `$${(value / 1e12).toFixed(2)}T`;
+    return `$${formatNumberValue(value / 1e12)}T`;
   } else if (absValue >= 1e9) {
-    return `$${(value / 1e9).toFixed(2)}B`;
+    return `$${formatNumberValue(value / 1e9)}B`;
   } else if (absValue >= 1e6) {
-    return `$${(value / 1e6).toFixed(2)}M`;
+    return `$${formatNumberValue(value / 1e6)}M`;
   }
-  return `$${value.toFixed(2)}`;
+  return `$${formatNumberValue(value)}`;
 };
 
 const formatPercentage = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value) || value === 0) return "0%";
-  return `${value.toFixed(2)}%`;
+  return `${formatNumberValue(value)}%`;
 };
 
 const formatMarginPercentage = (value: number | null | undefined): string => {

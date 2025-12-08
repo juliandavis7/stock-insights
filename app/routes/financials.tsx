@@ -64,42 +64,58 @@ const GROWTH_COLORS = {
   fontWeight: "font-medium",
 };
 // Utility functions as per documentation
+// Helper function to format number - only remove .00 for 0 and 100
+const formatNumberValue = (num: number): string => {
+  const rounded = parseFloat(num.toFixed(2));
+  // Only remove .00 for exactly 0 or 100
+  if (rounded === 0 || rounded === 100) {
+    return rounded.toString();
+  }
+  return num.toFixed(2);
+};
+
 const formatLargeNumber = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value)) return "";
   
   const absValue = Math.abs(value);
   
   if (absValue >= 1e12) {
-    return `$${(value / 1e12).toFixed(2)}T`;
+    return `$${formatNumberValue(value / 1e12)}T`;
   } else if (absValue >= 1e9) {
-    return `$${(value / 1e9).toFixed(2)}B`;
+    return `$${formatNumberValue(value / 1e9)}B`;
   } else if (absValue >= 1e6) {
-    return `$${(value / 1e6).toFixed(0)}M`;
+    // For millions, use toFixed(0) then remove trailing zeros (though there won't be any)
+    const millions = value / 1e6;
+    return `$${parseFloat(millions.toFixed(0)).toString()}M`;
   } else if (absValue >= 1e3) {
-    return `$${(value / 1e3).toFixed(2)}K`;
+    return `$${formatNumberValue(value / 1e3)}K`;
   }
-  return `$${value.toFixed(2)}`;
+  return `$${formatNumberValue(value)}`;
 };
 
 const formatEPS = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value)) return "";
-  return `$${value.toFixed(2)}`;
+  return `$${formatNumberValue(value)}`;
 };
 
-const formatRAndD = (value: number | null | undefined): string => {
-  if (value === null || value === undefined) return "N/A";
+const formatRAndD = (value: number | null | undefined, isEstimateYear: boolean): string => {
+  if (value === null || value === undefined) {
+    return isEstimateYear ? "" : "N/A";
+  }
   if (isNaN(value)) return "";
   const absValue = Math.abs(value);
   if (absValue >= 1e12) {
-    return `$${(value / 1e12).toFixed(2)}T`;
+    return `$${formatNumberValue(value / 1e12)}T`;
   } else if (absValue >= 1e9) {
-    return `$${(value / 1e9).toFixed(2)}B`;
+    return `$${formatNumberValue(value / 1e9)}B`;
   } else if (absValue >= 1e6) {
-    return `$${(value / 1e6).toFixed(0)}M`;
+    // For millions, use toFixed(0) then remove trailing zeros (though there won't be any)
+    const millions = value / 1e6;
+    return `$${parseFloat(millions.toFixed(0)).toString()}M`;
   } else if (absValue >= 1e3) {
-    return `$${(value / 1e3).toFixed(2)}K`;
+    return `$${formatNumberValue(value / 1e3)}K`;
   }
-  return `$${value.toFixed(2)}`;
+  return `$${formatNumberValue(value)}`;
 };
 
 const formatNumber = (value: number | null | undefined): string => {
@@ -111,8 +127,12 @@ const calculateYoYGrowth = (current: number | null, previous: number | null): { 
   if (!current || !previous || previous === 0) return null;
   const growth = ((current - previous) / Math.abs(previous)) * 100;
   const isPositive = growth >= 0;
+  const absGrowth = Math.abs(growth);
+  const rounded = parseFloat(absGrowth.toFixed(1));
+  // Only remove .0 for exactly 0 or 100
+  const formattedGrowth = (rounded === 0 || rounded === 100) ? rounded.toString() : absGrowth.toFixed(1);
   return {
-    text: isPositive ? `+${growth.toFixed(1)}%` : `-${Math.abs(growth).toFixed(1)}%`,
+    text: isPositive ? `+${formattedGrowth}%` : `-${formattedGrowth}%`,
     isPositive
   };
 };
