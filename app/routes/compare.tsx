@@ -6,6 +6,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Search } from "lucide-react";
 import { AppLayout } from "~/components/app-layout";
+import { Tooltip, TooltipTrigger, TooltipContent } from "~/components/ui/tooltip";
 import { useCompareState, useStockActions } from "~/store/stockStore";
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { useSubscriptionCheck } from "~/hooks/useSubscriptionCheck";
@@ -65,14 +66,29 @@ interface FinancialMetrics {
   market_cap: number | null;
 }
 
+// Helper function to format number - only remove .00 for 0 and 100
+const formatNumberValue = (num: number): string => {
+  const rounded = parseFloat(num.toFixed(2));
+  // Only remove .00 for exactly 0 or 100
+  if (rounded === 0 || rounded === 100) {
+    return rounded.toString();
+  }
+  return num.toFixed(2);
+};
+
 const formatPercentage = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || isNaN(value)) return "-";
-  return `${value.toFixed(2)}%`;
+  if (value === null || value === undefined || isNaN(value)) return "N/A";
+  return `${formatNumberValue(value)}%`;
 };
 
 const formatRatio = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || isNaN(value)) return "-";
-  return value.toFixed(2);
+  if (value === null || value === undefined || isNaN(value)) return "N/A";
+  return formatNumberValue(value);
+};
+
+// Helper function to determine tooltip message for N/A values
+const getTooltipMessage = (): string => {
+  return "Data is unavailable";
 };
 
 const getMetricValue = (metrics: FinancialMetrics | null, metricKey: keyof FinancialMetrics): number | null => {
@@ -95,14 +111,37 @@ interface MetricRowProps {
 }
 
 const MetricRow = ({ metric, ticker1, ticker2, ticker3, data1, data2, data3, metricKey, formatter, benchmark, higherIsBetter = true }: MetricRowProps) => {
+  const value1 = formatter(getMetricValue(data1, metricKey));
+  const value2 = formatter(getMetricValue(data2, metricKey));
+  const value3 = formatter(getMetricValue(data3, metricKey));
+  const isNA1 = value1 === "N/A";
+  const isNA2 = value2 === "N/A";
+  const isNA3 = value3 === "N/A";
+  
+  const renderValue = (value: string, isNA: boolean, color?: string) => {
+    if (isNA) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="text-center font-medium text-sm cursor-help" style={color ? { color } : {}}>{value}</span>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            {getTooltipMessage()}
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+    return <span className="text-center font-medium text-sm" style={color ? { color } : {}}>{value}</span>;
+  };
+  
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50" id={`compare-metric-row-${metricKey.toLowerCase().replace(/_/g, '-')}`}>
       <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">{metric}</td>
       <td className="py-2 px-4 w-[300px]">
         <div className="grid grid-cols-3 gap-0">
-          <span className="text-center font-medium text-sm" style={{ color: '#D97706' }}>{formatter(getMetricValue(data1, metricKey))}</span>
-          <span className="text-center font-medium text-sm">{formatter(getMetricValue(data2, metricKey))}</span>
-          <span className="text-center font-medium text-sm" style={{ color: '#0369A1' }}>{formatter(getMetricValue(data3, metricKey))}</span>
+          {renderValue(value1, isNA1, '#D97706')}
+          {renderValue(value2, isNA2)}
+          {renderValue(value3, isNA3, '#0369A1')}
         </div>
       </td>
       <td className="py-2 px-4 text-muted-foreground text-sm w-[200px]">{benchmark}</td>
@@ -514,7 +553,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                             benchmark="Many stocks trade at 8-12%"
                           />
                           <MetricRow
-                            metric="Latest Quarter EPS Growth (YoY)"
+                            metric="Last Quarter EPS Growth YoY"
                             ticker1={compareState?.tickers?.[0] || ''}
                             ticker2={compareState?.tickers?.[1] || ''}
                             ticker3={compareState?.tickers?.[2] || ''}
@@ -574,7 +613,7 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                             benchmark="Many stocks trade at 4.5-6.5%"
                           />
                           <MetricRow
-                            metric="Latest Quarter Revenue Growth (YoY)"
+                            metric="Last Quarter Rev Growth YoY"
                             ticker1={compareState?.tickers?.[0] || ''}
                             ticker2={compareState?.tickers?.[1] || ''}
                             ticker3={compareState?.tickers?.[2] || ''}

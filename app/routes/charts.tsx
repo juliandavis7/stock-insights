@@ -458,17 +458,27 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
     }
   };
 
+  // Helper function to format number - only remove .00 for 0 and 100
+  const formatNumberValue = (num: number): string => {
+    const rounded = parseFloat(num.toFixed(2));
+    // Only remove .00 for exactly 0 or 100
+    if (rounded === 0 || rounded === 100) {
+      return rounded.toString();
+    }
+    return num.toFixed(2);
+  };
+
   const formatCurrency = (value: number | null | undefined): string => {
     if (value === null || value === undefined || isNaN(value)) return "$0";
     const absValue = Math.abs(value);
     if (absValue >= 1e12) {
-      return `$${(value / 1e12).toFixed(2)}T`;
+      return `$${formatNumberValue(value / 1e12)}T`;
     } else if (absValue >= 1e9) {
-      return `$${(value / 1e9).toFixed(2)}B`;
+      return `$${formatNumberValue(value / 1e9)}B`;
     } else if (absValue >= 1e6) {
-      return `$${(value / 1e6).toFixed(2)}M`;
+      return `$${formatNumberValue(value / 1e6)}M`;
     } else {
-      return `$${value.toFixed(2)}`;
+      return `$${formatNumberValue(value)}`;
     }
   };
 
@@ -476,13 +486,13 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
     if (value === null || value === undefined || isNaN(value)) return "0";
     const absValue = Math.abs(value);
     if (absValue >= 1e9) {
-      return `${(value / 1e9).toFixed(2)}B`;
+      return `${formatNumberValue(value / 1e9)}B`;
     } else if (absValue >= 1e6) {
-      return `${(value / 1e6).toFixed(2)}M`;
+      return `${formatNumberValue(value / 1e6)}M`;
     } else if (absValue >= 1e3) {
-      return `${(value / 1e3).toFixed(2)}K`;
+      return `${formatNumberValue(value / 1e3)}K`;
     } else {
-      return value.toFixed(0);
+      return parseFloat(value.toFixed(0)).toString();
     }
   };
 
@@ -883,7 +893,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                         />
                         <YAxis 
                           tick={{ fontSize: 12 }}
-                          tickFormatter={(value) => `$${value.toFixed(2)}`}
+                          tickFormatter={(value) => `$${formatNumberValue(value)}`}
                           label={{ value: 'EPS', angle: -90, position: 'insideLeft', textAnchor: 'middle', style: { fontSize: '16px', fontWeight: 'bold' } }}
                           domain={[0, (dataMax: number) => dataMax > 0 ? dataMax : 10]}
                         />
@@ -893,7 +903,7 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                             const fullQuarter = payload?.[0]?.payload?.fullQuarter || label;
                             return `Quarter: ${fullQuarter}`;
                           }}
-                          formatter={(value: number) => [`$${value.toFixed(2)}`]}
+                          formatter={(value: number) => [`$${formatNumberValue(value)}`]}
                         />
                         <Bar 
                           dataKey="eps" 

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { AppLayout } from "~/components/app-layout";
 import { StockSearchHeader } from "~/components/stock-search-header";
+import { Tooltip, TooltipTrigger, TooltipContent } from "~/components/ui/tooltip";
 import { useSearchState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { useSubscriptionCheck } from "~/hooks/useSubscriptionCheck";
@@ -60,17 +61,27 @@ interface FinancialMetrics {
   ticker: string | null;
 }
 
+// Helper function to format number - only remove .00 for 0 and 100
+const formatNumberValue = (num: number): string => {
+  const rounded = parseFloat(num.toFixed(2));
+  // Only remove .00 for exactly 0 or 100
+  if (rounded === 0 || rounded === 100) {
+    return rounded.toString();
+  }
+  return num.toFixed(2);
+};
+
 const formatCurrency = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value)) return "$0";
   const absValue = Math.abs(value);
   if (absValue >= 1e12) {
-    return `$${(value / 1e12).toFixed(2)}T`;
+    return `$${formatNumberValue(value / 1e12)}T`;
   } else if (absValue >= 1e9) {
-    return `$${(value / 1e9).toFixed(2)}B`;
+    return `$${formatNumberValue(value / 1e9)}B`;
   } else if (absValue >= 1e6) {
-    return `$${(value / 1e6).toFixed(2)}M`;
+    return `$${formatNumberValue(value / 1e6)}M`;
   }
-  return `$${value.toFixed(2)}`;
+  return `$${formatNumberValue(value)}`;
 };
 
 const formatNumber = (value: number | null | undefined): string => {
@@ -79,26 +90,31 @@ const formatNumber = (value: number | null | undefined): string => {
 };
 
 const formatLargeNumber = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || isNaN(value)) return "-";
+  if (value === null || value === undefined || isNaN(value)) return "N/A";
   
   const absValue = Math.abs(value);
   if (absValue >= 1e9) {
-    return `${(value / 1e9).toFixed(2)}B`;
+    return `${formatNumberValue(value / 1e9)}B`;
   } else if (absValue >= 1e6) {
-    return `${(value / 1e6).toFixed(2)}M`;
+    return `${formatNumberValue(value / 1e6)}M`;
   }
   
-  return value.toFixed(2);
+  return formatNumberValue(value);
 };
 
 const formatPercentage = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || isNaN(value)) return "-";
-  return `${value.toFixed(2)}%`;
+  if (value === null || value === undefined || isNaN(value)) return "N/A";
+  return `${formatNumberValue(value)}%`;
 };
 
 const formatRatio = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || isNaN(value)) return "-";
-  return value.toFixed(2);
+  if (value === null || value === undefined || isNaN(value)) return "N/A";
+  return formatNumberValue(value);
+};
+
+// Helper function to determine tooltip message for N/A values
+const getTooltipMessage = (): string => {
+  return "Data is unavailable";
 };
 
 interface MetricRowProps {
@@ -107,13 +123,30 @@ interface MetricRowProps {
   benchmark: string;
 }
 
-const MetricRow = ({ metric, value, benchmark }: MetricRowProps) => (
-  <tr className="border-b border-gray-100 hover:bg-gray-50">
-    <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">{metric}</td>
-    <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[300px]">{value}</td>
-    <td className="py-2 px-4 text-muted-foreground text-sm w-[200px]">{benchmark}</td>
-  </tr>
-);
+const MetricRow = ({ metric, value, benchmark }: MetricRowProps) => {
+  const isNA = value === "N/A";
+  
+  return (
+    <tr className="border-b border-gray-100 hover:bg-gray-50">
+      <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">{metric}</td>
+      <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[300px]">
+        {isNA ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="cursor-help">{value}</span>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              {getTooltipMessage()}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          value
+        )}
+      </td>
+      <td className="py-2 px-4 text-muted-foreground text-sm w-[200px]">{benchmark}</td>
+    </tr>
+  );
+};
 
 export default function SearchPage({ loaderData }: Route.ComponentProps) {
   // Check subscription status and redirect if expired
@@ -402,7 +435,7 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
                           benchmark="Many stocks trade at 8-12%"
                         />
                         <MetricRow
-                          metric="Latest Quarter EPS Growth (YoY)"
+                          metric="Last Quarter EPS Growth YoY"
                           value={formatPercentage(searchState.data?.current_quarter_eps_growth_vs_previous_year)}
                           benchmark="Many stocks trade at 8-12%"
                         />
@@ -434,7 +467,7 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
                           benchmark="Many stocks trade at 4.5-6.5%"
                         />
                         <MetricRow
-                          metric="Latest Quarter Revenue Growth (YoY)"
+                          metric="Last Quarter Rev Growth YoY"
                           value={formatPercentage(searchState.data?.current_quarter_revenue_growth_vs_previous_year)}
                           benchmark="Many stocks trade at 4.5-6.5%"
                         />
