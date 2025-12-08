@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "react-router";
 import { Card, CardContent } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { AppLayout } from "~/components/app-layout";
 import { StockSearchHeader } from "~/components/stock-search-header";
+import { LoadingOverlay } from "~/components/LoadingOverlay";
 import { useProjectionsState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { useSubscriptionCheck } from "~/hooks/useSubscriptionCheck";
@@ -309,6 +311,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   const stockInfo = useStockInfo();
   const actions = useStockActions();
   const { authenticatedFetch } = useAuthenticatedFetch();
+  const [searchParams] = useSearchParams();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
   const [showForwardButton, setShowForwardButton] = useState<{[key: string]: boolean}>({});
   const [appliedCells, setAppliedCells] = useState<{[key: string]: boolean}>({});
@@ -316,6 +319,9 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   const [metricTooltipCoords, setMetricTooltipCoords] = useState({ top: 0, left: 0 });
   const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
   const metricButtonRef = useRef<HTMLButtonElement>(null);
+  const [isPolling, setIsPolling] = useState(false);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isPollingRef = useRef(false); // Ref for synchronous polling state checks
   
   // Scenario management
   type ScenarioType = 'base' | 'bull' | 'bear';
@@ -422,44 +428,166 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     setTimeout(() => recalculateProjectionsForScenario(updated), 0);
   };
 
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      isPollingRef.current = false;
+    };
+  }, []);
+
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    setIsPolling(false);
+    isPollingRef.current = false;
+  };
+
+  const startPolling = (ticker: string) => {
+    if (pollingIntervalRef.current) {
+      return; // Already polling
+    }
+
+    setIsPolling(true);
+    isPollingRef.current = true; // Set ref synchronously for finally block checks
+    // Keep loading state true while polling and clear any errors
+    actions.setProjectionsLoading(true);
+    actions.setProjectionsError(null);
+    
+    // Clear old data if it's for a different ticker - set to null so overlay covers it
+    if (projectionsState?.baseData && projectionsState.baseData.ticker !== ticker) {
+      actions.setProjectionsBaseData({
+        ticker: ticker,
+        revenue: null,
+        net_income: null,
+        eps: null,
+        net_income_margin: null,
+        data_year: new Date().getFullYear()
+      });
+    }
+    let attemptCount = 0;
+    const MAX_ATTEMPTS = 60; // 60 attempts * 2 seconds = 120 seconds = 2 minutes
+    const POLL_INTERVAL = 2000;
+
+    const poll = async () => {
+      attemptCount += 1;
+
+      try {
+        const cachedData = actions.getCachedProjections(ticker);
+        if (cachedData) {
+          actions.setProjectionsBaseData(cachedData);
+          stopPolling();
+          actions.setProjectionsLoading(false);
+          return;
+        }
+
+        const data = await actions.fetchProjections(ticker, authenticatedFetch);
+        actions.setProjectionsBaseData(data);
+        stopPolling();
+        actions.setProjectionsLoading(false);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        const is404 = errorMessage.toLowerCase().includes('404') || 
+                      errorMessage.toLowerCase().includes('not found');
+
+        if (is404 && attemptCount < MAX_ATTEMPTS) {
+          // Continue polling
+          return;
+        } else {
+          // Stop polling
+          stopPolling();
+          actions.setProjectionsLoading(false);
+          if (attemptCount >= MAX_ATTEMPTS) {
+            actions.setProjectionsError(`Data not available after ${MAX_ATTEMPTS} attempts`);
+          } else {
+            actions.setProjectionsError(errorMessage);
+          }
+        }
+      }
+    };
+
+    // Start polling immediately
+    poll();
+    
+    // Then poll every interval
+    pollingIntervalRef.current = setInterval(poll, POLL_INTERVAL);
+  };
+
   const performSearch = async () => {
     if (!stockSymbol.trim()) {
       actions.setProjectionsError("Please enter a valid ticker symbol");
       return;
     }
     
+    // Stop any existing polling
+    stopPolling();
+    
+    // Set loading state immediately - this will show the overlay
     actions.setProjectionsLoading(true);
     actions.setProjectionsError(null);
     actions.setStockInfoLoading(true);
     actions.setGlobalTicker(stockSymbol); // Set global ticker
     setIsInitialLoad(true); // Reset initial load flag for new search
     
+    // Don't clear old data here - let the fetch/polling handle it
+    // The loading overlay will cover any old data while we fetch
+    
     try {
-      // Fetch both projections and stock info concurrently
-      const [projectionsPromise, stockInfoPromise] = await Promise.allSettled([
-        // Check cache first for projections, then fetch if needed
-        (async () => {
-          const cachedData = actions.getCachedProjections(stockSymbol);
-          if (cachedData) return cachedData;
-          return await actions.fetchProjections(stockSymbol, authenticatedFetch);
-        })(),
-        // Fetch stock info (handles its own caching)
+      // Fetch stock info first (doesn't need polling)
+      const stockInfoPromise = await Promise.allSettled([
         actions.fetchStockInfo(stockSymbol, authenticatedFetch)
       ]);
       
-      // Handle projections result
-      if (projectionsPromise.status === 'fulfilled') {
-        actions.setProjectionsBaseData(projectionsPromise.value);
-      } else {
-        console.error("Error fetching projections:", projectionsPromise.reason);
-        const errorMessage = projectionsPromise.reason instanceof Error ? projectionsPromise.reason.message : "Error fetching projections";
-        actions.setProjectionsError(errorMessage);
-        
-        // If ticker not found, clear the projections data
-        if (errorMessage.toLowerCase().includes('not found') || 
-            errorMessage.toLowerCase().includes('404') ||
-            errorMessage.toLowerCase().includes('does not exist') ||
-            errorMessage.toLowerCase().includes('failed to fetch data for')) {
+      if (stockInfoPromise[0].status === 'rejected') {
+        console.error("Error fetching stock info:", stockInfoPromise[0].reason);
+        actions.setStockInfoError(stockInfoPromise[0].reason instanceof Error ? stockInfoPromise[0].reason.message : "Error fetching stock info");
+      }
+
+      // Fetch projections with polling support
+      try {
+        // Check if we already have data for this ticker
+        if (projectionsState?.baseData && projectionsState.baseData.ticker === stockSymbol) {
+          // Already have data for this ticker - don't fetch again
+          actions.setProjectionsLoading(false);
+        } else {
+          // Check cache first
+          const cachedData = actions.getCachedProjections(stockSymbol);
+          if (cachedData) {
+            actions.setProjectionsBaseData(cachedData);
+            actions.setProjectionsLoading(false);
+          } else {
+            // Fetch from API
+            const data = await actions.fetchProjections(stockSymbol, authenticatedFetch);
+            actions.setProjectionsBaseData(data);
+            actions.setProjectionsLoading(false);
+          }
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Error fetching projections";
+        const is404 = errorMessage.toLowerCase().includes('404') || 
+                      errorMessage.toLowerCase().includes('not found') ||
+                      errorMessage.toLowerCase().includes('does not exist') ||
+                      errorMessage.toLowerCase().includes('failed to fetch data for');
+
+        if (is404) {
+          // Don't clear data to zeros - keep loading state and show overlay
+          // Start polling for 404 responses - this keeps loading state true
+          // The loading overlay will show while polling
+          startPolling(stockSymbol);
+          // Don't clear scenario data here - wait until data arrives
+          // Exit early to prevent clearing data while polling
+          return;
+        } else {
+          // Non-404 error
+          actions.setProjectionsError(errorMessage);
+          actions.setProjectionsLoading(false);
+          
+          // Clear the projections data
           actions.setProjectionsBaseData({
             ticker: stockSymbol,
             revenue: 0,
@@ -471,12 +599,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
         }
       }
       
-      // Stock info is automatically handled by the fetchStockInfo action
-      if (stockInfoPromise.status === 'rejected') {
-        console.error("Error fetching stock info:", stockInfoPromise.reason);
-        actions.setStockInfoError(stockInfoPromise.reason instanceof Error ? stockInfoPromise.reason.message : "Error fetching stock info");
-      }
-      
+      // Only clear scenario data if fetch succeeded (not polling)
       // Clear scenario projections cache only for the new ticker being searched
       console.log(`🗑️ Clearing scenario projections cache for new ticker: ${stockSymbol}`);
       actions.clearScenarioProjectionsCache(stockSymbol);
@@ -515,8 +638,22 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       console.error('Unexpected error:', err);
       actions.setProjectionsError(err instanceof Error ? err.message : 'Unexpected error occurred');
       actions.setStockInfoError(err instanceof Error ? err.message : 'Unexpected error occurred');
+      // Don't set loading to false here if we're polling - polling will handle it
+      // Use ref for synchronous check since state updates are async
+      if (!isPollingRef.current) {
+        actions.setProjectionsLoading(false);
+      }
+      actions.setStockInfoLoading(false);
     } finally {
-      actions.setProjectionsLoading(false);
+      // Don't set loading to false in finally block if polling is active
+      // Polling will handle setting loading to false when data arrives or timeout
+      // Use ref for synchronous check since state updates are async
+      if (!isPollingRef.current) {
+        // Only set projections loading to false if we're not polling
+        // This handles the case where fetch succeeded or non-404 error occurred
+        // But if we started polling, leave loading state true
+        actions.setProjectionsLoading(false);
+      }
       actions.setStockInfoLoading(false);
     }
   };
@@ -861,44 +998,100 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     }
   }, [projectionsState?.baseData, projectionsState?.projectionInputs, stockInfo]);
 
-  // Load data for global ticker on component mount and when it changes
+  // Check URL params first, then fall back to global ticker
+  // Auto-fetch data when component mounts or ticker changes
   useEffect(() => {
-    const tickerToLoad = globalTicker.currentTicker || 'AAPL';
+    const urlTicker = searchParams.get('ticker');
+    const tickerToLoad = urlTicker ? urlTicker.toUpperCase() : (globalTicker.currentTicker || 'AAPL');
+    
+    // Update global ticker and input field if URL has ticker
+    if (urlTicker) {
+      const upperTicker = urlTicker.toUpperCase();
+      if (upperTicker !== globalTicker.currentTicker) {
+        actions.setGlobalTicker(upperTicker);
+      }
+      if (upperTicker !== stockSymbol) {
+        setStockSymbol(upperTicker);
+      }
+    }
+    
+    // Check if we need to fetch data for the current ticker
     const needsProjectionsData = !projectionsState?.baseData || projectionsState.baseData.ticker !== tickerToLoad;
     const needsStockInfoData = !stockInfo?.data || stockInfo.data.ticker !== tickerToLoad;
     
+    // If ticker doesn't match existing data, set loading state first, then clear old data
+    // But only if we don't already have cached data for the new ticker
+    const cachedData = actions.getCachedProjections(tickerToLoad);
+    if (projectionsState?.baseData && projectionsState.baseData.ticker !== tickerToLoad && !cachedData) {
+      // Set loading state FIRST so overlay shows immediately
+      // This prevents showing wrong ticker's data while fetching
+      actions.setProjectionsLoading(true);
+      actions.setProjectionsError(null);
+      // Don't clear data here - let the fetch handle it
+      // The loading overlay will cover any old data
+    }
+    
+    // Fetch if we need data for this ticker
     if (tickerToLoad && (needsProjectionsData || needsStockInfoData)) {
+      // Set loading state immediately BEFORE async operation
+      // This ensures overlay shows immediately when navigating to page
+      actions.setProjectionsLoading(true);
+      actions.setProjectionsError(null);
+      
       const loadData = async () => {
+        // Stop any existing polling
+        stopPolling();
+        
+        // Ensure loading state is still true
         actions.setProjectionsLoading(true);
-        actions.setProjectionsError(null);
         actions.setStockInfoLoading(true);
         
         try {
-          // Fetch both projections and stock info concurrently
-          const [projectionsPromise, stockInfoPromise] = await Promise.allSettled([
-            // Check cache first for projections, then fetch if needed
-            (async () => {
-          const cachedData = actions.getCachedProjections(tickerToLoad);
-              if (cachedData) return cachedData;
-              return await actions.fetchProjections(tickerToLoad, authenticatedFetch);
-            })(),
-            // Fetch stock info (handles its own caching)
+          // Fetch stock info first (doesn't need polling)
+          const stockInfoPromise = await Promise.allSettled([
             actions.fetchStockInfo(tickerToLoad, authenticatedFetch)
           ]);
           
-          // Handle projections result
-          if (projectionsPromise.status === 'fulfilled') {
-            actions.setProjectionsBaseData(projectionsPromise.value);
-          } else {
-            console.error("Error fetching projections:", projectionsPromise.reason);
-            const errorMessage = projectionsPromise.reason instanceof Error ? projectionsPromise.reason.message : "Error fetching projections";
-            actions.setProjectionsError(errorMessage);
-            
-            // If ticker not found, clear the projections data
-            if (errorMessage.toLowerCase().includes('not found') || 
-                errorMessage.toLowerCase().includes('404') ||
-                errorMessage.toLowerCase().includes('does not exist') ||
-                errorMessage.toLowerCase().includes('failed to fetch data for')) {
+          if (stockInfoPromise[0].status === 'rejected') {
+            console.error("Error fetching stock info:", stockInfoPromise[0].reason);
+            actions.setStockInfoError(stockInfoPromise[0].reason instanceof Error ? stockInfoPromise[0].reason.message : "Error fetching stock info");
+          }
+
+          // Fetch projections with polling support
+          try {
+            // Check if we already have data for this ticker
+            if (projectionsState?.baseData && projectionsState.baseData.ticker === tickerToLoad) {
+              // Already have data for this ticker - don't fetch again
+              actions.setProjectionsLoading(false);
+            } else {
+              // Check cache first
+              const cachedData = actions.getCachedProjections(tickerToLoad);
+              if (cachedData) {
+                actions.setProjectionsBaseData(cachedData);
+                actions.setProjectionsLoading(false);
+              } else {
+                // Fetch from API
+                const data = await actions.fetchProjections(tickerToLoad, authenticatedFetch);
+                actions.setProjectionsBaseData(data);
+                actions.setProjectionsLoading(false);
+              }
+            }
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : "Error fetching projections";
+            const is404 = errorMessage.toLowerCase().includes('404') || 
+                          errorMessage.toLowerCase().includes('not found') ||
+                          errorMessage.toLowerCase().includes('does not exist') ||
+                          errorMessage.toLowerCase().includes('failed to fetch data for');
+
+            if (is404) {
+              // Start polling for 404 responses - this will keep loading state true
+              startPolling(tickerToLoad);
+            } else {
+              // Non-404 error
+              actions.setProjectionsError(errorMessage);
+              actions.setProjectionsLoading(false);
+              
+              // Clear the projections data
               actions.setProjectionsBaseData({
                 ticker: tickerToLoad,
                 revenue: 0,
@@ -910,46 +1103,33 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
             }
           }
           
-          // Stock info is automatically handled by the fetchStockInfo action
-          if (stockInfoPromise.status === 'rejected') {
-            console.error("Error fetching stock info:", stockInfoPromise.reason);
-            actions.setStockInfoError(stockInfoPromise.reason instanceof Error ? stockInfoPromise.reason.message : "Error fetching stock info");
-          }
-          
-          // Clear all user inputs when switching to a new ticker
-          const clearedInputs = {
-            revenueGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
-            netIncomeGrowth: { [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
-            peLow: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 },
-            peHigh: { [currentYear]: 0, [projectionYears[0]]: 0, [projectionYears[1]]: 0, [projectionYears[2]]: 0, [projectionYears[3]]: 0 }
-          };
-          actions.setProjectionsInputs(clearedInputs);
-          
-          // Clear calculated projections
-          actions.setCalculatedProjections({
-            revenue: {},
-            netIncome: {},
-            netIncomeMargin: {},
-            eps: {},
-            sharePriceLow: {},
-            sharePriceHigh: {},
-            cagrLow: {},
-            cagrHigh: {}
-          });
-          
         } catch (err) {
           console.error(`Error loading ${tickerToLoad} data:`, err);
           actions.setProjectionsError(err instanceof Error ? err.message : `Failed to load ${tickerToLoad} data`);
           actions.setStockInfoError(err instanceof Error ? err.message : `Failed to load ${tickerToLoad} stock info`);
+          // Use ref for synchronous check since state updates are async
+          if (!isPollingRef.current) {
+            actions.setProjectionsLoading(false);
+          }
+          actions.setStockInfoLoading(false);
         } finally {
-          actions.setProjectionsLoading(false);
+          // Only set loading to false if not polling
+          // Use ref for synchronous check since state updates are async
+          if (!isPollingRef.current) {
+            actions.setProjectionsLoading(false);
+          }
           actions.setStockInfoLoading(false);
         }
       };
       
       loadData();
     }
-  }, [globalTicker.currentTicker]); // Depend on global ticker changes
+    
+    return () => {
+      stopPolling();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, globalTicker.currentTicker]); // Depend on searchParams object and global ticker
 
   // Sync input field when global ticker changes from other pages
   useEffect(() => {
@@ -1118,7 +1298,10 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
 
 
             {/* Combined Financial Data Table with Grouped Spacing */}
-            <Card>
+            <Card className="relative min-h-[400px]">
+              <LoadingOverlay 
+                isLoading={projectionsState?.loading || isPolling || false}
+              />
               <CardContent>
                 <div id="projections-financial-data-table">
                   <div className="overflow-x-auto">

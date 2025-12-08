@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { AppLayout } from "~/components/app-layout";
 import { StockSearchHeader } from "~/components/stock-search-header";
-import { Tooltip, TooltipTrigger, TooltipContent } from "~/components/ui/tooltip";
+import { LoadingOverlay } from "~/components/LoadingOverlay";
 import { useSearchState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { useSubscriptionCheck } from "~/hooks/useSubscriptionCheck";
@@ -112,10 +113,6 @@ const formatRatio = (value: number | null | undefined): string => {
   return formatNumberValue(value);
 };
 
-// Helper function to determine tooltip message for N/A values
-const getTooltipMessage = (): string => {
-  return "Data is unavailable";
-};
 
 interface MetricRowProps {
   metric: string;
@@ -124,24 +121,11 @@ interface MetricRowProps {
 }
 
 const MetricRow = ({ metric, value, benchmark }: MetricRowProps) => {
-  const isNA = value === "N/A";
-  
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50">
       <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">{metric}</td>
       <td className="py-2 px-4 text-center font-medium text-gray-900 text-sm w-[300px]">
-        {isNA ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="cursor-help">{value}</span>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              {getTooltipMessage()}
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          value
-        )}
+        {value}
       </td>
       <td className="py-2 px-4 text-muted-foreground text-sm w-[200px]">{benchmark}</td>
     </tr>
@@ -157,7 +141,87 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
   const stockInfo = useStockInfo();
   const actions = useStockActions();
   const { authenticatedFetch } = useAuthenticatedFetch();
+  const [searchParams] = useSearchParams();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
+  const [isPolling, setIsPolling] = useState(false);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, []);
+
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    setIsPolling(false);
+  };
+
+  const startPolling = (ticker: string) => {
+    if (pollingIntervalRef.current) {
+      return; // Already polling
+    }
+
+    setIsPolling(true);
+    // Keep loading state true while polling and clear any errors
+    actions.setSearchLoading(true);
+    actions.setSearchError(null);
+    let attemptCount = 0;
+    const MAX_ATTEMPTS = 60; // 60 attempts * 2 seconds = 120 seconds = 2 minutes
+    const POLL_INTERVAL = 2000;
+
+    const poll = async () => {
+      attemptCount += 1;
+
+      try {
+        const cachedData = actions.getCachedMetrics(ticker);
+        if (cachedData) {
+          actions.setSearchData(cachedData);
+          stopPolling();
+          actions.setSearchLoading(false);
+          return;
+        }
+
+        const data = await actions.fetchMetrics(ticker, authenticatedFetch);
+        actions.setSearchData(data);
+        stopPolling();
+        actions.setSearchLoading(false);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        const is404 = errorMessage.toLowerCase().includes('404') || 
+                      errorMessage.toLowerCase().includes('not found');
+
+        if (is404 && attemptCount < MAX_ATTEMPTS) {
+          // Continue polling
+          return;
+        } else {
+          // Stop polling
+          stopPolling();
+          actions.setSearchLoading(false);
+          if (attemptCount >= MAX_ATTEMPTS) {
+            actions.setSearchError(`Data not available after ${MAX_ATTEMPTS} attempts`);
+          } else {
+            actions.setSearchError(errorMessage);
+            // Fallback to sample data if API fails
+            actions.setSearchData(sampleMetrics);
+          }
+        }
+      }
+    };
+
+    // Start polling immediately
+    poll();
+    
+    // Then poll every interval
+    pollingIntervalRef.current = setInterval(poll, POLL_INTERVAL);
+  };
 
   // Hard-coded sample data matching the FastAPI response structure
   const sampleMetrics: FinancialMetrics = {
@@ -179,57 +243,97 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
   };
 
   const fetchMetrics = async (symbol: string) => {
+    // Stop any existing polling
+    stopPolling();
+    
     actions.setSearchLoading(true);
     actions.setSearchError(null);
     actions.setStockInfoLoading(true);
     actions.setGlobalTicker(symbol); // Set global ticker
+    // Don't set isPolling to false here - it will be set by startPolling if needed
     
     try {
-      // Fetch both metrics and stock info concurrently
-      const [metricsPromise, stockInfoPromise] = await Promise.allSettled([
-        // Check cache first for metrics, then fetch if needed
-        (async () => {
-          const cachedData = actions.getCachedMetrics(symbol);
-          if (cachedData) return cachedData;
-          return await actions.fetchMetrics(symbol, authenticatedFetch);
-        })(),
-        // Fetch stock info (handles its own caching)
+      // Fetch stock info first (doesn't need polling)
+      const stockInfoPromise = await Promise.allSettled([
         actions.fetchStockInfo(symbol, authenticatedFetch)
       ]);
       
-      // Handle metrics result
-      if (metricsPromise.status === 'fulfilled') {
-        actions.setSearchData(metricsPromise.value);
-      } else {
-        console.error("Error fetching stock metrics:", metricsPromise.reason);
-        actions.setSearchError(metricsPromise.reason instanceof Error ? metricsPromise.reason.message : "Error fetching stock metrics");
-        // Fallback to sample data if API fails
-        actions.setSearchData(sampleMetrics);
+      if (stockInfoPromise[0].status === 'rejected') {
+        console.error("Error fetching stock info:", stockInfoPromise[0].reason);
+        actions.setStockInfoError(stockInfoPromise[0].reason instanceof Error ? stockInfoPromise[0].reason.message : "Error fetching stock info");
       }
-      
-      // Stock info is automatically handled by the fetchStockInfo action
-      if (stockInfoPromise.status === 'rejected') {
-        console.error("Error fetching stock info:", stockInfoPromise.reason);
-        actions.setStockInfoError(stockInfoPromise.reason instanceof Error ? stockInfoPromise.reason.message : "Error fetching stock info");
+
+      // Fetch metrics with polling support
+      try {
+        const cachedData = actions.getCachedMetrics(symbol);
+        if (cachedData) {
+          actions.setSearchData(cachedData);
+          actions.setSearchLoading(false);
+        } else {
+          const data = await actions.fetchMetrics(symbol, authenticatedFetch);
+          actions.setSearchData(data);
+          actions.setSearchLoading(false);
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Error fetching stock metrics";
+        const is404 = errorMessage.toLowerCase().includes('404') || 
+                      errorMessage.toLowerCase().includes('not found') ||
+                      errorMessage.toLowerCase().includes('does not exist');
+
+        if (is404) {
+          // Start polling for 404 responses
+          startPolling(symbol);
+        } else {
+          // Non-404 error
+          actions.setSearchError(errorMessage);
+          actions.setSearchLoading(false);
+          // Fallback to sample data if API fails
+          actions.setSearchData(sampleMetrics);
+        }
       }
       
     } catch (err) {
       console.error("Unexpected error:", err);
       actions.setSearchError(err instanceof Error ? err.message : "Unexpected error occurred");
       actions.setStockInfoError(err instanceof Error ? err.message : "Unexpected error occurred");
-    } finally {
       actions.setSearchLoading(false);
+      actions.setStockInfoLoading(false);
+    } finally {
+      // Only set loading to false if not polling
+      if (!isPolling) {
+        actions.setSearchLoading(false);
+      }
       actions.setStockInfoLoading(false);
     }
   };
 
-  // Load data for current ticker on component mount
+  // Check URL params first, then fall back to global ticker
+  // Load data for ticker on component mount and when it changes
   useEffect(() => {
-    const tickerToLoad = globalTicker.currentTicker || 'AAPL';
+    const urlTicker = searchParams.get('ticker');
+    const tickerToLoad = urlTicker ? urlTicker.toUpperCase() : (globalTicker.currentTicker || 'AAPL');
+    
+    // Update global ticker and input field if URL has ticker
+    if (urlTicker) {
+      const upperTicker = urlTicker.toUpperCase();
+      if (upperTicker !== globalTicker.currentTicker) {
+        actions.setGlobalTicker(upperTicker);
+      }
+      if (upperTicker !== stockSymbol) {
+        setStockSymbol(upperTicker);
+      }
+    }
+    
+    // Always check if we need to fetch data for the current ticker
     if (tickerToLoad && (!searchState?.data || searchState.data.ticker !== tickerToLoad)) {
       fetchMetrics(tickerToLoad);
     }
-  }, []); // Empty dependency array - run only once on mount
+    
+    return () => {
+      stopPolling();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, globalTicker.currentTicker]); // Depend on searchParams object and global ticker
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -291,7 +395,10 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
 
           {/* Loading State */}
           {searchState.loading ? (
-            <Card>
+            <Card className="relative min-h-[400px]">
+              <LoadingOverlay 
+                isLoading={searchState.loading || false}
+              />
               <CardContent className="pt-6">
                 <div className="space-y-4">
                   <Skeleton className="h-8 w-full" />

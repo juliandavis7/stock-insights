@@ -702,7 +702,8 @@ export const useStockStore = create<StockStore>()(
           const response = await fetchFn(`${fastApiUrl}/metrics?ticker=${ticker.toUpperCase()}`);
           
           if (!response.ok) {
-            throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+            const statusText = response.status === 404 ? '404 Not Found' : response.statusText;
+            throw new Error(`API request failed: ${response.status} ${statusText}`);
           }
           
           const data: FinancialMetrics = await response.json();
@@ -734,11 +735,18 @@ export const useStockStore = create<StockStore>()(
           const response = await fetchFn(`${fastApiUrl}/projections?ticker=${ticker.toUpperCase()}`);
           
           if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail?.error || `Failed to fetch data for ${ticker}`);
+            const errorData = await response.json().catch(() => ({}));
+            const statusText = response.status === 404 ? '404 Not Found' : response.statusText;
+            throw new Error(errorData.detail?.error || `Failed to fetch data for ${ticker}: ${response.status} ${statusText}`);
           }
           
-          const data: ProjectionBaseData = await response.json();
+          const apiData = await response.json();
+          
+          // Add ticker field to the response data (API doesn't return it)
+          const data: ProjectionBaseData = {
+            ...apiData,
+            ticker: ticker.toUpperCase()
+          };
           
           // Cache the data
           set((state) => ({
@@ -768,7 +776,8 @@ export const useStockStore = create<StockStore>()(
           
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail?.error || `Failed to fetch financials for ${ticker}`);
+            const statusText = response.status === 404 ? '404 Not Found' : response.statusText;
+            throw new Error(errorData.detail?.error || `Failed to fetch financials for ${ticker}: ${response.status} ${statusText}`);
           }
           
           const apiData: FinancialsApiResponse = await response.json();
