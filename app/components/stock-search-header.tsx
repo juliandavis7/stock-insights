@@ -60,7 +60,7 @@ export function StockSearchHeader({
               onChange={(e) => onStockSymbolChange(e.target.value)}
             />
           </div>
-          <Button type="submit" disabled={loading} onClick={onSearch}>
+          <Button type="submit" onClick={onSearch}>
             <Search className="h-4 w-4" />
           </Button>
         </div>

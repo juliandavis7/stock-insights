@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "react-router";
 import { Card, CardContent } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { AppLayout } from "~/components/app-layout";
 import { StockSearchHeader } from "~/components/stock-search-header";
+import { LoadingOverlay } from "~/components/LoadingOverlay";
 import { useFinancialsState, useStockActions, useGlobalTicker, useStockInfo } from "~/store/stockStore";
 import { useAuthenticatedFetch } from "~/hooks/useAuthenticatedFetch";
 import { useSubscriptionCheck } from "~/hooks/useSubscriptionCheck";
@@ -118,6 +120,61 @@ const formatRAndD = (value: number | null | undefined, isEstimateYear: boolean):
   return `$${formatNumberValue(value)}`;
 };
 
+const formatSGAAndOpEx = (value: number | null | undefined): string => {
+  if (value === null || value === undefined) {
+    return "N/A";
+  }
+  if (isNaN(value)) return "";
+  const absValue = Math.abs(value);
+  if (absValue >= 1e12) {
+    return `$${formatNumberValue(value / 1e12)}T`;
+  } else if (absValue >= 1e9) {
+    return `$${formatNumberValue(value / 1e9)}B`;
+  } else if (absValue >= 1e6) {
+    const millions = value / 1e6;
+    return `$${parseFloat(millions.toFixed(0)).toString()}M`;
+  } else if (absValue >= 1e3) {
+    return `$${formatNumberValue(value / 1e3)}K`;
+  }
+  return `$${formatNumberValue(value)}`;
+};
+
+const formatCostOfRevenue = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value)) {
+    return "$0";
+  }
+  const absValue = Math.abs(value);
+  if (absValue >= 1e12) {
+    return `$${formatNumberValue(value / 1e12)}T`;
+  } else if (absValue >= 1e9) {
+    return `$${formatNumberValue(value / 1e9)}B`;
+  } else if (absValue >= 1e6) {
+    const millions = value / 1e6;
+    return `$${parseFloat(millions.toFixed(0)).toString()}M`;
+  } else if (absValue >= 1e3) {
+    return `$${formatNumberValue(value / 1e3)}K`;
+  }
+  return `$${formatNumberValue(value)}`;
+};
+
+const formatOperatingIncome = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value)) {
+    return "$0";
+  }
+  const absValue = Math.abs(value);
+  if (absValue >= 1e12) {
+    return `$${formatNumberValue(value / 1e12)}T`;
+  } else if (absValue >= 1e9) {
+    return `$${formatNumberValue(value / 1e9)}B`;
+  } else if (absValue >= 1e6) {
+    const millions = value / 1e6;
+    return `$${parseFloat(millions.toFixed(0)).toString()}M`;
+  } else if (absValue >= 1e3) {
+    return `$${formatNumberValue(value / 1e3)}K`;
+  }
+  return `$${formatNumberValue(value)}`;
+};
+
 const formatNumber = (value: number | null | undefined): string => {
   if (value === null || value === undefined || isNaN(value)) return "0";
   return value.toLocaleString();
@@ -150,16 +207,34 @@ interface MetricRowProps {
 const MetricRow = ({ metricName, data, allYears, estimateYears, getHistoricalValue, getEstimateValue, formatter }: MetricRowProps) => {
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50">
-      <td className="py-2 px-4 font-semibold text-gray-900 text-sm w-[200px]">{metricName}</td>
+      <td className="py-1.5 pl-3 pr-0 font-semibold text-gray-900 text-sm w-[200px] text-left">{metricName}</td>
       {allYears.map((year, index) => {
         const historical = data?.historical?.find(h => h.fiscalYear === year);
         const estimate = data?.estimates?.find(e => e.fiscalYear === year);
         const isEstimateYear = estimateYears.includes(year);
         const value = getHistoricalValue(year) ?? getEstimateValue(year);
         
-        // For R&D metric, if it's an estimate year and value is null, show blank instead of N/A
+        // Special handling for metrics with custom null display logic
         let displayValue: string;
         if (metricName === "R&D" && isEstimateYear && value === null) {
+          // For R&D metric, if it's an estimate year and value is null, show blank instead of N/A
+          displayValue = "";
+        } else if (
+          (metricName === "SG&A" || 
+           metricName === "Total OpEx") && 
+          isEstimateYear && 
+          value === null
+        ) {
+          // For SG&A and Total OpEx, if it's an estimate year and value is null, show blank instead of N/A
+          displayValue = "";
+        } else if (
+          (metricName === "Cost of Revenue" || 
+           metricName === "Gross Profit" || 
+           metricName === "Operating Income") && 
+          isEstimateYear && 
+          value === null
+        ) {
+          // For these metrics, if it's an estimate year and value is null, show blank
           displayValue = "";
         } else {
           displayValue = formatter(value);
@@ -179,20 +254,19 @@ const MetricRow = ({ metricName, data, allYears, estimateYears, getHistoricalVal
         }
         
         return (
-          <td key={year} className="py-2 px-4 w-[120px]">
+          <td key={year} className="py-1.5 pl-0 pr-2 w-[100px]">
             <div className="flex items-center justify-start gap-2">
-              <div className="font-medium text-gray-900 text-sm text-left min-w-[70px]">
+              <div className="font-medium text-gray-900 text-sm text-left min-w-[60px]">
                 {displayValue}
               </div>
-              {growth && (
-                <div className={cn(
-                  "text-xs whitespace-nowrap",
-                  GROWTH_COLORS.fontWeight,
-                  growth.isPositive ? GROWTH_COLORS.positive : GROWTH_COLORS.negative
-                )}>
-                  {growth.text}
-                </div>
-              )}
+              {/* Always reserve space for YoY % to maintain alignment with header */}
+              <div className={cn(
+                "text-xs whitespace-nowrap min-w-[45px]",
+                growth ? GROWTH_COLORS.fontWeight : "",
+                growth && growth.isPositive ? GROWTH_COLORS.positive : growth && !growth.isPositive ? GROWTH_COLORS.negative : ""
+              )}>
+                {growth ? growth.text : ""}
+              </div>
             </div>
           </td>
         );
@@ -210,44 +284,138 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
   const stockInfo = useStockInfo();
   const actions = useStockActions();
   const { authenticatedFetch } = useAuthenticatedFetch();
+  const [searchParams] = useSearchParams();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<'above' | 'below'>('above');
   const [tooltipCoords, setTooltipCoords] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const [isPolling, setIsPolling] = useState(false);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchFinancials = async (symbol: string) => {  
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, []);
+
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    setIsPolling(false);
+  };
+
+  const startPolling = (ticker: string) => {
+    if (pollingIntervalRef.current) {
+      return; // Already polling
+    }
+
+    setIsPolling(true);
+    // Keep loading state true while polling and clear any errors
+    actions.setFinancialsLoading(true);
+    actions.setFinancialsError(null);
+    let attemptCount = 0;
+    const MAX_ATTEMPTS = 60; // 60 attempts * 2 seconds = 120 seconds = 2 minutes
+    const POLL_INTERVAL = 2000;
+
+    const poll = async () => {
+      attemptCount += 1;
+
+      try {
+        const cachedData = actions.getCachedFinancials(ticker);
+        if (cachedData) {
+          actions.setFinancialsData(cachedData);
+          stopPolling();
+          actions.setFinancialsLoading(false);
+          return;
+        }
+
+        const data = await actions.fetchFinancials(ticker, authenticatedFetch);
+        actions.setFinancialsData(data);
+        stopPolling();
+        actions.setFinancialsLoading(false);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        const is404 = errorMessage.toLowerCase().includes('404') || 
+                      errorMessage.toLowerCase().includes('not found');
+
+        if (is404 && attemptCount < MAX_ATTEMPTS) {
+          // Continue polling
+          return;
+        } else {
+          // Stop polling
+          stopPolling();
+          actions.setFinancialsLoading(false);
+          if (attemptCount >= MAX_ATTEMPTS) {
+            actions.setFinancialsError(`Data not available after ${MAX_ATTEMPTS} attempts`);
+          } else {
+            actions.setFinancialsError(errorMessage);
+          }
+        }
+      }
+    };
+
+    // Start polling immediately
+    poll();
+    
+    // Then poll every interval
+    pollingIntervalRef.current = setInterval(poll, POLL_INTERVAL);
+  };
+
+  const fetchFinancials = async (symbol: string) => {
+    // Stop any existing polling
+    stopPolling();
+    
     actions.setFinancialsLoading(true);
     actions.setFinancialsError(null);
     actions.setStockInfoLoading(true);
     actions.setGlobalTicker(symbol); // Set global ticker
+    // Don't set isPolling to false here - it will be set by startPolling if needed
     
     try {
-      // Fetch both financials and stock info concurrently
-      const [financialsPromise, stockInfoPromise] = await Promise.allSettled([
-        // Check cache first for financials, then fetch if needed
-        (async () => {
-          const cachedData = actions.getCachedFinancials(symbol);
-          if (cachedData) return cachedData;
-          return await actions.fetchFinancials(symbol, authenticatedFetch);
-        })(),
-        // Fetch stock info (handles its own caching)
+      // Fetch stock info first (doesn't need polling)
+      const stockInfoPromise = await Promise.allSettled([
         actions.fetchStockInfo(symbol, authenticatedFetch)
       ]);
       
-      // Handle financials result
-      if (financialsPromise.status === 'fulfilled') {
-        actions.setFinancialsData(financialsPromise.value);
-      } else {
-        console.error("Error fetching financials:", financialsPromise.reason);
-        const errorMessage = financialsPromise.reason instanceof Error ? financialsPromise.reason.message : "Error fetching financial data";
-        actions.setFinancialsError(errorMessage);
-        
-        // If ticker not found, clear the financials data
-        if (errorMessage.toLowerCase().includes('not found') || 
-            errorMessage.toLowerCase().includes('404') ||
-            errorMessage.toLowerCase().includes('does not exist') ||
-            errorMessage.toLowerCase().includes('failed to fetch financials for')) {
+      if (stockInfoPromise[0].status === 'rejected') {
+        console.error("Error fetching stock info:", stockInfoPromise[0].reason);
+        actions.setStockInfoError(stockInfoPromise[0].reason instanceof Error ? stockInfoPromise[0].reason.message : "Error fetching stock info");
+      }
+
+      // Fetch financials with polling support
+      try {
+        const cachedData = actions.getCachedFinancials(symbol);
+        if (cachedData) {
+          actions.setFinancialsData(cachedData);
+          actions.setFinancialsLoading(false);
+        } else {
+          const data = await actions.fetchFinancials(symbol, authenticatedFetch);
+          actions.setFinancialsData(data);
+          actions.setFinancialsLoading(false);
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Error fetching financial data";
+        const is404 = errorMessage.toLowerCase().includes('404') || 
+                      errorMessage.toLowerCase().includes('not found') ||
+                      errorMessage.toLowerCase().includes('does not exist') ||
+                      errorMessage.toLowerCase().includes('failed to fetch financials for');
+
+        if (is404) {
+          // Start polling for 404 responses
+          startPolling(symbol);
+        } else {
+          // Non-404 error
+          actions.setFinancialsError(errorMessage);
+          actions.setFinancialsLoading(false);
+          
+          // Clear the financials data
           actions.setFinancialsData({
             ticker: symbol,
             historical: [],
@@ -256,18 +424,17 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
         }
       }
       
-      // Stock info is automatically handled by the fetchStockInfo action
-      if (stockInfoPromise.status === 'rejected') {
-        console.error("Error fetching stock info:", stockInfoPromise.reason);
-        actions.setStockInfoError(stockInfoPromise.reason instanceof Error ? stockInfoPromise.reason.message : "Error fetching stock info");
-      }
-      
     } catch (err) {
       console.error("Unexpected error:", err);
       actions.setFinancialsError(err instanceof Error ? err.message : "Unexpected error occurred");
       actions.setStockInfoError(err instanceof Error ? err.message : "Unexpected error occurred");
-    } finally {
       actions.setFinancialsLoading(false);
+      actions.setStockInfoLoading(false);
+    } finally {
+      // Only set loading to false if not polling
+      if (!isPolling) {
+        actions.setFinancialsLoading(false);
+      }
       actions.setStockInfoLoading(false);
     }
   };
@@ -326,14 +493,36 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
     }
   };
 
-  // Auto-load AAPL data on component mount
-  // Load data for global ticker on component mount and when it changes
+  // Check URL params first, then fall back to global ticker
+  // Load data for ticker on component mount and when it changes
   useEffect(() => {
-    const tickerToLoad = globalTicker.currentTicker || 'AAPL';
+    const urlTicker = searchParams.get('ticker');
+    const tickerToLoad = urlTicker ? urlTicker.toUpperCase() : (globalTicker.currentTicker || 'AAPL');
+    
+    // Update global ticker and input field if URL has ticker
+    if (urlTicker) {
+      const upperTicker = urlTicker.toUpperCase();
+      if (upperTicker !== globalTicker.currentTicker) {
+        actions.setGlobalTicker(upperTicker);
+      }
+      if (upperTicker !== stockSymbol) {
+        setStockSymbol(upperTicker);
+      }
+    }
+    
+    // Always check if we need to fetch data for the current ticker
     if (tickerToLoad && (!financialsState?.data || financialsState.data.ticker !== tickerToLoad)) {
+      // Set loading state immediately BEFORE fetching
+      // This ensures overlay shows immediately when navigating to page
+      actions.setFinancialsLoading(true);
       fetchFinancials(tickerToLoad);
     }
-  }, [globalTicker.currentTicker]); // Depend on global ticker changes
+    
+    return () => {
+      stopPolling();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, globalTicker.currentTicker]); // Depend on searchParams object and global ticker
 
   // Sync input field when global ticker changes from other pages
   useEffect(() => {
@@ -410,7 +599,10 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
 
             {/* Loading State */}
             {loading ? (
-              <Card className="mt-8">
+              <Card className="mt-8 relative min-h-[400px]">
+                <LoadingOverlay 
+                  isLoading={loading || isPolling || false}
+                />
                 <CardContent className="pt-6">
                   <div className="space-y-4">
                     <Skeleton className="h-8 w-full" />
@@ -424,14 +616,17 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
               </Card>
             ) : (
               /* Financial Metrics Table */
-              <Card className="mt-8">
+              <Card className="mt-8 relative min-h-[400px]">
+                <LoadingOverlay 
+                  isLoading={loading || isPolling || false}
+                />
                 <CardContent className="pt-2 pb-5">
                   <div id="financials-metrics-table" className="overflow-x-auto">
                     <table className="w-full table-fixed">
                       {/* Table Header */}
                       <thead>
                         <tr id="financials-table-header" className="border-b border-gray-200">
-                          <th id="metric-column" className="py-3 px-4 text-left font-bold text-gray-900 text-sm uppercase tracking-wider w-[200px]">
+                          <th id="metric-column" className="py-2 pl-3 pr-0 text-left font-bold text-gray-900 text-sm uppercase tracking-wider w-[200px]">
                             <div className="flex items-center gap-2">
                               <span>METRIC</span>
                               <div className="relative">
@@ -482,16 +677,19 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                             </div>
                           </th>
                           {allYears.map(year => (
-                            <th key={year} id={`year-${year}`} className="py-3 px-4 text-left font-bold text-sm w-[120px] align-top">
-                              <div className="flex items-center justify-start">
-                                <div className={`text-center min-w-[70px] ${estimateYears.includes(year) ? "text-blue-600" : "text-gray-900"}`}>
+                            <th key={year} id={`year-${year}`} className="py-2 pl-0 pr-2 text-left font-bold text-sm w-[100px] align-top">
+                              <div className="flex items-center justify-start gap-2">
+                                {/* Encapsulate year and EST in a centered div */}
+                                <div className={`flex flex-col items-center min-w-[60px] ${estimateYears.includes(year) ? "text-blue-600" : "text-gray-900"}`}>
                                   <div>{year}</div>
-                                  <div className="h-4 flex items-center justify-center">
-                                    {estimateYears.includes(year) && (
+                                  {estimateYears.includes(year) && (
+                                    <div className="h-4 flex items-center justify-center">
                                       <span className="text-xs text-blue-600 font-semibold">EST</span>
-                                    )}
-                                  </div>
+                                    </div>
+                                  )}
                                 </div>
+                                {/* Spacer to account for YoY % column in data rows - matches typical YoY % width */}
+                                <div className="text-xs whitespace-nowrap min-w-[45px]"></div>
                               </div>
                             </th>
                           ))}
@@ -500,7 +698,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                       <tbody id="financials-table-sections">
                         {/* Revenue & Profitability Section */}
                         <tr className="bg-gray-50">
-                          <td colSpan={allYears.length + 1} className="py-4 px-4 font-semibold text-gray-900 text-xs uppercase tracking-wider">
+                          <td colSpan={allYears.length + 1} className="py-2 pl-3 pr-0 font-semibold text-gray-900 text-xs uppercase tracking-wider">
                             REVENUE & PROFITABILITY
                           </td>
                         </tr>
@@ -522,7 +720,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           estimateYears={estimateYears}
                           getHistoricalValue={(year) => data?.historical?.find(h => h.fiscalYear === year)?.costOfRevenue || null}
                           getEstimateValue={() => null}
-                          formatter={formatLargeNumber}
+                          formatter={formatCostOfRevenue}
                         />
 
                         <MetricRow
@@ -537,7 +735,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
 
                         {/* Operating Expenses (OPEX) Section */}
                         <tr className="bg-gray-50">
-                          <td colSpan={allYears.length + 1} className="py-4 px-4 font-semibold text-gray-900 text-xs uppercase tracking-wider">
+                          <td colSpan={allYears.length + 1} className="py-2 pl-3 pr-0 font-semibold text-gray-900 text-xs uppercase tracking-wider">
                             OPERATING EXPENSES (OPEX)
                           </td>
                         </tr>
@@ -549,7 +747,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           estimateYears={estimateYears}
                           getHistoricalValue={(year) => data?.historical?.find(h => h.fiscalYear === year)?.sellingGeneralAndAdministrative || null}
                           getEstimateValue={() => null}
-                          formatter={formatLargeNumber}
+                          formatter={formatSGAAndOpEx}
                         />
 
                         <MetricRow
@@ -569,7 +767,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           estimateYears={estimateYears}
                           getHistoricalValue={(year) => data?.historical?.find(h => h.fiscalYear === year)?.operatingExpenses || null}
                           getEstimateValue={() => null}
-                          formatter={formatLargeNumber}
+                          formatter={formatSGAAndOpEx}
                         />
 
                         <MetricRow
@@ -579,12 +777,12 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           estimateYears={estimateYears}
                           getHistoricalValue={(year) => data?.historical?.find(h => h.fiscalYear === year)?.operatingIncome || null}
                           getEstimateValue={() => null}
-                          formatter={formatLargeNumber}
+                          formatter={formatOperatingIncome}
                         />
 
                         {/* Net Income & EPS Section */}
                         <tr className="bg-gray-50">
-                          <td colSpan={allYears.length + 1} className="py-4 px-4 font-semibold text-gray-900 text-xs uppercase tracking-wider">
+                          <td colSpan={allYears.length + 1} className="py-2 pl-3 pr-0 font-semibold text-gray-900 text-xs uppercase tracking-wider">
                             NET INCOME & EPS
                           </td>
                         </tr>
