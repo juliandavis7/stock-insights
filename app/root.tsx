@@ -12,6 +12,7 @@ import { rootAuthLoader } from "@clerk/react-router/ssr.server";
 import type { Route } from "./+types/root";
 import "./app.css";
 import { Analytics } from "@vercel/analytics/react";
+import { Toaster } from "sonner";
 
 export async function loader(args: Route.LoaderArgs) {
   return rootAuthLoader(args);
@@ -70,6 +71,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <body>
         <Analytics />
         {children}
+        <Toaster position="top-center" />
         <ScrollRestoration />
         <Scripts />
       </body>

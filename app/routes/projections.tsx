@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router";
 import { Card, CardContent } from "~/components/ui/card";
@@ -14,9 +14,11 @@ import { useSubscriptionCheck } from "~/hooks/useSubscriptionCheck";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { createClerkClient } from "@clerk/react-router/api.server";
 import { redirect } from "react-router";
-import { RotateCcw, Info, RefreshCw } from "lucide-react";
+import { RotateCcw, Info, RefreshCw, Save } from "lucide-react";
 import type { Route } from "./+types/projections";
 import { BRAND_NAME } from "~/config/brand";
+import { API_BASE_URL } from "~/config/subscription";
+import { toast } from "sonner";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -314,6 +316,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   const [searchParams] = useSearchParams();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
   const [showForwardButton, setShowForwardButton] = useState<{[key: string]: boolean}>({});
+  const blurTimeoutsRef = useRef<{[key: string]: NodeJS.Timeout}>({});
   const [appliedCells, setAppliedCells] = useState<{[key: string]: boolean}>({});
   const [showMetricTooltip, setShowMetricTooltip] = useState(false);
   const [metricTooltipCoords, setMetricTooltipCoords] = useState({ top: 0, left: 0 });
@@ -322,11 +325,13 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   const [isPolling, setIsPolling] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef(false); // Ref for synchronous polling state checks
+  const isSearchingRef = useRef(false); // Ref to track if we're actively searching
   
   // Scenario management
   type ScenarioType = 'base' | 'bull' | 'bear';
   const [activeScenario, setActiveScenario] = useState<ScenarioType>('base');
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [hasSavedProjections, setHasSavedProjections] = useState(false);
   const [scenarioData, setScenarioData] = useState<{
     [K in ScenarioType]: {
       projectionInputs: ProjectionInputs;
@@ -524,6 +529,12 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       return;
     }
     
+    // Capture the ticker we're searching for to prevent race conditions
+    const tickerToSearch = stockSymbol.trim().toUpperCase();
+    
+    // Mark that we're actively searching to prevent race conditions
+    isSearchingRef.current = true;
+    
     // Stop any existing polling
     stopPolling();
     
@@ -531,16 +542,16 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     actions.setProjectionsLoading(true);
     actions.setProjectionsError(null);
     actions.setStockInfoLoading(true);
-    actions.setGlobalTicker(stockSymbol); // Set global ticker
+    actions.setGlobalTicker(tickerToSearch); // Set global ticker
     setIsInitialLoad(true); // Reset initial load flag for new search
     
     // Don't clear old data here - let the fetch/polling handle it
     // The loading overlay will cover any old data while we fetch
     
     try {
-      // Fetch stock info first (doesn't need polling)
+      // Fetch stock info first (doesn't need polling) - use captured ticker
       const stockInfoPromise = await Promise.allSettled([
-        actions.fetchStockInfo(stockSymbol, authenticatedFetch)
+        actions.fetchStockInfo(tickerToSearch, authenticatedFetch)
       ]);
       
       if (stockInfoPromise[0].status === 'rejected') {
@@ -548,21 +559,21 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
         actions.setStockInfoError(stockInfoPromise[0].reason instanceof Error ? stockInfoPromise[0].reason.message : "Error fetching stock info");
       }
 
-      // Fetch projections with polling support
+      // Fetch projections with polling support - use captured ticker
       try {
         // Check if we already have data for this ticker
-        if (projectionsState?.baseData && projectionsState.baseData.ticker === stockSymbol) {
+        if (projectionsState?.baseData && projectionsState.baseData.ticker === tickerToSearch) {
           // Already have data for this ticker - don't fetch again
           actions.setProjectionsLoading(false);
         } else {
           // Check cache first
-          const cachedData = actions.getCachedProjections(stockSymbol);
+          const cachedData = actions.getCachedProjections(tickerToSearch);
           if (cachedData) {
             actions.setProjectionsBaseData(cachedData);
             actions.setProjectionsLoading(false);
           } else {
             // Fetch from API
-            const data = await actions.fetchProjections(stockSymbol, authenticatedFetch);
+            const data = await actions.fetchProjections(tickerToSearch, authenticatedFetch);
             actions.setProjectionsBaseData(data);
             actions.setProjectionsLoading(false);
           }
@@ -578,7 +589,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
           // Don't clear data to zeros - keep loading state and show overlay
           // Start polling for 404 responses - this keeps loading state true
           // The loading overlay will show while polling
-          startPolling(stockSymbol);
+          startPolling(tickerToSearch);
           // Don't clear scenario data here - wait until data arrives
           // Exit early to prevent clearing data while polling
           return;
@@ -589,7 +600,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
           
           // Clear the projections data
           actions.setProjectionsBaseData({
-            ticker: stockSymbol,
+            ticker: tickerToSearch,
             revenue: 0,
             net_income: 0,
             eps: 0,
@@ -601,8 +612,9 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       
       // Only clear scenario data if fetch succeeded (not polling)
       // Clear scenario projections cache only for the new ticker being searched
-      console.log(`🗑️ Clearing scenario projections cache for new ticker: ${stockSymbol}`);
-      actions.clearScenarioProjectionsCache(stockSymbol);
+      console.log(`🗑️ Clearing scenario projections cache for new ticker: ${tickerToSearch}`);
+      actions.clearScenarioProjectionsCache(tickerToSearch);
+      setHasSavedProjections(false);
       
       // Reset scenario data to initial state
       const clearedInputs = {
@@ -655,6 +667,10 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
         actions.setProjectionsLoading(false);
       }
       actions.setStockInfoLoading(false);
+      // Clear the searching flag after a short delay to allow URL to update
+      setTimeout(() => {
+        isSearchingRef.current = false;
+      }, 100);
     }
   };
 
@@ -714,11 +730,279 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       bear: { projectionInputs: clearedInputs, calculatedProjections: clearedCalculations }
     });
     setActiveScenario('base');
+    setHasSavedProjections(false);
 
     // Clear cache for current ticker when resetting
     if (stockSymbol) {
       console.log(`🗑️ Clearing scenario projections cache for reset: ${stockSymbol}`);
       actions.clearScenarioProjectionsCache(stockSymbol);
+    }
+  };
+
+  // Load saved projections from API
+  const loadSavedProjections = useCallback(async (ticker: string) => {
+    if (!ticker) return;
+
+    try {
+      const response = await authenticatedFetch(`${API_BASE_URL}/saved-projections?ticker=${ticker.toUpperCase()}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          setHasSavedProjections(false);
+          return;
+        }
+        throw new Error(`Failed to load saved projections: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.data) {
+        // Convert API format to component format
+        const convertApiToComponentFormat = (apiData: {
+          revenue_growth: number[];
+          net_income_growth: number[];
+          pe_low_est: number[];
+          pe_high_est: number[];
+        }): ProjectionInputs => {
+          return {
+            revenueGrowth: {
+              [projectionYears[0]]: apiData.revenue_growth[0] || 0,
+              [projectionYears[1]]: apiData.revenue_growth[1] || 0,
+              [projectionYears[2]]: apiData.revenue_growth[2] || 0,
+              [projectionYears[3]]: apiData.revenue_growth[3] || 0,
+            },
+            netIncomeGrowth: {
+              [projectionYears[0]]: apiData.net_income_growth[0] || 0,
+              [projectionYears[1]]: apiData.net_income_growth[1] || 0,
+              [projectionYears[2]]: apiData.net_income_growth[2] || 0,
+              [projectionYears[3]]: apiData.net_income_growth[3] || 0,
+            },
+            peLow: {
+              [currentYear]: apiData.pe_low_est[0] || 0,
+              [projectionYears[0]]: apiData.pe_low_est[1] || 0,
+              [projectionYears[1]]: apiData.pe_low_est[2] || 0,
+              [projectionYears[2]]: apiData.pe_low_est[3] || 0,
+              [projectionYears[3]]: apiData.pe_low_est[4] || 0,
+            },
+            peHigh: {
+              [currentYear]: apiData.pe_high_est[0] || 0,
+              [projectionYears[0]]: apiData.pe_high_est[1] || 0,
+              [projectionYears[1]]: apiData.pe_high_est[2] || 0,
+              [projectionYears[2]]: apiData.pe_high_est[3] || 0,
+              [projectionYears[3]]: apiData.pe_high_est[4] || 0,
+            },
+          };
+        };
+
+        const bearInputs = convertApiToComponentFormat(result.data.bear_case);
+        const baseInputs = convertApiToComponentFormat(result.data.base_case);
+        const bullInputs = convertApiToComponentFormat(result.data.bull_case);
+
+        // Helper function to recalculate for a specific scenario
+        const recalculateForScenario = (inputs: ProjectionInputs, scenario: ScenarioType) => {
+          if (!projectionsState?.baseData?.revenue || !projectionsState?.baseData?.net_income) {
+            return;
+          }
+
+          const newProjections: CalculatedProjections = {
+            revenue: {},
+            netIncome: {},
+            netIncomeMargin: {},
+            eps: {},
+            sharePriceLow: {},
+            sharePriceHigh: {},
+            cagrLow: {},
+            cagrHigh: {}
+          };
+
+          const currentEPS = projectionsState?.baseData.eps || 0;
+          const currentPeLow = inputs.peLow[currentYear] || 0;
+          const currentPeHigh = inputs.peHigh[currentYear] || 0;
+          newProjections.sharePriceLow[currentYear] = calculateStockPrice(currentEPS, currentPeLow);
+          newProjections.sharePriceHigh[currentYear] = calculateStockPrice(currentEPS, currentPeHigh);
+
+          let previousRevenue = projectionsState?.baseData.revenue!;
+          let previousNetIncome = projectionsState?.baseData.net_income!;
+
+          projectionYears.forEach((year, index) => {
+            const yearsFromCurrent = index + 1;
+
+            const revenueGrowth = inputs.revenueGrowth[year] || 0;
+            const projectedRevenue = calculateProjectedRevenue(previousRevenue, revenueGrowth);
+            newProjections.revenue[year] = projectedRevenue;
+
+            const netIncomeGrowth = inputs.netIncomeGrowth[year] || 0;
+            const projectedNetIncome = netIncomeGrowth > 0 
+              ? calculateNetIncomeFromGrowth(previousNetIncome, netIncomeGrowth)
+              : 0;
+            newProjections.netIncome[year] = projectedNetIncome;
+
+            const projectedNetIncomeMargin = calculateNetIncomeMargin(projectedNetIncome, projectedRevenue);
+            newProjections.netIncomeMargin[year] = projectedNetIncomeMargin;
+
+            const sharesOutstanding = stockInfo?.data?.shares_outstanding;
+            let projectedEPS = 0;
+            
+            if (!sharesOutstanding) {
+              const fallbackShares = projectionsState?.baseData?.ticker === 'GOOG' ? 5430000000 : 952000000;
+              projectedEPS = calculateEPS(projectedNetIncome, fallbackShares);
+            } else {
+              projectedEPS = calculateEPS(projectedNetIncome, sharesOutstanding);
+            }
+            
+            newProjections.eps[year] = projectedEPS;
+
+            const peLow = inputs.peLow[year] || 0;
+            const peHigh = inputs.peHigh[year] || 0;
+            const priceLow = calculateStockPrice(projectedEPS, peLow);
+            const priceHigh = calculateStockPrice(projectedEPS, peHigh);
+            newProjections.sharePriceLow[year] = priceLow;
+            newProjections.sharePriceHigh[year] = priceHigh;
+
+            if (yearsFromCurrent >= 2) {
+              const currentPrice = stockInfo?.data?.price || 0;
+              if (currentPrice > 0) {
+                const cagrLow = calculateCAGR(priceLow, currentPrice, yearsFromCurrent);
+                const cagrHigh = calculateCAGR(priceHigh, currentPrice, yearsFromCurrent);
+                newProjections.cagrLow[year] = cagrLow;
+                newProjections.cagrHigh[year] = cagrHigh;
+              } else {
+                newProjections.cagrLow[year] = 0;
+                newProjections.cagrHigh[year] = 0;
+              }
+            }
+
+            previousRevenue = projectedRevenue;
+            previousNetIncome = projectedNetIncome;
+          });
+
+          // Update the specific scenario's calculated projections
+          setScenarioData(prev => ({
+            ...prev,
+            [scenario]: {
+              ...prev[scenario],
+              calculatedProjections: newProjections
+            }
+          }));
+        };
+
+        // Set scenario inputs and recalculate for each scenario
+        setScenarioData(prev => ({
+          bear: { 
+            projectionInputs: bearInputs, 
+            calculatedProjections: prev.bear.calculatedProjections
+          },
+          base: { 
+            projectionInputs: baseInputs, 
+            calculatedProjections: prev.base.calculatedProjections
+          },
+          bull: { 
+            projectionInputs: bullInputs, 
+            calculatedProjections: prev.bull.calculatedProjections
+          },
+        }));
+
+        // Recalculate for each scenario after state update
+        setTimeout(() => {
+          recalculateForScenario(bearInputs, 'bear');
+          recalculateForScenario(baseInputs, 'base');
+          recalculateForScenario(bullInputs, 'bull');
+        }, 0);
+
+        setHasSavedProjections(true);
+      } else {
+        setHasSavedProjections(false);
+      }
+    } catch (error) {
+      console.error('Failed to load saved projections:', error);
+      setHasSavedProjections(false);
+    }
+  }, [authenticatedFetch, projectionsState?.baseData, stockInfo?.data?.shares_outstanding, stockInfo?.data?.price, currentYear, projectionYears]);
+
+  // Save projections to API
+  const handleSaveProjections = async () => {
+    if (!stockSymbol) {
+      toast.error("Please select a ticker first");
+      return;
+    }
+
+    try {
+      // Convert component format to API format
+      const convertComponentToApiFormat = (inputs: ProjectionInputs) => {
+        return {
+          revenue_growth: [
+            inputs.revenueGrowth[projectionYears[0]] || 0,
+            inputs.revenueGrowth[projectionYears[1]] || 0,
+            inputs.revenueGrowth[projectionYears[2]] || 0,
+            inputs.revenueGrowth[projectionYears[3]] || 0,
+          ],
+          net_income_growth: [
+            inputs.netIncomeGrowth[projectionYears[0]] || 0,
+            inputs.netIncomeGrowth[projectionYears[1]] || 0,
+            inputs.netIncomeGrowth[projectionYears[2]] || 0,
+            inputs.netIncomeGrowth[projectionYears[3]] || 0,
+          ],
+          pe_low_est: [
+            inputs.peLow[currentYear] || 0,
+            inputs.peLow[projectionYears[0]] || 0,
+            inputs.peLow[projectionYears[1]] || 0,
+            inputs.peLow[projectionYears[2]] || 0,
+            inputs.peLow[projectionYears[3]] || 0,
+          ],
+          pe_high_est: [
+            inputs.peHigh[currentYear] || 0,
+            inputs.peHigh[projectionYears[0]] || 0,
+            inputs.peHigh[projectionYears[1]] || 0,
+            inputs.peHigh[projectionYears[2]] || 0,
+            inputs.peHigh[projectionYears[3]] || 0,
+          ],
+        };
+      };
+
+      const requestBody = {
+        bear_case: convertComponentToApiFormat(scenarioData.bear.projectionInputs),
+        base_case: convertComponentToApiFormat(scenarioData.base.projectionInputs),
+        bull_case: convertComponentToApiFormat(scenarioData.bull.projectionInputs),
+      };
+
+      const method = hasSavedProjections ? 'PUT' : 'POST';
+      const url = `${API_BASE_URL}/saved-projections?ticker=${stockSymbol.toUpperCase()}`;
+      
+      const response = await authenticatedFetch(url, {
+        method,
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        // Check if it's a CORS error
+        if (response.status === 0 || response.status === 400) {
+          try {
+            const errorText = await response.text();
+            if (errorText.includes('CORS') || errorText.includes('OPTIONS')) {
+              console.error('CORS Error: Backend CORS configuration needs to allow PUT method');
+              throw new Error('CORS configuration error: Backend must allow PUT method and handle OPTIONS preflight requests');
+            }
+          } catch (textError) {
+            // If we can't read the response, it might still be a CORS issue
+            console.error('Possible CORS error - check backend CORS configuration');
+          }
+        }
+        throw new Error(`Failed to save projections: ${response.status} ${response.statusText}`);
+      }
+
+      setHasSavedProjections(true);
+      toast.success("Projections saved");
+    } catch (error) {
+      console.error('Failed to save projections:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save projections';
+      
+      // Provide more specific error message for CORS issues
+      if (errorMessage.includes('CORS')) {
+        toast.error("CORS error: Backend configuration issue");
+        console.error('Backend CORS configuration must allow PUT method and handle OPTIONS preflight requests');
+      } else {
+        toast.error("Failed to save projections");
+      }
     }
   };
 
@@ -819,19 +1103,60 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     const isCurrentYear = year === currentYear.toString();
     const isPeMetric = metric === 'pe-low' || metric === 'pe-high';
     
+    // Clear any pending blur timeouts for ALL inputs
+    Object.keys(blurTimeoutsRef.current).forEach(key => {
+      if (blurTimeoutsRef.current[key]) {
+        clearTimeout(blurTimeoutsRef.current[key]);
+        delete blurTimeoutsRef.current[key];
+      }
+    });
+    
+    // Hide all buttons first, then show only the one for this input
+    setShowForwardButton({});
+    
     // Show button for:
     // 1. Projection years 2026, 2027, 2028 (not 2029 since it's the last year)
     // 2. Current year (2025) for PE metrics only
+    const key = `${metric}-${year}`;
     if ((yearIndex !== -1 && yearIndex < projectionYears.length - 1) || (isCurrentYear && isPeMetric)) {
-      setShowForwardButton({ [`${metric}-${year}`]: true });
+      setShowForwardButton({ [key]: true });
     }
   };
 
   const handleInputBlur = (metric: string, year: string) => {
-    // Hide button after a delay, unless it's being hovered
-    setTimeout(() => {
-      setShowForwardButton(prev => ({ ...prev, [`${metric}-${year}`]: false }));
-    }, 2000);
+    const key = `${metric}-${year}`;
+    const inputId = `${metric}-${year}`;
+    
+    // Clear any existing timeout for this input
+    if (blurTimeoutsRef.current[key]) {
+      clearTimeout(blurTimeoutsRef.current[key]);
+    }
+    
+    // Hide button after a delay, but only if the input is truly not focused
+    blurTimeoutsRef.current[key] = setTimeout(() => {
+      const inputElement = document.getElementById(inputId);
+      // Only hide if input is not focused AND not the active element
+      if (inputElement && document.activeElement !== inputElement) {
+        setShowForwardButton(prev => {
+          const newState = { ...prev };
+          delete newState[key];
+          return newState;
+        });
+      }
+      delete blurTimeoutsRef.current[key];
+    }, 100);
+  };
+
+  // Helper to keep button visible when interacting with it
+  const keepButtonVisible = (metric: string, year: string) => {
+    const key = `${metric}-${year}`;
+    // Clear any pending blur timeout
+    if (blurTimeoutsRef.current[key]) {
+      clearTimeout(blurTimeoutsRef.current[key]);
+      delete blurTimeoutsRef.current[key];
+    }
+    // Ensure button is visible
+    setShowForwardButton(prev => ({ ...prev, [key]: true }));
   };
 
   // Metric tooltip handlers
@@ -1001,6 +1326,11 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   // Check URL params first, then fall back to global ticker
   // Auto-fetch data when component mounts or ticker changes
   useEffect(() => {
+    // Skip if we're actively searching to prevent race conditions
+    if (isSearchingRef.current) {
+      return;
+    }
+    
     const urlTicker = searchParams.get('ticker');
     const tickerToLoad = urlTicker ? urlTicker.toUpperCase() : (globalTicker.currentTicker || 'AAPL');
     
@@ -1133,6 +1463,11 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
 
   // Sync input field when global ticker changes from other pages
   useEffect(() => {
+    // Skip if we're actively searching to prevent race conditions
+    if (isSearchingRef.current) {
+      return;
+    }
+    
     if (globalTicker.currentTicker && globalTicker.currentTicker !== stockSymbol) {
       setStockSymbol(globalTicker.currentTicker);
     }
@@ -1168,6 +1503,13 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       });
     }
   }, [scenarioData, activeScenario, stockSymbol, projectionsState?.baseData?.ticker, actions, isInitialLoad]);
+
+  // Load saved projections when ticker changes and base data is available
+  useEffect(() => {
+    if (stockSymbol && projectionsState?.baseData?.ticker === stockSymbol && !projectionsState?.loading) {
+      loadSavedProjections(stockSymbol);
+    }
+  }, [stockSymbol, projectionsState?.baseData?.ticker, projectionsState?.loading, loadSavedProjections]);
 
   return (
     <AppLayout user={loaderData.user}>
@@ -1224,15 +1566,24 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                       ))}
                     </nav>
                     
-                    {/* Reset All Button */}
-                    <Button
-                      onClick={handleResetAllProjections}
-                      variant="outline"
-                      className="cursor-pointer mb-3 bg-transparent border-gray-300 text-gray-500 px-6 py-3 rounded-md text-sm font-medium hover:text-red-500 hover:border-red-300 hover:bg-red-50 hover:cursor-pointer active:bg-red-100 active:cursor-pointer focus:outline-none focus:ring-0 focus:border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors duration-200"
-                    >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Reset All
-                    </Button>
+                    {/* Save and Reset All Buttons */}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleSaveProjections}
+                        className="cursor-pointer mb-3 px-6 py-3 rounded-md text-sm font-medium hover:cursor-pointer active:cursor-pointer"
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        Save
+                      </Button>
+                      <Button
+                        onClick={handleResetAllProjections}
+                        variant="outline"
+                        className="cursor-pointer mb-3 bg-transparent border-gray-300 text-gray-500 px-6 py-3 rounded-md text-sm font-medium hover:text-red-500 hover:border-red-300 hover:bg-red-50 hover:cursor-pointer active:bg-red-100 active:cursor-pointer focus:outline-none focus:ring-0 focus:border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors duration-200"
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Reset All
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1243,15 +1594,25 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                   <label htmlFor="scenario-select" className="block text-sm font-medium text-gray-700">
                     Scenario
                   </label>
-                  <Button 
-                    onClick={handleResetAllProjections}
-                    variant="outline"
-                    size="sm"
-                    className="cursor-pointer bg-transparent border-gray-300 text-gray-500 px-3 py-1 rounded-md text-xs font-medium hover:text-red-500 hover:border-red-300 hover:bg-red-50 hover:cursor-pointer active:bg-red-100 active:cursor-pointer focus:outline-none focus:ring-0 focus:border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors duration-200"
-                  >
-                    <RefreshCw className="w-3 h-3 mr-1" />
-                    Reset All
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleSaveProjections}
+                      size="sm"
+                      className="cursor-pointer px-3 py-1 rounded-md text-xs font-medium hover:cursor-pointer active:cursor-pointer"
+                    >
+                      <Save className="w-3 h-3 mr-1" />
+                      Save
+                    </Button>
+                    <Button 
+                      onClick={handleResetAllProjections}
+                      variant="outline"
+                      size="sm"
+                      className="cursor-pointer bg-transparent border-gray-300 text-gray-500 px-3 py-1 rounded-md text-xs font-medium hover:text-red-500 hover:border-red-300 hover:bg-red-50 hover:cursor-pointer active:bg-red-100 active:cursor-pointer focus:outline-none focus:ring-0 focus:border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors duration-200"
+                    >
+                      <RefreshCw className="w-3 h-3 mr-1" />
+                      Reset All
+                    </Button>
+                  </div>
                 </div>
                 <select
                   id="scenario-select"
@@ -1419,8 +1780,11 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                               />
                               {showForwardButton[`revenue-growth-${year}`] && index < projectionYears.length - 1 && (
                                 <button
-                                  onClick={() => handleForwardApply('revenueGrowth', year)}
-                                  onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`revenue-growth-${year}`]: true }))}
+                                  onClick={() => {
+                                    keepButtonVisible('revenue-growth', year);
+                                    handleForwardApply('revenueGrowth', year);
+                                  }}
+                                  onMouseEnter={() => keepButtonVisible('revenue-growth', year)}
                                   className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1 z-10"
                                   title="Apply to all future years"
                                 >
@@ -1465,8 +1829,11 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                               />
                               {showForwardButton[`net-income-growth-${year}`] && index < projectionYears.length - 1 && (
                                 <button
-                                  onClick={() => handleForwardApply('netIncomeGrowth', year)}
-                                  onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`net-income-growth-${year}`]: true }))}
+                                  onClick={() => {
+                                    keepButtonVisible('net-income-growth', year);
+                                    handleForwardApply('netIncomeGrowth', year);
+                                  }}
+                                  onMouseEnter={() => keepButtonVisible('net-income-growth', year)}
                                   className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1 z-10"
                                   title="Apply to all future years"
                                 >
@@ -1522,9 +1889,12 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                             />
                             {showForwardButton[`pe-low-${currentYear}`] && (
                               <button
-                                onClick={() => handleForwardApply('peLow', currentYear.toString())}
-                                onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`pe-low-${currentYear}`]: true }))}
-                                className="absolute -right-6 top-1/2 -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1 z-10"
+                                onClick={() => {
+                                  keepButtonVisible('pe-low', currentYear.toString());
+                                  handleForwardApply('peLow', currentYear.toString());
+                                }}
+                                onMouseEnter={() => keepButtonVisible('pe-low', currentYear.toString())}
+                                className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1 z-10"
                                 title="Apply to all future years"
                               >
                                 →
@@ -1550,8 +1920,11 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                               />
                               {showForwardButton[`pe-low-${year}`] && index < projectionYears.length - 1 && (
                                 <button
-                                  onClick={() => handleForwardApply('peLow', year)}
-                                  onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`pe-low-${year}`]: true }))}
+                                  onClick={() => {
+                                    keepButtonVisible('pe-low', year);
+                                    handleForwardApply('peLow', year);
+                                  }}
+                                  onMouseEnter={() => keepButtonVisible('pe-low', year)}
                                   className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1 z-10"
                                   title="Apply to all future years"
                                 >
@@ -1587,8 +1960,11 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                             />
                             {showForwardButton[`pe-high-${currentYear}`] && (
                               <button
-                                onClick={() => handleForwardApply('peHigh', currentYear.toString())}
-                                onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`pe-high-${currentYear}`]: true }))}
+                                onClick={() => {
+                                  keepButtonVisible('pe-high', currentYear.toString());
+                                  handleForwardApply('peHigh', currentYear.toString());
+                                }}
+                                onMouseEnter={() => keepButtonVisible('pe-high', currentYear.toString())}
                                 className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1 z-10"
                                 title="Apply to all future years"
                               >
@@ -1615,8 +1991,11 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
                               />
                               {showForwardButton[`pe-high-${year}`] && index < projectionYears.length - 1 && (
                                 <button
-                                  onClick={() => handleForwardApply('peHigh', year)}
-                                  onMouseEnter={() => setShowForwardButton(prev => ({ ...prev, [`pe-high-${year}`]: true }))}
+                                  onClick={() => {
+                                    keepButtonVisible('pe-high', year);
+                                    handleForwardApply('peHigh', year);
+                                  }}
+                                  onMouseEnter={() => keepButtonVisible('pe-high', year)}
                                   className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 bg-transparent hover:bg-blue-50 rounded text-blue-600 hover:text-blue-700 flex items-center justify-center cursor-pointer p-1 z-10"
                                   title="Apply to all future years"
                                 >
