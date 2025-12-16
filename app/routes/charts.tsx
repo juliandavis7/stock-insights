@@ -50,12 +50,8 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
     setTicker(initialTicker);
   }, []);
 
-  // Sync ticker input with global ticker changes
-  useEffect(() => {
-    if (globalTicker.currentTicker && globalTicker.currentTicker !== ticker) {
-      setTicker(globalTicker.currentTicker);
-    }
-  }, [globalTicker.currentTicker]);
+  // Note: Removed continuous sync that was overwriting user input.
+  // The initial state uses globalTicker.currentTicker, and URL params handle navigation.
 
   // Load data when global ticker or view mode changes
   useEffect(() => {
@@ -564,38 +560,19 @@ export default function ChartsPage({ loaderData }: Route.ComponentProps) {
                 onSearch={handleSearch}
                 loading={charts.loading || stockInfo.loading}
                 ticker={stockInfo.data?.ticker}
+                companyName={stockInfo.data?.name}
+                exchange={stockInfo.data?.exchange}
+                countryCode={stockInfo.data?.country_code}
                 stockPrice={stockInfo.data?.price}
                 marketCap={stockInfo.data?.market_cap}
+                sharesOutstanding={stockInfo.data?.shares_outstanding}
+                showSharesOutstanding={true}
                 formatCurrency={formatCurrency}
                 formatNumber={formatNumber}
                 error={stockInfo.error}
               />
               
-              {/* Error State - Only show non-404 errors */}
-              {((charts.error && !(
-                charts.error.toLowerCase().includes('not found') || 
-                charts.error.toLowerCase().includes('404') ||
-                charts.error.toLowerCase().includes('does not exist') ||
-                charts.error.toLowerCase().includes('failed to fetch charts for')
-              )) || (stockInfo.error && !(
-                stockInfo.error.toLowerCase().includes('not found') || 
-                stockInfo.error.toLowerCase().includes('404') ||
-                stockInfo.error.toLowerCase().includes('does not exist')
-              ))) && (
-                <div className="text-red-500 text-center mt-4 p-4 bg-red-50 rounded-lg max-w-md mx-auto">
-                  {charts.error && !(
-                    charts.error.toLowerCase().includes('not found') || 
-                    charts.error.toLowerCase().includes('404') ||
-                    charts.error.toLowerCase().includes('does not exist') ||
-                    charts.error.toLowerCase().includes('failed to fetch charts for')
-                  ) && <div>{charts.error}</div>}
-                  {stockInfo.error && !(
-                    stockInfo.error.toLowerCase().includes('not found') || 
-                    stockInfo.error.toLowerCase().includes('404') ||
-                    stockInfo.error.toLowerCase().includes('does not exist')
-                  ) && <div>{stockInfo.error}</div>}
-                </div>
-              )}
+              {/* Error State - Hide HTTP errors (400/500) from users */}
 
               {/* View Mode Toggle */}
               <div className="flex justify-center mt-6">

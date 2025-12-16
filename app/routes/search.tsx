@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router";
+import { useSearchParams, useNavigate } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Skeleton } from "~/components/ui/skeleton";
 import { AppLayout } from "~/components/app-layout";
 import { StockSearchHeader } from "~/components/stock-search-header";
 import { LoadingOverlay } from "~/components/LoadingOverlay";
@@ -142,6 +141,7 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
   const actions = useStockActions();
   const { authenticatedFetch } = useAuthenticatedFetch();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
   const [isPolling, setIsPolling] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -307,33 +307,26 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
     }
   };
 
-  // Check URL params first, then fall back to global ticker
-  // Load data for ticker on component mount and when it changes
+  // Load data on mount or when URL changes - only depend on URL params
   useEffect(() => {
     const urlTicker = searchParams.get('ticker');
-    const tickerToLoad = urlTicker ? urlTicker.toUpperCase() : (globalTicker.currentTicker || 'AAPL');
     
-    // Update global ticker and input field if URL has ticker
     if (urlTicker) {
+      // URL has ticker param - use that
       const upperTicker = urlTicker.toUpperCase();
-      if (upperTicker !== globalTicker.currentTicker) {
-        actions.setGlobalTicker(upperTicker);
-      }
-      if (upperTicker !== stockSymbol) {
-        setStockSymbol(upperTicker);
-      }
-    }
-    
-    // Always check if we need to fetch data for the current ticker
-    if (tickerToLoad && (!searchState?.data || searchState.data.ticker !== tickerToLoad)) {
-      fetchMetrics(tickerToLoad);
+      setStockSymbol(upperTicker);
+      fetchMetrics(upperTicker);
+    } else if (!searchState?.data) {
+      // No URL ticker and no data - load default
+      const defaultTicker = globalTicker.currentTicker || 'AAPL';
+      fetchMetrics(defaultTicker);
     }
     
     return () => {
       stopPolling();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, globalTicker.currentTicker]); // Depend on searchParams object and global ticker
+  }, [searchParams]); // Only depend on URL params, not global ticker
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -344,16 +337,14 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
 
   const handleSearchClick = () => {
     if (stockSymbol.trim()) {
-      fetchMetrics(stockSymbol.trim());
+      const ticker = stockSymbol.trim().toUpperCase();
+      // Update URL to reflect the new search
+      navigate(`/search?ticker=${ticker}`, { replace: true });
     }
   };
 
-  // Sync input field when global ticker changes from other pages
-  useEffect(() => {
-    if (globalTicker.currentTicker && globalTicker.currentTicker !== stockSymbol) {
-      setStockSymbol(globalTicker.currentTicker);
-    }
-  }, [globalTicker.currentTicker]);
+  // Note: Removed continuous sync that was overwriting user input.
+  // The initial state uses globalTicker.currentTicker, and URL params handle navigation.
 
   return (
     <AppLayout user={loaderData.user}>
@@ -366,80 +357,68 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
             onSearch={handleSearchClick}
             loading={searchState.loading || stockInfo.loading}
             ticker={stockInfo.data?.ticker}
+            companyName={stockInfo.data?.name}
+            exchange={stockInfo.data?.exchange}
+            countryCode={stockInfo.data?.country_code}
             stockPrice={stockInfo.data?.price}
             marketCap={stockInfo.data?.market_cap}
+            sharesOutstanding={stockInfo.data?.shares_outstanding}
+            showSharesOutstanding={true}
             formatCurrency={formatCurrency}
             formatNumber={formatNumber}
             error={stockInfo.error}
           />
 
-          {/* Error State - Only show non-404 errors */}
-          {(searchState.error || (stockInfo.error && !(
-            stockInfo.error.toLowerCase().includes('not found') || 
-            stockInfo.error.toLowerCase().includes('404') ||
-            stockInfo.error.toLowerCase().includes('does not exist')
-          ))) && (
-            <Card className="mb-4">
-              <CardContent className="pt-6">
-                <div className="text-red-600 text-center">
-                  {searchState.error && <div>{searchState.error}</div>}
-                  {stockInfo.error && !(
-                    stockInfo.error.toLowerCase().includes('not found') || 
-                    stockInfo.error.toLowerCase().includes('404') ||
-                    stockInfo.error.toLowerCase().includes('does not exist')
-                  ) && <div>{stockInfo.error}</div>}
+          {/* Error State - Hide HTTP errors (400/500) from users */}
+
+          {/* P/E Ratios Group */}
+          <div className="space-y-6">
+            <Card>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table id="search-pe-ratios-table" className="w-full table-fixed">
+                    <tbody>
+                      {/* Loading State */}
+                      {searchState.loading && (
+                        <tr>
+                          <td colSpan={4} className="py-12 text-center">
+                            <div className="flex flex-col items-center justify-center">
+                              <div className="w-12 h-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin mb-4" />
+                              <p className="text-gray-600">Loading data...</p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      
+                      {/* Data Rows - Only show when not loading */}
+                      {!searchState.loading && (
+                        <>
+                          <MetricRow
+                            metric="TTM PE"
+                            value={formatRatio(searchState.data?.ttm_pe)}
+                            benchmark="Many stocks trade at 20-28"
+                          />
+                          <MetricRow
+                            metric="Forward PE"
+                            value={formatRatio(searchState.data?.forward_pe)}
+                            benchmark="Many stocks trade at 18-26"
+                          />
+                          <MetricRow
+                            metric="2 Year Forward PE"
+                            value={formatRatio(searchState.data?.two_year_forward_pe)}
+                            benchmark="Many stocks trade at 16-24"
+                          />
+                        </>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
-          )}
 
-          {/* Loading State */}
-          {searchState.loading ? (
-            <Card className="relative min-h-[400px]">
-              <LoadingOverlay 
-                isLoading={searchState.loading || false}
-              />
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  <Skeleton className="h-8 w-full" />
-                  <div className="space-y-2">
-                    {[...Array(12)].map((_, i) => (
-                      <Skeleton key={i} className="h-12 w-full" />
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-6">
-              {/* P/E Ratios Group */}
-              <Card>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table id="search-pe-ratios-table" className="w-full table-fixed">
-                      <tbody>
-                        <MetricRow
-                          metric="TTM PE"
-                          value={formatRatio(searchState.data?.ttm_pe)}
-                          benchmark="Many stocks trade at 20-28"
-                        />
-                        <MetricRow
-                          metric="Forward PE"
-                          value={formatRatio(searchState.data?.forward_pe)}
-                          benchmark="Many stocks trade at 18-26"
-                        />
-                        <MetricRow
-                          metric="2 Year Forward PE"
-                          value={formatRatio(searchState.data?.two_year_forward_pe)}
-                          benchmark="Many stocks trade at 16-24"
-                        />
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* EPS Growth Group */}
+            {/* EPS Growth Group - Only show when not loading */}
+            {!searchState.loading && (
+              <>
               <Card>
                 <CardContent>
                   <div className="overflow-x-auto">
@@ -635,8 +614,9 @@ export default function SearchPage({ loaderData }: Route.ComponentProps) {
                   </div>
                 </CardContent>
               </Card>
-            </div>
-          )}
+              </>
+            )}
+          </div>
           </div>
         </div>
       </main>

@@ -12,6 +12,7 @@ export default [
   route("charts", "routes/charts.tsx"),
   route("projections", "routes/projections.tsx"),
   route("financials", "routes/financials.tsx"),
+  route("portfolio", "routes/portfolio.tsx"),
   route("sign-in/*", "routes/sign-in.tsx"),
   route("sign-up/*", "routes/sign-up.tsx"),
   route("auth-redirect", "routes/auth-redirect.tsx"),
