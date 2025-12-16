@@ -6,6 +6,7 @@ import {
   DollarSign,
   CreditCard,
   LogOut,
+  Briefcase,
 } from "lucide-react";
 import { Link, useLocation } from "react-router";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
@@ -52,6 +53,11 @@ const navItems = [
     title: "Financials",
     url: "/financials",
     icon: DollarSign,
+  },
+  {
+    title: "Portfolio",
+    url: "/portfolio",
+    icon: Briefcase,
   },
 ];
 

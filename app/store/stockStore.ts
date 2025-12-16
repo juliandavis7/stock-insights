@@ -127,6 +127,9 @@ interface ChartData {
 
 interface StockInfo {
   ticker: string;
+  name?: string | null;
+  exchange?: string | null;
+  country_code?: string | null;
   price: number;
   market_cap: number;
   shares_outstanding: number;
@@ -190,6 +193,34 @@ interface StockStore {
     viewMode: "quarterly" | "ttm";
   };
   
+  // Portfolio state
+  portfolio: {
+    data: {
+      holdings: Array<{
+        ticker: string;
+        name: string | null;
+        exchange: string | null;
+        country_code: string | null;
+        industry: string | null;
+        sector: string | null;
+        shares: number;
+        cost_basis: number;
+        market_value: number | null;
+        gain_loss_pct: number | null;
+        current_price: number | null;
+        pe_ratio: number | null;
+        percent_of_portfolio: number | null;
+      }>;
+      total_market_value: number;
+      total_cost_basis: number;
+      total_gain_loss_pct: number;
+      detected_format: string;
+      excluded_items: Array<{ ticker: string; reason: string }>;
+    } | null;
+    loading: boolean;
+    error: string | null;
+  };
+  
   // Global cache for all fetched data
   cache: {
     stockInfo: { [ticker: string]: { data: StockInfo; timestamp: number } };
@@ -203,6 +234,30 @@ interface StockStore {
     }};
     financials: { [ticker: string]: FinancialsData };
     charts: { [ticker: string]: ChartData };
+    portfolio: {
+      data: {
+        holdings: Array<{
+          ticker: string;
+          name: string | null;
+          exchange: string | null;
+          country_code: string | null;
+          industry: string | null;
+          sector: string | null;
+          shares: number;
+          cost_basis: number;
+          market_value: number | null;
+          gain_loss_pct: number | null;
+          current_price: number | null;
+          pe_ratio: number | null;
+          percent_of_portfolio: number | null;
+        }>;
+        total_market_value: number;
+        total_cost_basis: number;
+        total_gain_loss_pct: number;
+        detected_format: string;
+        excluded_items: Array<{ ticker: string; reason: string }>;
+      } | null;
+    };
   };
 
   // Actions
@@ -247,6 +302,32 @@ interface StockStore {
     setChartsError: (error: string | null) => void;
     setChartsViewMode: (viewMode: "quarterly" | "ttm") => void;
     
+    // Portfolio actions
+    setPortfolioData: (data: {
+      holdings: Array<{
+        ticker: string;
+        name: string | null;
+        exchange: string | null;
+        country_code: string | null;
+        industry: string | null;
+        sector: string | null;
+        shares: number;
+        cost_basis: number;
+        market_value: number | null;
+        gain_loss_pct: number | null;
+        current_price: number | null;
+        pe_ratio: number | null;
+        percent_of_portfolio: number | null;
+      }>;
+      total_market_value: number;
+      total_cost_basis: number;
+      total_gain_loss_pct: number;
+      detected_format: string;
+      excluded_items: Array<{ ticker: string; reason: string }>;
+    } | null) => void;
+    setPortfolioLoading: (loading: boolean) => void;
+    setPortfolioError: (error: string | null) => void;
+    
     // Cache actions
     getCachedStockInfo: (ticker: string) => StockInfo | null;
     getCachedMetrics: (ticker: string) => FinancialMetrics | null;
@@ -266,6 +347,29 @@ interface StockStore {
     clearScenarioProjectionsCache: (ticker?: string) => void;
     getCachedFinancials: (ticker: string) => FinancialsData | null;
     getCachedCharts: (ticker: string) => ChartData | null;
+    getCachedPortfolio: () => {
+      holdings: Array<{
+        ticker: string;
+        name: string | null;
+        exchange: string | null;
+        country_code: string | null;
+        industry: string | null;
+        sector: string | null;
+        shares: number;
+        cost_basis: number;
+        market_value: number | null;
+        gain_loss_pct: number | null;
+        current_price: number | null;
+        pe_ratio: number | null;
+        percent_of_portfolio: number | null;
+      }>;
+      total_market_value: number;
+      total_cost_basis: number;
+      total_gain_loss_pct: number;
+      detected_format: string;
+      excluded_items: Array<{ ticker: string; reason: string }>;
+    } | null;
+    clearPortfolioCache: () => void;
     
     // API actions
     fetchStockInfo: (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<StockInfo>;
@@ -273,6 +377,28 @@ interface StockStore {
     fetchProjections: (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<ProjectionBaseData>;
     fetchFinancials: (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<FinancialsData>;
     fetchCharts: (ticker: string, mode?: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<ChartData>;
+    fetchPortfolio: (authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => Promise<{
+      holdings: Array<{
+        ticker: string;
+        name: string | null;
+        exchange: string | null;
+        country_code: string | null;
+        industry: string | null;
+        sector: string | null;
+        shares: number;
+        cost_basis: number;
+        market_value: number | null;
+        gain_loss_pct: number | null;
+        current_price: number | null;
+        pe_ratio: number | null;
+        percent_of_portfolio: number | null;
+      }>;
+      total_market_value: number;
+      total_cost_basis: number;
+      total_gain_loss_pct: number;
+      detected_format: string;
+      excluded_items: Array<{ ticker: string; reason: string }>;
+    }>;
   };
 }
 
@@ -366,6 +492,12 @@ export const useStockStore = create<StockStore>()(
         viewMode: "quarterly",
       },
       
+      portfolio: {
+        data: null,
+        loading: false,
+        error: null,
+      },
+      
       cache: {
         stockInfo: {},
         metrics: {},
@@ -373,6 +505,9 @@ export const useStockStore = create<StockStore>()(
         scenarioProjections: {},
         financials: {},
         charts: {},
+        portfolio: {
+          data: null,
+        },
       },
 
       actions: {
@@ -571,7 +706,24 @@ export const useStockStore = create<StockStore>()(
         setChartsViewMode: (viewMode: "quarterly" | "ttm") => set((state) => ({
           charts: { ...state.charts, viewMode }
         }), false, 'setChartsViewMode'),
-
+        
+        // Portfolio actions
+        setPortfolioData: (data) => set((state) => ({
+          portfolio: { ...state.portfolio, data, error: null },
+          cache: {
+            ...state.cache,
+            portfolio: { data }
+          }
+        }), false, 'setPortfolioData'),
+        
+        setPortfolioLoading: (loading: boolean) => set((state) => ({
+          portfolio: { ...state.portfolio, loading }
+        }), false, 'setPortfolioLoading'),
+        
+        setPortfolioError: (error: string | null) => set((state) => ({
+          portfolio: { ...state.portfolio, error, loading: false }
+        }), false, 'setPortfolioError'),
+        
         // Cache actions
         getCachedStockInfo: (ticker: string) => {
           const state = get();
@@ -648,6 +800,18 @@ export const useStockStore = create<StockStore>()(
           const state = get();
           return state.cache.charts[ticker] || null;
         },
+        
+        getCachedPortfolio: () => {
+          const state = get();
+          return state.cache.portfolio.data;
+        },
+        
+        clearPortfolioCache: () => set((state) => ({
+          cache: {
+            ...state.cache,
+            portfolio: { data: null }
+          }
+        }), false, 'clearPortfolioCache'),
 
         // API actions
         fetchStockInfo: async (ticker: string, authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>): Promise<StockInfo> => {
@@ -885,6 +1049,41 @@ export const useStockStore = create<StockStore>()(
           
           return data;
         },
+        
+        fetchPortfolio: async (authenticatedFetch?: (url: string, options?: RequestInit) => Promise<Response>) => {
+          const { actions } = get();
+          
+          // Check cache first
+          const cached = actions.getCachedPortfolio();
+          if (cached) {
+            console.log('Using cached portfolio data');
+            // Update portfolio state even when using cached data
+            actions.setPortfolioData(cached);
+            return cached;
+          }
+          
+          console.log('Fetching portfolio data');
+          const fastApiUrl = import.meta.env.VITE_API_BASE_URL;
+          const fetchFn = authenticatedFetch || fetch;
+          const response = await fetchFn(`${fastApiUrl}/portfolio`);
+          
+          if (!response.ok) {
+            if (response.status === 404) {
+              // No portfolio found - return null
+              actions.setPortfolioData(null);
+              return null as any; // Return null for 404
+            }
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Failed to fetch portfolio: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          
+          // Cache the data and update state
+          actions.setPortfolioData(data);
+          
+          return data;
+        },
       },
     }),
     { name: 'stock-store' }
@@ -899,4 +1098,5 @@ export const useCompareState = () => useStockStore((state) => state.compare);
 export const useProjectionsState = () => useStockStore((state) => state.projections);
 export const useFinancialsState = () => useStockStore((state) => state.financials);
 export const useChartsState = () => useStockStore((state) => state.charts);
+export const usePortfolioState = () => useStockStore((state) => state.portfolio);
 export const useStockActions = () => useStockStore((state) => state.actions);

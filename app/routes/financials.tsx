@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { useSearchParams } from "react-router";
+import { useSearchParams, useNavigate } from "react-router";
 import { Card, CardContent } from "~/components/ui/card";
-import { Skeleton } from "~/components/ui/skeleton";
 import { AppLayout } from "~/components/app-layout";
 import { StockSearchHeader } from "~/components/stock-search-header";
 import { LoadingOverlay } from "~/components/LoadingOverlay";
@@ -285,6 +284,7 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
   const actions = useStockActions();
   const { authenticatedFetch } = useAuthenticatedFetch();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<'above' | 'below'>('above');
@@ -449,7 +449,9 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
   // Handle search click (no event parameter)
   const handleSearchClick = () => {
     if (stockSymbol.trim()) {
-      fetchFinancials(stockSymbol.trim().toUpperCase());
+      const ticker = stockSymbol.trim().toUpperCase();
+      // Update URL to reflect the new search
+      navigate(`/financials?ticker=${ticker}`, { replace: true });
     }
   };
 
@@ -493,43 +495,33 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
     }
   };
 
-  // Check URL params first, then fall back to global ticker
-  // Load data for ticker on component mount and when it changes
+  // Load data on mount or when URL changes - only depend on URL params
   useEffect(() => {
     const urlTicker = searchParams.get('ticker');
-    const tickerToLoad = urlTicker ? urlTicker.toUpperCase() : (globalTicker.currentTicker || 'AAPL');
     
-    // Update global ticker and input field if URL has ticker
     if (urlTicker) {
+      // URL has ticker param - use that
       const upperTicker = urlTicker.toUpperCase();
-      if (upperTicker !== globalTicker.currentTicker) {
-        actions.setGlobalTicker(upperTicker);
+      setStockSymbol(upperTicker);
+      if (!financialsState?.data || financialsState.data.ticker !== upperTicker) {
+        actions.setFinancialsLoading(true);
+        fetchFinancials(upperTicker);
       }
-      if (upperTicker !== stockSymbol) {
-        setStockSymbol(upperTicker);
-      }
-    }
-    
-    // Always check if we need to fetch data for the current ticker
-    if (tickerToLoad && (!financialsState?.data || financialsState.data.ticker !== tickerToLoad)) {
-      // Set loading state immediately BEFORE fetching
-      // This ensures overlay shows immediately when navigating to page
+    } else if (!financialsState?.data) {
+      // No URL ticker and no data - load default
+      const defaultTicker = globalTicker.currentTicker || 'AAPL';
       actions.setFinancialsLoading(true);
-      fetchFinancials(tickerToLoad);
+      fetchFinancials(defaultTicker);
     }
     
     return () => {
       stopPolling();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, globalTicker.currentTicker]); // Depend on searchParams object and global ticker
+  }, [searchParams]); // Only depend on URL params, not global ticker
 
-  // Sync input field when global ticker changes from other pages
-  useEffect(() => {
-    if (globalTicker.currentTicker && globalTicker.currentTicker !== stockSymbol) {
-      setStockSymbol(globalTicker.currentTicker);
-    }
-  }, [globalTicker.currentTicker]);
+  // Note: Removed continuous sync that was overwriting user input.
+  // The initial state uses globalTicker.currentTicker, and URL params handle navigation.
 
   const data = financialsState?.data;
   const loading = financialsState?.loading || stockInfo.loading || false;
@@ -560,73 +552,32 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
               onSearch={handleSearchClick}
               loading={loading}
               ticker={stockInfo.data?.ticker || data?.ticker}
+              companyName={stockInfo.data?.name}
+              exchange={stockInfo.data?.exchange}
+              countryCode={stockInfo.data?.country_code}
               stockPrice={stockInfo.data?.price || data?.price}
               marketCap={stockInfo.data?.market_cap || data?.market_cap}
+              sharesOutstanding={stockInfo.data?.shares_outstanding}
+              showSharesOutstanding={true}
               formatCurrency={formatLargeNumber}
               formatNumber={formatNumber}
               error={stockInfo.error}
             />
 
-            {/* Error State - Only show non-404 errors */}
-            {((error && !(
-              error.toLowerCase().includes('not found') || 
-              error.toLowerCase().includes('404') ||
-              error.toLowerCase().includes('does not exist') ||
-              error.toLowerCase().includes('failed to fetch financials for')
-            )) || (stockInfo.error && !(
-              stockInfo.error.toLowerCase().includes('not found') || 
-              stockInfo.error.toLowerCase().includes('404') ||
-              stockInfo.error.toLowerCase().includes('does not exist')
-            ))) && (
-              <Card className="mb-4">
-                <CardContent className="pt-6">
-                  <div className="text-red-600 text-center">
-                    {error && !(
-                      error.toLowerCase().includes('not found') || 
-                      error.toLowerCase().includes('404') ||
-                      error.toLowerCase().includes('does not exist') ||
-                      error.toLowerCase().includes('failed to fetch financials for')
-                    ) && <div>{error}</div>}
-                    {stockInfo.error && !(
-                      stockInfo.error.toLowerCase().includes('not found') || 
-                      stockInfo.error.toLowerCase().includes('404') ||
-                      stockInfo.error.toLowerCase().includes('does not exist')
-                    ) && <div>{stockInfo.error}</div>}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Error State - Hide HTTP errors (400/500) from users */}
 
-            {/* Loading State */}
-            {loading ? (
-              <Card className="mt-8 relative min-h-[400px]">
-                <LoadingOverlay 
-                  isLoading={loading || isPolling || false}
-                />
-                <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    <Skeleton className="h-8 w-full" />
-                    <div className="space-y-2">
-                      {[...Array(12)].map((_, i) => (
-                        <Skeleton key={i} className="h-12 w-full" />
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              /* Financial Metrics Table */
-              <Card className="mt-8 relative min-h-[400px]">
-                <LoadingOverlay 
-                  isLoading={loading || isPolling || false}
-                />
-                <CardContent className="pt-2 pb-5">
-                  <div id="financials-metrics-table" className="overflow-x-auto">
-                    <table className="w-full table-fixed">
-                      {/* Table Header */}
-                      <thead>
-                        <tr id="financials-table-header" className="border-b border-gray-200">
-                          <th id="metric-column" className="py-2 pl-3 pr-0 text-left font-bold text-gray-900 text-sm uppercase tracking-wider w-[200px]">
+            {/* Financial Metrics Table */}
+            <Card className="relative min-h-[400px]">
+              <LoadingOverlay 
+                isLoading={loading || isPolling || false}
+              />
+              <CardContent className="pt-2 pb-5">
+                <div id="financials-metrics-table" className="overflow-x-auto">
+                  <table className="w-full table-fixed">
+                    {/* Table Header */}
+                    <thead>
+                      <tr id="financials-table-header" className="border-b border-gray-200">
+                        <th id="metric-column" className="py-2 pl-3 pr-0 text-left font-bold text-gray-900 text-sm uppercase tracking-wider w-[200px]">
                             <div className="flex items-center gap-2">
                               <span>METRIC</span>
                               <div className="relative">
@@ -696,6 +647,21 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                         </tr>
                       </thead>
                       <tbody id="financials-table-sections">
+                        {/* Loading State */}
+                        {loading && (
+                          <tr>
+                            <td colSpan={allYears.length + 1} className="py-12 text-center">
+                              <div className="flex flex-col items-center justify-center">
+                                <div className="w-12 h-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin mb-4" />
+                                <p className="text-gray-600">Loading data...</p>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        
+                        {/* Data Rows - Only show when not loading */}
+                        {!loading && (
+                          <>
                         {/* Revenue & Profitability Section */}
                         <tr className="bg-gray-50">
                           <td colSpan={allYears.length + 1} className="py-2 pl-3 pr-0 font-semibold text-gray-900 text-xs uppercase tracking-wider">
@@ -816,12 +782,13 @@ export default function Financials({ loaderData }: Route.ComponentProps) {
                           getEstimateValue={(year) => data?.estimates?.find(e => e.fiscalYear === year)?.dilutedEps || null}
                           formatter={formatEPS}
                         />
+                        </>
+                      )}
                       </tbody>
                     </table>
                   </div>
                 </CardContent>
               </Card>
-            )}
           </div>
         </div>
       </main>

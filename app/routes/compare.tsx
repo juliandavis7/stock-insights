@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -277,100 +276,85 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
               </div>
             </div>
 
-            {/* Error States */}
-            {compareState?.errors && Object.values(compareState.errors).some(error => error) && (
-              <Card className="mt-6">
-                <CardContent className="pt-6">
-                  <div className="space-y-2">
-                    {Object.entries(compareState.errors).map(([index, error]) => 
-                      error ? (
-                        <div key={index} className="text-red-600">
-                          {compareState.tickers?.[parseInt(index)]}: {error}
-                        </div>
-                      ) : null
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Loading State */}
-            {isLoading && (
-              <Card className="mt-6">
-                <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    <Skeleton className="h-8 w-full" />
-                    <div className="space-y-2">
-                      {[...Array(13)].map((_, i) => (
-                        <Skeleton key={i} className="h-12 w-full" />
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             {/* Comparison Results */}
-            {!isLoading && (
-              <div className="space-y-6 mt-6">
-                {/* P/E Ratios Group */}
-                <Card>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <table id="compare-pe-ratios-table" className="w-full table-fixed">
-                        <tbody>
-                          <MetricRow
-                            metric="TTM PE"
-                            ticker1={compareState?.tickers?.[0] || ''}
-                            ticker2={compareState?.tickers?.[1] || ''}
-                            ticker3={compareState?.tickers?.[2] || ''}
-                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
-                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
-                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
-                            metricKey="ttm_pe"
-                            formatter={formatRatio}
-                            benchmark="Many stocks trade at 20-28"
-                            higherIsBetter={false}
-                          />
-                          <MetricRow
-                            metric="Forward PE"
-                            ticker1={compareState?.tickers?.[0] || ''}
-                            ticker2={compareState?.tickers?.[1] || ''}
-                            ticker3={compareState?.tickers?.[2] || ''}
-                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
-                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
-                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
-                            metricKey="forward_pe"
-                            formatter={formatRatio}
-                            benchmark="Many stocks trade at 18-26"
-                            higherIsBetter={false}
-                          />
-                          <MetricRow
-                            metric="2 Year Forward PE"
-                            ticker1={compareState?.tickers?.[0] || ''}
-                            ticker2={compareState?.tickers?.[1] || ''}
-                            ticker3={compareState?.tickers?.[2] || ''}
-                            data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
-                            data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
-                            data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
-                            metricKey="two_year_forward_pe"
-                            formatter={formatRatio}
-                            benchmark="Many stocks trade at 16-24"
-                            higherIsBetter={false}
-                          />
-                        </tbody>
+            <div className="space-y-6 mt-6">
+              {/* P/E Ratios Group */}
+              <Card>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table id="compare-pe-ratios-table" className="w-full table-fixed">
+                      <tbody>
+                        {/* Loading State */}
+                        {isLoading && (
+                          <tr>
+                            <td colSpan={4} className="py-12 text-center">
+                              <div className="flex flex-col items-center justify-center">
+                                <div className="w-12 h-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin mb-4" />
+                                <p className="text-gray-600">Loading data...</p>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        
+                        {/* Data Rows - Only show when not loading */}
+                        {!isLoading && (
+                          <>
+                            <MetricRow
+                              metric="TTM PE"
+                              ticker1={compareState?.tickers?.[0] || ''}
+                              ticker2={compareState?.tickers?.[1] || ''}
+                              ticker3={compareState?.tickers?.[2] || ''}
+                              data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                              data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                              data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                              metricKey="ttm_pe"
+                              formatter={formatRatio}
+                              benchmark="Many stocks trade at 20-28"
+                              higherIsBetter={false}
+                            />
+                            <MetricRow
+                              metric="Forward PE"
+                              ticker1={compareState?.tickers?.[0] || ''}
+                              ticker2={compareState?.tickers?.[1] || ''}
+                              ticker3={compareState?.tickers?.[2] || ''}
+                              data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                              data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                              data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                              metricKey="forward_pe"
+                              formatter={formatRatio}
+                              benchmark="Many stocks trade at 18-26"
+                              higherIsBetter={false}
+                            />
+                            <MetricRow
+                              metric="2 Year Forward PE"
+                              ticker1={compareState?.tickers?.[0] || ''}
+                              ticker2={compareState?.tickers?.[1] || ''}
+                              ticker3={compareState?.tickers?.[2] || ''}
+                              data1={compareState?.data?.[compareState?.tickers?.[0] || ''] || null}
+                              data2={compareState?.data?.[compareState?.tickers?.[1] || ''] || null}
+                              data3={compareState?.data?.[compareState?.tickers?.[2] || ''] || null}
+                              metricKey="two_year_forward_pe"
+                              formatter={formatRatio}
+                              benchmark="Many stocks trade at 16-24"
+                              higherIsBetter={false}
+                            />
+                          </>
+                        )}
+                      </tbody>
                       </table>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* EPS Growth Group */}
-                <Card>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <table id="compare-eps-growth-table" className="w-full table-fixed">
-                        <tbody>
-                          <MetricRow
+                {/* EPS Growth Group - Only show when not loading */}
+                {!isLoading && (
+                  <>
+                  <Card>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table id="compare-eps-growth-table" className="w-full table-fixed">
+                          <tbody>
+                            <MetricRow
                             metric="TTM EPS Growth"
                             ticker1={compareState?.tickers?.[0] || ''}
                             ticker2={compareState?.tickers?.[1] || ''}
@@ -737,8 +721,9 @@ export default function Compare({ loaderData }: Route.ComponentProps) {
                     </div>
                   </CardContent>
                 </Card>
+                  </>
+                )}
               </div>
-            )}
           </div>
         </div>
       </main>

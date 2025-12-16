@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useSearchParams } from "react-router";
+import { useSearchParams, useNavigate } from "react-router";
 import { Card, CardContent } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Input } from "~/components/ui/input";
@@ -314,6 +314,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
   const actions = useStockActions();
   const { authenticatedFetch } = useAuthenticatedFetch();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [stockSymbol, setStockSymbol] = useState(globalTicker.currentTicker || 'AAPL');
   const [showForwardButton, setShowForwardButton] = useState<{[key: string]: boolean}>({});
   const blurTimeoutsRef = useRef<{[key: string]: NodeJS.Timeout}>({});
@@ -531,6 +532,9 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     
     // Capture the ticker we're searching for to prevent race conditions
     const tickerToSearch = stockSymbol.trim().toUpperCase();
+    
+    // Update URL to reflect the new search
+    navigate(`/projections?ticker=${tickerToSearch}`, { replace: true });
     
     // Mark that we're actively searching to prevent race conditions
     isSearchingRef.current = true;
@@ -1323,8 +1327,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     }
   }, [projectionsState?.baseData, projectionsState?.projectionInputs, stockInfo]);
 
-  // Check URL params first, then fall back to global ticker
-  // Auto-fetch data when component mounts or ticker changes
+  // Load data on mount or when URL changes - only depend on URL params
   useEffect(() => {
     // Skip if we're actively searching to prevent race conditions
     if (isSearchingRef.current) {
@@ -1334,12 +1337,9 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
     const urlTicker = searchParams.get('ticker');
     const tickerToLoad = urlTicker ? urlTicker.toUpperCase() : (globalTicker.currentTicker || 'AAPL');
     
-    // Update global ticker and input field if URL has ticker
+    // Update input field if URL has ticker
     if (urlTicker) {
       const upperTicker = urlTicker.toUpperCase();
-      if (upperTicker !== globalTicker.currentTicker) {
-        actions.setGlobalTicker(upperTicker);
-      }
       if (upperTicker !== stockSymbol) {
         setStockSymbol(upperTicker);
       }
@@ -1459,7 +1459,7 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       stopPolling();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, globalTicker.currentTicker]); // Depend on searchParams object and global ticker
+  }, [searchParams]); // Only depend on URL params, not global ticker
 
   // Sync input field when global ticker changes from other pages
   useEffect(() => {
@@ -1468,10 +1468,9 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
       return;
     }
     
-    if (globalTicker.currentTicker && globalTicker.currentTicker !== stockSymbol) {
-      setStockSymbol(globalTicker.currentTicker);
-    }
-  }, [globalTicker.currentTicker]);
+    // Note: Removed continuous sync that was overwriting user input.
+    // The initial state uses globalTicker.currentTicker, and URL params handle navigation.
+  }, []);
 
   // Restore cached scenario projections when component loads or ticker changes
   useEffect(() => {
@@ -1524,6 +1523,9 @@ export default function ProjectionsPage({ loaderData }: Route.ComponentProps) {
               onSearch={performSearch}
               loading={projectionsState?.loading || stockInfo.loading || false}
               ticker={stockInfo.data?.ticker || stockSymbol}
+              companyName={stockInfo.data?.name}
+              exchange={stockInfo.data?.exchange}
+              countryCode={stockInfo.data?.country_code}
               stockPrice={stockInfo.data?.price}
               marketCap={stockInfo.data?.market_cap}
               sharesOutstanding={stockInfo.data?.shares_outstanding}
